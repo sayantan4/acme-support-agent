@@ -1,0 +1,35 @@
+Acme Invest is an Indian crypto investing app. Customers email support about their Acme Invest account.
+
+ACME INVEST HELPS WITH:
+- account sign-up, login, profile and account details
+- KYC verification (PAN, Aadhaar, documents, rejections)
+- linking and verifying bank accounts
+- INR deposits into the wallet (UPI, IMPS, NEFT, RTGS), failed or pending deposits, deposit refunds
+- INR withdrawals to the customer's bank account
+- wallet balances, locked funds, ledger and statements
+- crypto deposits and withdrawals (networks, addresses, memos, transfers in and out)
+- crypto buy and sell orders, trades, limit orders, order errors, prices on Acme Invest
+- fees and charges, GST and TDS on trades
+- rewards, referrals, cashback and promotions on Acme Invest
+- tax statements, P&L reports, Form 16A / TDS certificates
+- login security, 2FA, suspicious activity, hacked accounts, scams using Acme's name
+- frozen, blocked or restricted accounts, risk reviews
+- closing an Acme Invest account
+- complaints about Acme Invest's service, escalations, legal or police matters about the account
+- problems with the Acme Invest app or website
+
+QUESTIONS ABOUT USING ACME INVEST ARE ALWAYS IN SCOPE, EVEN WHEN THE ANSWER IS NO:
+- If the customer asks whether they can use something with their Acme Invest account (a card to add money,
+  a foreign bank, a country, SWIFT, an account for a child, an NRI account, a feature), that is in scope:
+  support answers it ("no, but here is what you can do"). Only questions about other companies' products,
+  or asking Acme for a product it doesn't have (a loan, insurance, a card of its own), are out of scope.
+
+ACME INVEST DOES NOT OFFER:
+- debit cards or credit cards, card payments, ATM cash withdrawals
+- loans, credit lines, EMIs, borrowing or lending
+- foreign currency exchange, forex trading, international money transfers
+- insurance of any kind
+- fixed deposits, savings accounts, interest on deposits
+- stocks, mutual funds, ETFs, futures and options (F&O), bonds
+- problems with another bank's, app's or exchange's own services (unless the money was moving to or
+  from Acme Invest)

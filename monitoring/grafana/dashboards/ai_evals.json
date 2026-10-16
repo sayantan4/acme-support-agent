@@ -1,0 +1,3452 @@
+{
+  "uid": "ai-evals",
+  "title": "AI evals: retrieval and agent",
+  "tags": [
+    "ai",
+    "evals"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 3,
+  "refresh": "",
+  "editable": true,
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "system",
+        "label": "Retrieval system",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "ai_analyzer_pg"
+        },
+        "refresh": 1,
+        "query": "SELECT DISTINCT system FROM eval_runs WHERE kind = 'retrieval' ORDER BY 1",
+        "sort": 0,
+        "includeAll": false,
+        "multi": false,
+        "current": {},
+        "options": []
+      },
+      {
+        "name": "agent_run",
+        "label": "Main agent eval run",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "ai_analyzer_pg"
+        },
+        "refresh": 1,
+        "query": "SELECT id AS __value, version || ' · ' || suite || ' · ' || to_char(run_at, 'MM-DD HH24:MI') || ' · ' || case_count || ' cases' AS __text FROM eval_runs WHERE kind = 'agent' ORDER BY run_at DESC",
+        "sort": 0,
+        "includeAll": false,
+        "multi": false,
+        "current": {},
+        "options": []
+      },
+      {
+        "name": "gate_run",
+        "label": "Gate eval run",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "ai_analyzer_pg"
+        },
+        "refresh": 1,
+        "query": "SELECT id AS __value, version || CASE WHEN version = 'scope-v3' THEN ' (in use)' ELSE '' END || ' · ' || suite || ' · ' || case_count || ' cases' AS __text FROM eval_runs WHERE kind = 'gate' ORDER BY (version = 'scope-v3') DESC, version DESC, run_at DESC",
+        "sort": 0,
+        "includeAll": false,
+        "multi": false,
+        "current": {},
+        "options": []
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Eval sets: how many cases, and every eval run so far",
+      "collapsed": false,
+      "panels": [],
+      "id": 1,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Retrieval eval cases",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT count(*) FROM eval_retrieval_cases WHERE eval_run_id = (SELECT id FROM eval_runs WHERE kind = 'retrieval' ORDER BY run_at DESC LIMIT 1)"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "id": 2,
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Scored cases (has a findable right SOP)",
+      "description": "hit@k and MRR are measured on these. In-scope cases whose right SOP is a support guideline (never searched) are not scored, like in the eval runner.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT count(*) FILTER (WHERE NOT is_out_of_scope AND json_array_length(expected_ids) > 0) FROM eval_retrieval_cases WHERE eval_run_id = (SELECT id FROM eval_runs WHERE kind = 'retrieval' ORDER BY run_at DESC LIMIT 1)"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "id": 3,
+      "gridPos": {
+        "x": 3,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Out of scope",
+      "description": "Emails Acme's SOPs don't cover; used to test 'nothing fits' detection.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT count(*) FILTER (WHERE is_out_of_scope) FROM eval_retrieval_cases WHERE eval_run_id = (SELECT id FROM eval_runs WHERE kind = 'retrieval' ORDER BY run_at DESC LIMIT 1)"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "id": 4,
+      "gridPos": {
+        "x": 6,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Retrieval systems evaluated",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT count(DISTINCT system) FROM eval_runs WHERE kind = 'retrieval'"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "id": 5,
+      "gridPos": {
+        "x": 9,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Gate eval cases",
+      "description": "Latest gate eval run over all cases.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT case_count FROM eval_runs WHERE kind = 'gate' AND suite = 'all' ORDER BY run_at DESC LIMIT 1"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "id": 160,
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Gate versions evaluated",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT count(DISTINCT version) FROM eval_runs WHERE kind = 'gate'"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "id": 161,
+      "gridPos": {
+        "x": 15,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Agent eval cases (latest per suite)",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT sum(case_count) FROM (SELECT DISTINCT ON (suite) case_count FROM eval_runs WHERE kind = 'agent' ORDER BY suite, run_at DESC) AS latest"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "id": 6,
+      "gridPos": {
+        "x": 18,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Eval runs imported",
+      "description": "Every eval run writes a results file; `python -m ai_analyzer evals-import` loads it (the runners do it automatically).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT count(*) FROM eval_runs"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "id": 7,
+      "gridPos": {
+        "x": 21,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "table",
+      "title": "Retrieval eval sets",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nSELECT c.eval_file, count(*) AS cases,\n       count(*) FILTER (WHERE NOT c.is_out_of_scope AND json_array_length(c.expected_ids) > 0) AS scored,\n       count(*) FILTER (WHERE NOT c.is_out_of_scope AND json_array_length(c.expected_ids) = 0) AS not_scorable,\n       count(*) FILTER (WHERE c.is_out_of_scope) AS out_of_scope,\n       count(DISTINCT c.category) AS categories,\n       CASE c.eval_file\n         WHEN 'evals.json' THEN 'hand-labelled, one per SOP topic'\n         WHEN 'evals_long.json' THEN 'long, messy emails'\n         WHEN 'evals_banking77.json' THEN 'Banking77 (PolyAI), localised'\n         WHEN 'evals_cfpb.json' THEN 'real CFPB complaints, LLM-labelled, localised'\n         ELSE '' END AS source\nFROM eval_retrieval_cases c\nWHERE c.eval_run_id = (SELECT id FROM eval_runs WHERE kind = 'retrieval' ORDER BY run_at DESC LIMIT 1)\nGROUP BY c.eval_file ORDER BY cases DESC"
+        }
+      ],
+      "transformations": [],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          }
+        },
+        "overrides": []
+      },
+      "id": 8,
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 7
+      }
+    },
+    {
+      "type": "table",
+      "title": "Agent eval suites (latest run of each)",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nSELECT DISTINCT ON (suite) suite, version AS agent_prompt, judge_version AS judge_prompt,\n       to_char(run_at, 'YYYY-MM-DD HH24:MI') AS run_at, case_count AS cases,\n       (summary->>'passed')::int AS passed\nFROM eval_runs WHERE kind = 'agent' ORDER BY suite, run_at DESC"
+        }
+      ],
+      "transformations": [],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          }
+        },
+        "overrides": []
+      },
+      "id": 9,
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 7
+      }
+    },
+    {
+      "type": "table",
+      "title": "Every eval run (history)",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nSELECT id, kind, system, nullif(version, '') AS version, nullif(judge_version, '') AS judge, suite,\n       to_char(run_at, 'YYYY-MM-DD HH24:MI') AS run_at, case_count AS cases, source_file\nFROM eval_runs ORDER BY run_at DESC"
+        }
+      ],
+      "transformations": [],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          }
+        },
+        "overrides": []
+      },
+      "id": 10,
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 24,
+        "h": 7
+      }
+    },
+    {
+      "type": "row",
+      "title": "Retrieval: BM25 vs Dense vs Hybrid vs Hybrid + reranker (latest run of each system)",
+      "collapsed": false,
+      "panels": [],
+      "id": 11,
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "table",
+      "title": "Retrieval systems compared",
+      "description": "hit@k: the right SOP is in the top k. MRR: 1 / rank of the right SOP, averaged. Lenient: a closely related SOP also counts. Latency is per query (the reranker adds an LLM call).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nWITH latest AS (SELECT DISTINCT ON (system) * FROM eval_runs WHERE kind = 'retrieval' ORDER BY system, run_at DESC)\nSELECT l.system, to_char(l.run_at, 'YYYY-MM-DD HH24:MI') AS run_at, m.case_count AS in_scope_cases,\n       round((100 * m.hit_at_1)::numeric, 1) AS \"hit@1 %\", round((100 * m.hit_at_3)::numeric, 1) AS \"hit@3 %\",\n       round((100 * m.lenient_hit_at_3)::numeric, 1) AS \"lenient hit@3 %\", round(m.mrr::numeric, 3) AS mrr,\n       m.p50_ms, m.p95_ms, m.p99_ms, m.max_ms\nFROM latest l JOIN eval_retrieval_metrics m ON m.eval_run_id = l.id AND m.scope = 'overall'\nORDER BY m.hit_at_3 DESC"
+        }
+      ],
+      "transformations": [],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          }
+        },
+        "overrides": []
+      },
+      "id": 12,
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 24,
+        "h": 6
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Quality by system (scored cases)",
+      "description": "hit@k: share of the 417 scored emails whose right SOP is in the top k. Lenient: a closely related SOP also counts. MRR: average of 1/rank of the right SOP (rank 1 = 1.0, rank 2 = 0.5, not found = 0), shown x100 to share the axis (0.628 -> 62.8).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nWITH latest AS (SELECT DISTINCT ON (system) * FROM eval_runs WHERE kind = 'retrieval' ORDER BY system, run_at DESC)\nSELECT l.system, round((100 * m.hit_at_1)::numeric, 1) AS \"hit@1\", round((100 * m.hit_at_3)::numeric, 1) AS \"hit@3\",\n       round((100 * m.lenient_hit_at_3)::numeric, 1) AS \"lenient hit@3\", round((100 * m.mrr)::numeric, 1) AS \"MRR x100\"\nFROM latest l JOIN eval_retrieval_metrics m ON m.eval_run_id = l.id AND m.scope = 'overall'\nORDER BY m.hit_at_3"
+        }
+      ],
+      "options": {
+        "orientation": "vertical",
+        "stacking": "none",
+        "xField": "system",
+        "showValue": "auto",
+        "groupWidth": 0.75,
+        "barWidth": 0.9,
+        "xTickLabelRotation": 0,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "custom": {
+            "fillOpacity": 85,
+            "lineWidth": 0
+          }
+        },
+        "overrides": []
+      },
+      "id": 13,
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 14,
+        "h": 9
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Latency per query by system (log scale)",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nWITH latest AS (SELECT DISTINCT ON (system) * FROM eval_runs WHERE kind = 'retrieval' ORDER BY system, run_at DESC)\nSELECT l.system, m.p50_ms AS p50, m.p95_ms AS p95, m.p99_ms AS p99\nFROM latest l JOIN eval_retrieval_metrics m ON m.eval_run_id = l.id AND m.scope = 'overall'\nWHERE m.p50_ms IS NOT NULL ORDER BY m.p50_ms"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "stacking": "none",
+        "xField": "system",
+        "showValue": "auto",
+        "groupWidth": 0.75,
+        "barWidth": 0.9,
+        "xTickLabelRotation": 0,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 1,
+          "custom": {
+            "fillOpacity": 85,
+            "lineWidth": 0,
+            "scaleDistribution": {
+              "type": "log",
+              "log": 10
+            }
+          }
+        },
+        "overrides": []
+      },
+      "id": 14,
+      "gridPos": {
+        "x": 14,
+        "y": 26,
+        "w": 10,
+        "h": 9
+      }
+    },
+    {
+      "type": "table",
+      "title": "hit@3 % by eval set and system",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nWITH latest AS (SELECT DISTINCT ON (system) * FROM eval_runs WHERE kind = 'retrieval' ORDER BY system, run_at DESC)\nSELECT m.name AS eval_set, l.system, round((100 * m.hit_at_3)::numeric, 1) AS hit_at_3\nFROM latest l JOIN eval_retrieval_metrics m ON m.eval_run_id = l.id AND m.scope = 'file'\nORDER BY m.name, l.system"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "eval_set",
+            "columnField": "system",
+            "valueField": "hit_at_3",
+            "emptyValue": "null"
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          },
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byType",
+              "options": "number"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-RdYlGr"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "id": 15,
+      "gridPos": {
+        "x": 0,
+        "y": 35,
+        "w": 12,
+        "h": 7
+      }
+    },
+    {
+      "type": "table",
+      "title": "hit@3 % by category and system",
+      "description": "Where each system is strong or weak, e.g. BM25 on exact codes, dense on paraphrases.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nWITH latest AS (SELECT DISTINCT ON (system) * FROM eval_runs WHERE kind = 'retrieval' ORDER BY system, run_at DESC)\nSELECT m.name AS category, l.system, round((100 * m.hit_at_3)::numeric, 1) AS hit_at_3\nFROM latest l JOIN eval_retrieval_metrics m ON m.eval_run_id = l.id AND m.scope = 'category'\nORDER BY m.name, l.system"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "category",
+            "columnField": "system",
+            "valueField": "hit_at_3",
+            "emptyValue": "null"
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          },
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byType",
+              "options": "number"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-RdYlGr"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "id": 16,
+      "gridPos": {
+        "x": 12,
+        "y": 35,
+        "w": 12,
+        "h": 12
+      }
+    },
+    {
+      "type": "table",
+      "title": "Out-of-scope detection: best score cut-off per eval set",
+      "description": "If the top score is below the cut-off, treat the email as 'no SOP fits'. Caught = out-of-scope emails it correctly rejects.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nWITH latest AS (SELECT DISTINCT ON (system) * FROM eval_runs WHERE kind = 'retrieval' ORDER BY system, run_at DESC)\nSELECT l.system, f.key AS eval_set,\n       round((f.value->>'threshold')::numeric, 2) AS cutoff,\n       round((100 * (f.value->>'accuracy')::numeric), 1) AS \"accuracy %\",\n       (f.value->>'out_of_scope_caught') || ' / ' || (f.value->>'out_of_scope_count') AS out_of_scope_caught,\n       (f.value->>'in_scope_kept') || ' / ' || (f.value->>'in_scope_count') AS in_scope_kept\nFROM latest l, json_each(l.summary->'score_cutoffs') AS f\nORDER BY eval_set, l.system"
+        }
+      ],
+      "transformations": [],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          }
+        },
+        "overrides": []
+      },
+      "id": 17,
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 12,
+        "h": 5
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "hit@3 % over eval runs (history)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nSELECT r.run_at AS \"time\", r.system AS metric, round((100 * m.hit_at_3)::numeric, 1) AS value\nFROM eval_runs r JOIN eval_retrieval_metrics m ON m.eval_run_id = r.id AND m.scope = 'overall'\nWHERE r.kind = 'retrieval' ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "showPoints": "always",
+            "pointSize": 8,
+            "spanNulls": true,
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "id": 18,
+      "gridPos": {
+        "x": 0,
+        "y": 47,
+        "w": 24,
+        "h": 7
+      }
+    },
+    {
+      "type": "row",
+      "title": "Retrieval: case explorer for $system",
+      "collapsed": false,
+      "panels": [],
+      "id": 19,
+      "gridPos": {
+        "x": 0,
+        "y": 54,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "table",
+      "title": "Misses for $system: the right SOP is not in the top 3",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nWITH latest AS (SELECT DISTINCT ON (system) * FROM eval_runs WHERE kind = 'retrieval' ORDER BY system, run_at DESC)\nSELECT c.case_id, c.eval_file, c.category, c.expected_ids::text AS expected,\n       coalesce(c.expected_rank::text, 'not in top 20') AS found_at_rank, c.top_5_ids::text AS top_5,\n       left(c.query, 300) AS query\nFROM latest l JOIN eval_retrieval_cases c ON c.eval_run_id = l.id\nWHERE l.system = '${system}' AND NOT c.is_out_of_scope AND json_array_length(c.expected_ids) > 0 AND (c.expected_rank IS NULL OR c.expected_rank > 3)\nORDER BY c.eval_file, c.case_id"
+        }
+      ],
+      "transformations": [],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            }
+          }
+        },
+        "overrides": []
+      },
+      "id": 20,
+      "gridPos": {
+        "x": 0,
+        "y": 55,
+        "w": 24,
+        "h": 10
+      }
+    },
+    {
+      "type": "table",
+      "title": "Rank of the right SOP per system (scored cases; empty = not in top 20)",
+      "description": "Compare systems case by case: where the reranker rescues a case, or where BM25 beats dense.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nWITH latest AS (SELECT DISTINCT ON (system) * FROM eval_runs WHERE kind = 'retrieval' ORDER BY system, run_at DESC)\nSELECT c.eval_file || ' / ' || c.case_id AS \"case\", l.system, c.expected_rank AS rank\nFROM latest l JOIN eval_retrieval_cases c ON c.eval_run_id = l.id\nWHERE NOT c.is_out_of_scope AND json_array_length(c.expected_ids) > 0 ORDER BY 1, 2"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "case",
+            "columnField": "system",
+            "valueField": "rank",
+            "emptyValue": "null"
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          },
+          "unit": "none"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byType",
+              "options": "number"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-RdYlGr"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "id": 21,
+      "gridPos": {
+        "x": 0,
+        "y": 65,
+        "w": 24,
+        "h": 10
+      }
+    },
+    {
+      "type": "row",
+      "title": "Orchestrator (gate + main agent): the whole system, for the selected gate and main agent eval runs",
+      "id": 100,
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 75,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "text",
+      "title": "",
+      "id": 101,
+      "gridPos": {
+        "x": 0,
+        "y": 76,
+        "w": 24,
+        "h": 2
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "The **orchestrator** is what C1 calls for each thread: the **scope gate** decides, then **in_scope / mixed** go to the **main agent** and **no_issue / out_of_scope** get a template. Routing numbers are **measured** on the selected gate eval run. Cost and latency per message are **estimates**: gate cost + (share routed to the agent x main agent cost per case) from the selected main agent run. There is no joint end-to-end eval run yet."
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Routing accuracy",
+      "description": "Main agent or not: did each message go the right way? (selected gate run)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT routing_accuracy FROM (\nWITH classes AS (SELECT unnest(ARRAY['in_scope', 'mixed', 'no_issue', 'out_of_scope']) AS cls),\nper_class AS (\n  SELECT c.eval_run_id, k.cls,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision = k.cls) AS tp,\n         count(*) FILTER (WHERE c.expected <> k.cls AND c.decision = k.cls) AS fp,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision <> k.cls) AS fn\n  FROM eval_gate_cases c CROSS JOIN classes k GROUP BY 1, 2),\nf1 AS (SELECT eval_run_id, avg(2.0 * tp / nullif(2 * tp + fp + fn, 0)) FILTER (WHERE tp + fn > 0) AS macro_f1\n       FROM per_class GROUP BY 1),\ngm AS (\n  SELECT r.id, r.version, r.suite, r.run_at, count(*) AS cases,\n    100.0 * count(*) FILTER (WHERE c.decision = c.expected) / count(*) AS accuracy,\n    100.0 * count(*) FILTER (WHERE (c.expected IN ('in_scope', 'mixed')) = (c.decision IN ('in_scope', 'mixed'))) / count(*) AS routing_accuracy,\n    count(*) FILTER (WHERE c.wrongly_rejected) AS turned_away,\n    100.0 * count(*) FILTER (WHERE c.wrongly_rejected) / nullif(count(*) FILTER (WHERE c.expected IN ('in_scope', 'mixed')), 0) AS turned_away_pct,\n    100.0 * count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed') AND c.decision IN ('in_scope', 'mixed'))\n          / nullif(count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed')), 0) AS extra_agent_runs_pct,\n    100.0 * count(*) FILTER (WHERE c.decision NOT IN ('in_scope', 'mixed')) / count(*) AS skipped_agent_pct,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.expected = 'out_of_scope'), 0) AS oos_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.decision = 'out_of_scope'), 0) AS oos_precision,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.expected = 'no_issue'), 0) AS no_issue_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.decision = 'no_issue'), 0) AS no_issue_precision,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY c.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY c.seconds) AS p95_s,\n    avg(c.input_tokens + c.output_tokens) AS tokens,\n    avg((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_message\n  FROM eval_runs r JOIN eval_gate_cases c ON c.eval_run_id = r.id LEFT JOIN model_prices p ON p.model = 'gpt-5.4-nano'\n  WHERE r.kind = 'gate' GROUP BY r.id),\ngate AS (SELECT gm.*, 100 * f1.macro_f1 AS macro_f1 FROM gm JOIN f1 ON f1.eval_run_id = gm.id) SELECT * FROM gate WHERE id::text = '${gate_run}') s"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      },
+      "id": 102,
+      "gridPos": {
+        "x": 0,
+        "y": 79,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Real issues turned away",
+      "description": "Real Acme issues sent to a template instead of the main agent. The worst mistake; lower is better.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT turned_away_pct FROM (\nWITH classes AS (SELECT unnest(ARRAY['in_scope', 'mixed', 'no_issue', 'out_of_scope']) AS cls),\nper_class AS (\n  SELECT c.eval_run_id, k.cls,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision = k.cls) AS tp,\n         count(*) FILTER (WHERE c.expected <> k.cls AND c.decision = k.cls) AS fp,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision <> k.cls) AS fn\n  FROM eval_gate_cases c CROSS JOIN classes k GROUP BY 1, 2),\nf1 AS (SELECT eval_run_id, avg(2.0 * tp / nullif(2 * tp + fp + fn, 0)) FILTER (WHERE tp + fn > 0) AS macro_f1\n       FROM per_class GROUP BY 1),\ngm AS (\n  SELECT r.id, r.version, r.suite, r.run_at, count(*) AS cases,\n    100.0 * count(*) FILTER (WHERE c.decision = c.expected) / count(*) AS accuracy,\n    100.0 * count(*) FILTER (WHERE (c.expected IN ('in_scope', 'mixed')) = (c.decision IN ('in_scope', 'mixed'))) / count(*) AS routing_accuracy,\n    count(*) FILTER (WHERE c.wrongly_rejected) AS turned_away,\n    100.0 * count(*) FILTER (WHERE c.wrongly_rejected) / nullif(count(*) FILTER (WHERE c.expected IN ('in_scope', 'mixed')), 0) AS turned_away_pct,\n    100.0 * count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed') AND c.decision IN ('in_scope', 'mixed'))\n          / nullif(count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed')), 0) AS extra_agent_runs_pct,\n    100.0 * count(*) FILTER (WHERE c.decision NOT IN ('in_scope', 'mixed')) / count(*) AS skipped_agent_pct,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.expected = 'out_of_scope'), 0) AS oos_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.decision = 'out_of_scope'), 0) AS oos_precision,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.expected = 'no_issue'), 0) AS no_issue_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.decision = 'no_issue'), 0) AS no_issue_precision,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY c.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY c.seconds) AS p95_s,\n    avg(c.input_tokens + c.output_tokens) AS tokens,\n    avg((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_message\n  FROM eval_runs r JOIN eval_gate_cases c ON c.eval_run_id = r.id LEFT JOIN model_prices p ON p.model = 'gpt-5.4-nano'\n  WHERE r.kind = 'gate' GROUP BY r.id),\ngate AS (SELECT gm.*, 100 * f1.macro_f1 AS macro_f1 FROM gm JOIN f1 ON f1.eval_run_id = gm.id) SELECT * FROM gate WHERE id::text = '${gate_run}') s"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          }
+        },
+        "overrides": []
+      },
+      "id": 103,
+      "gridPos": {
+        "x": 4,
+        "y": 79,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Skip the main agent",
+      "description": "On this eval set's mix of messages; real traffic has a different mix.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT skipped_agent_pct FROM (\nWITH classes AS (SELECT unnest(ARRAY['in_scope', 'mixed', 'no_issue', 'out_of_scope']) AS cls),\nper_class AS (\n  SELECT c.eval_run_id, k.cls,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision = k.cls) AS tp,\n         count(*) FILTER (WHERE c.expected <> k.cls AND c.decision = k.cls) AS fp,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision <> k.cls) AS fn\n  FROM eval_gate_cases c CROSS JOIN classes k GROUP BY 1, 2),\nf1 AS (SELECT eval_run_id, avg(2.0 * tp / nullif(2 * tp + fp + fn, 0)) FILTER (WHERE tp + fn > 0) AS macro_f1\n       FROM per_class GROUP BY 1),\ngm AS (\n  SELECT r.id, r.version, r.suite, r.run_at, count(*) AS cases,\n    100.0 * count(*) FILTER (WHERE c.decision = c.expected) / count(*) AS accuracy,\n    100.0 * count(*) FILTER (WHERE (c.expected IN ('in_scope', 'mixed')) = (c.decision IN ('in_scope', 'mixed'))) / count(*) AS routing_accuracy,\n    count(*) FILTER (WHERE c.wrongly_rejected) AS turned_away,\n    100.0 * count(*) FILTER (WHERE c.wrongly_rejected) / nullif(count(*) FILTER (WHERE c.expected IN ('in_scope', 'mixed')), 0) AS turned_away_pct,\n    100.0 * count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed') AND c.decision IN ('in_scope', 'mixed'))\n          / nullif(count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed')), 0) AS extra_agent_runs_pct,\n    100.0 * count(*) FILTER (WHERE c.decision NOT IN ('in_scope', 'mixed')) / count(*) AS skipped_agent_pct,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.expected = 'out_of_scope'), 0) AS oos_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.decision = 'out_of_scope'), 0) AS oos_precision,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.expected = 'no_issue'), 0) AS no_issue_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.decision = 'no_issue'), 0) AS no_issue_precision,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY c.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY c.seconds) AS p95_s,\n    avg(c.input_tokens + c.output_tokens) AS tokens,\n    avg((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_message\n  FROM eval_runs r JOIN eval_gate_cases c ON c.eval_run_id = r.id LEFT JOIN model_prices p ON p.model = 'gpt-5.4-nano'\n  WHERE r.kind = 'gate' GROUP BY r.id),\ngate AS (SELECT gm.*, 100 * f1.macro_f1 AS macro_f1 FROM gm JOIN f1 ON f1.eval_run_id = gm.id) SELECT * FROM gate WHERE id::text = '${gate_run}') s"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          }
+        },
+        "overrides": []
+      },
+      "id": 104,
+      "gridPos": {
+        "x": 8,
+        "y": 79,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Main agent pass rate",
+      "description": "Selected main agent eval run: every check and the LLM judge passed.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT pass_rate FROM (\nWITH chk AS (\n  SELECT eval_run_id,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'escalation') AS escalation,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'reply_decision') AS reply_decision,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'sop') AS sop,\n    100.0 * avg(passed::int) FILTER (WHERE name IN ('tools_called', 'tools_not_called')) AS tools,\n    100.0 * avg(passed::int) FILTER (WHERE name IN ('no_internal_terms', 'max_words', 'not_a_repeat', 'must_contain_any')) AS reply_rules\n  FROM eval_agent_checks GROUP BY 1),\ncs AS (\n  SELECT a.eval_run_id, count(*) AS cases, 100.0 * avg(a.passed::int) AS pass_rate,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY a.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY a.seconds) AS p95_s,\n    avg(a.input_tokens + a.output_tokens) AS tokens, avg((greatest(a.input_tokens - a.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + a.cached_tokens * coalesce(p.cached_input_per_1m, 0) + a.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_case\n  FROM eval_agent_cases a LEFT JOIN model_prices p ON p.model = 'gpt-5.4-mini' GROUP BY 1),\nagent AS (\n  SELECT r.id, r.version, r.judge_version, r.suite, r.run_at, cs.cases, cs.pass_rate, chk.escalation,\n    (r.summary->>'missed_escalations')::int AS missed_escalations,\n    (r.summary->>'unneeded_escalations')::int AS unneeded_escalations,\n    chk.reply_decision, chk.sop, chk.tools, chk.reply_rules,\n    100 * (r.summary->>'judge_rubric_item_pass_rate')::numeric AS judge_rubric,\n    100 * (r.summary->>'judge_grounded_rate')::numeric AS grounded,\n    cs.p50_s, cs.p95_s, cs.tokens, cs.cost_per_case\n  FROM eval_runs r JOIN cs ON cs.eval_run_id = r.id LEFT JOIN chk ON chk.eval_run_id = r.id\n  WHERE r.kind = 'agent') SELECT * FROM agent WHERE id::text = '${agent_run}') s"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      },
+      "id": 105,
+      "gridPos": {
+        "x": 12,
+        "y": 79,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Cost per 1k messages (est.)",
+      "description": "Gate on every message + main agent on the share routed to it (token prices from model_prices).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH g AS (\nWITH classes AS (SELECT unnest(ARRAY['in_scope', 'mixed', 'no_issue', 'out_of_scope']) AS cls),\nper_class AS (\n  SELECT c.eval_run_id, k.cls,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision = k.cls) AS tp,\n         count(*) FILTER (WHERE c.expected <> k.cls AND c.decision = k.cls) AS fp,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision <> k.cls) AS fn\n  FROM eval_gate_cases c CROSS JOIN classes k GROUP BY 1, 2),\nf1 AS (SELECT eval_run_id, avg(2.0 * tp / nullif(2 * tp + fp + fn, 0)) FILTER (WHERE tp + fn > 0) AS macro_f1\n       FROM per_class GROUP BY 1),\ngm AS (\n  SELECT r.id, r.version, r.suite, r.run_at, count(*) AS cases,\n    100.0 * count(*) FILTER (WHERE c.decision = c.expected) / count(*) AS accuracy,\n    100.0 * count(*) FILTER (WHERE (c.expected IN ('in_scope', 'mixed')) = (c.decision IN ('in_scope', 'mixed'))) / count(*) AS routing_accuracy,\n    count(*) FILTER (WHERE c.wrongly_rejected) AS turned_away,\n    100.0 * count(*) FILTER (WHERE c.wrongly_rejected) / nullif(count(*) FILTER (WHERE c.expected IN ('in_scope', 'mixed')), 0) AS turned_away_pct,\n    100.0 * count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed') AND c.decision IN ('in_scope', 'mixed'))\n          / nullif(count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed')), 0) AS extra_agent_runs_pct,\n    100.0 * count(*) FILTER (WHERE c.decision NOT IN ('in_scope', 'mixed')) / count(*) AS skipped_agent_pct,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.expected = 'out_of_scope'), 0) AS oos_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.decision = 'out_of_scope'), 0) AS oos_precision,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.expected = 'no_issue'), 0) AS no_issue_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.decision = 'no_issue'), 0) AS no_issue_precision,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY c.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY c.seconds) AS p95_s,\n    avg(c.input_tokens + c.output_tokens) AS tokens,\n    avg((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_message\n  FROM eval_runs r JOIN eval_gate_cases c ON c.eval_run_id = r.id LEFT JOIN model_prices p ON p.model = 'gpt-5.4-nano'\n  WHERE r.kind = 'gate' GROUP BY r.id),\ngate AS (SELECT gm.*, 100 * f1.macro_f1 AS macro_f1 FROM gm JOIN f1 ON f1.eval_run_id = gm.id) SELECT * FROM gate WHERE id::text = '${gate_run}'), a AS (\nWITH chk AS (\n  SELECT eval_run_id,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'escalation') AS escalation,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'reply_decision') AS reply_decision,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'sop') AS sop,\n    100.0 * avg(passed::int) FILTER (WHERE name IN ('tools_called', 'tools_not_called')) AS tools,\n    100.0 * avg(passed::int) FILTER (WHERE name IN ('no_internal_terms', 'max_words', 'not_a_repeat', 'must_contain_any')) AS reply_rules\n  FROM eval_agent_checks GROUP BY 1),\ncs AS (\n  SELECT a.eval_run_id, count(*) AS cases, 100.0 * avg(a.passed::int) AS pass_rate,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY a.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY a.seconds) AS p95_s,\n    avg(a.input_tokens + a.output_tokens) AS tokens, avg((greatest(a.input_tokens - a.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + a.cached_tokens * coalesce(p.cached_input_per_1m, 0) + a.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_case\n  FROM eval_agent_cases a LEFT JOIN model_prices p ON p.model = 'gpt-5.4-mini' GROUP BY 1),\nagent AS (\n  SELECT r.id, r.version, r.judge_version, r.suite, r.run_at, cs.cases, cs.pass_rate, chk.escalation,\n    (r.summary->>'missed_escalations')::int AS missed_escalations,\n    (r.summary->>'unneeded_escalations')::int AS unneeded_escalations,\n    chk.reply_decision, chk.sop, chk.tools, chk.reply_rules,\n    100 * (r.summary->>'judge_rubric_item_pass_rate')::numeric AS judge_rubric,\n    100 * (r.summary->>'judge_grounded_rate')::numeric AS grounded,\n    cs.p50_s, cs.p95_s, cs.tokens, cs.cost_per_case\n  FROM eval_runs r JOIN cs ON cs.eval_run_id = r.id LEFT JOIN chk ON chk.eval_run_id = r.id\n  WHERE r.kind = 'agent') SELECT * FROM agent WHERE id::text = '${agent_run}')\nSELECT 1000 * (g.cost_per_message + (100 - g.skipped_agent_pct) / 100 * a.cost_per_case)\nFROM g, a"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "id": 106,
+      "gridPos": {
+        "x": 16,
+        "y": 79,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "In-scope latency p50 (est.)",
+      "description": "Gate p50 + main agent p50: the gate runs first, then the agent.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH g AS (\nWITH classes AS (SELECT unnest(ARRAY['in_scope', 'mixed', 'no_issue', 'out_of_scope']) AS cls),\nper_class AS (\n  SELECT c.eval_run_id, k.cls,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision = k.cls) AS tp,\n         count(*) FILTER (WHERE c.expected <> k.cls AND c.decision = k.cls) AS fp,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision <> k.cls) AS fn\n  FROM eval_gate_cases c CROSS JOIN classes k GROUP BY 1, 2),\nf1 AS (SELECT eval_run_id, avg(2.0 * tp / nullif(2 * tp + fp + fn, 0)) FILTER (WHERE tp + fn > 0) AS macro_f1\n       FROM per_class GROUP BY 1),\ngm AS (\n  SELECT r.id, r.version, r.suite, r.run_at, count(*) AS cases,\n    100.0 * count(*) FILTER (WHERE c.decision = c.expected) / count(*) AS accuracy,\n    100.0 * count(*) FILTER (WHERE (c.expected IN ('in_scope', 'mixed')) = (c.decision IN ('in_scope', 'mixed'))) / count(*) AS routing_accuracy,\n    count(*) FILTER (WHERE c.wrongly_rejected) AS turned_away,\n    100.0 * count(*) FILTER (WHERE c.wrongly_rejected) / nullif(count(*) FILTER (WHERE c.expected IN ('in_scope', 'mixed')), 0) AS turned_away_pct,\n    100.0 * count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed') AND c.decision IN ('in_scope', 'mixed'))\n          / nullif(count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed')), 0) AS extra_agent_runs_pct,\n    100.0 * count(*) FILTER (WHERE c.decision NOT IN ('in_scope', 'mixed')) / count(*) AS skipped_agent_pct,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.expected = 'out_of_scope'), 0) AS oos_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.decision = 'out_of_scope'), 0) AS oos_precision,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.expected = 'no_issue'), 0) AS no_issue_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.decision = 'no_issue'), 0) AS no_issue_precision,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY c.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY c.seconds) AS p95_s,\n    avg(c.input_tokens + c.output_tokens) AS tokens,\n    avg((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_message\n  FROM eval_runs r JOIN eval_gate_cases c ON c.eval_run_id = r.id LEFT JOIN model_prices p ON p.model = 'gpt-5.4-nano'\n  WHERE r.kind = 'gate' GROUP BY r.id),\ngate AS (SELECT gm.*, 100 * f1.macro_f1 AS macro_f1 FROM gm JOIN f1 ON f1.eval_run_id = gm.id) SELECT * FROM gate WHERE id::text = '${gate_run}'), a AS (\nWITH chk AS (\n  SELECT eval_run_id,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'escalation') AS escalation,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'reply_decision') AS reply_decision,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'sop') AS sop,\n    100.0 * avg(passed::int) FILTER (WHERE name IN ('tools_called', 'tools_not_called')) AS tools,\n    100.0 * avg(passed::int) FILTER (WHERE name IN ('no_internal_terms', 'max_words', 'not_a_repeat', 'must_contain_any')) AS reply_rules\n  FROM eval_agent_checks GROUP BY 1),\ncs AS (\n  SELECT a.eval_run_id, count(*) AS cases, 100.0 * avg(a.passed::int) AS pass_rate,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY a.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY a.seconds) AS p95_s,\n    avg(a.input_tokens + a.output_tokens) AS tokens, avg((greatest(a.input_tokens - a.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + a.cached_tokens * coalesce(p.cached_input_per_1m, 0) + a.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_case\n  FROM eval_agent_cases a LEFT JOIN model_prices p ON p.model = 'gpt-5.4-mini' GROUP BY 1),\nagent AS (\n  SELECT r.id, r.version, r.judge_version, r.suite, r.run_at, cs.cases, cs.pass_rate, chk.escalation,\n    (r.summary->>'missed_escalations')::int AS missed_escalations,\n    (r.summary->>'unneeded_escalations')::int AS unneeded_escalations,\n    chk.reply_decision, chk.sop, chk.tools, chk.reply_rules,\n    100 * (r.summary->>'judge_rubric_item_pass_rate')::numeric AS judge_rubric,\n    100 * (r.summary->>'judge_grounded_rate')::numeric AS grounded,\n    cs.p50_s, cs.p95_s, cs.tokens, cs.cost_per_case\n  FROM eval_runs r JOIN cs ON cs.eval_run_id = r.id LEFT JOIN chk ON chk.eval_run_id = r.id\n  WHERE r.kind = 'agent') SELECT * FROM agent WHERE id::text = '${agent_run}') SELECT g.p50_s + a.p50_s FROM g, a"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 1,
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "id": 107,
+      "gridPos": {
+        "x": 20,
+        "y": 79,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "table",
+      "title": "Where messages went (selected gate run)",
+      "description": "Binary view of the gate: does the message reach the main agent or not?",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT needs, routed_to, outcome, messages,\n       round(100.0 * messages / sum(messages) OVER (PARTITION BY needs), 1) AS \"% of group\"\nFROM (\n  SELECT CASE WHEN c.expected IN ('in_scope', 'mixed') THEN 'needs agent' ELSE 'needs no agent' END AS needs,\n         CASE WHEN c.decision IN ('in_scope', 'mixed') THEN 'agent' ELSE 'template' END AS routed_to,\n         CASE WHEN (c.expected IN ('in_scope', 'mixed')) = (c.decision IN ('in_scope', 'mixed')) THEN 'right'\n              WHEN c.expected IN ('in_scope', 'mixed') THEN 'WRONG: turned away' ELSE 'wrong: extra agent run' END AS outcome,\n         count(*) AS messages\n  FROM eval_gate_cases c WHERE c.eval_run_id::text = '${gate_run}' GROUP BY 1, 2, 3) AS routed\nORDER BY needs, outcome DESC"
+        }
+      ],
+      "transformations": [],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "outcome"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "regex",
+                    "options": {
+                      "pattern": "^right$",
+                      "result": {
+                        "color": "green"
+                      }
+                    }
+                  },
+                  {
+                    "type": "regex",
+                    "options": {
+                      "pattern": "^WRONG.*",
+                      "result": {
+                        "color": "red"
+                      }
+                    }
+                  },
+                  {
+                    "type": "regex",
+                    "options": {
+                      "pattern": "^wrong.*",
+                      "result": {
+                        "color": "orange"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "id": 108,
+      "gridPos": {
+        "x": 0,
+        "y": 83,
+        "w": 10,
+        "h": 8
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Routing by gate version",
+      "description": "All eval cases. Turned away: real issues sent to a template (lower is better). Extra agent runs: messages that needed no agent but got one (costs one run).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH classes AS (SELECT unnest(ARRAY['in_scope', 'mixed', 'no_issue', 'out_of_scope']) AS cls),\nper_class AS (\n  SELECT c.eval_run_id, k.cls,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision = k.cls) AS tp,\n         count(*) FILTER (WHERE c.expected <> k.cls AND c.decision = k.cls) AS fp,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision <> k.cls) AS fn\n  FROM eval_gate_cases c CROSS JOIN classes k GROUP BY 1, 2),\nf1 AS (SELECT eval_run_id, avg(2.0 * tp / nullif(2 * tp + fp + fn, 0)) FILTER (WHERE tp + fn > 0) AS macro_f1\n       FROM per_class GROUP BY 1),\ngm AS (\n  SELECT r.id, r.version, r.suite, r.run_at, count(*) AS cases,\n    100.0 * count(*) FILTER (WHERE c.decision = c.expected) / count(*) AS accuracy,\n    100.0 * count(*) FILTER (WHERE (c.expected IN ('in_scope', 'mixed')) = (c.decision IN ('in_scope', 'mixed'))) / count(*) AS routing_accuracy,\n    count(*) FILTER (WHERE c.wrongly_rejected) AS turned_away,\n    100.0 * count(*) FILTER (WHERE c.wrongly_rejected) / nullif(count(*) FILTER (WHERE c.expected IN ('in_scope', 'mixed')), 0) AS turned_away_pct,\n    100.0 * count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed') AND c.decision IN ('in_scope', 'mixed'))\n          / nullif(count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed')), 0) AS extra_agent_runs_pct,\n    100.0 * count(*) FILTER (WHERE c.decision NOT IN ('in_scope', 'mixed')) / count(*) AS skipped_agent_pct,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.expected = 'out_of_scope'), 0) AS oos_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.decision = 'out_of_scope'), 0) AS oos_precision,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.expected = 'no_issue'), 0) AS no_issue_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.decision = 'no_issue'), 0) AS no_issue_precision,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY c.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY c.seconds) AS p95_s,\n    avg(c.input_tokens + c.output_tokens) AS tokens,\n    avg((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_message\n  FROM eval_runs r JOIN eval_gate_cases c ON c.eval_run_id = r.id LEFT JOIN model_prices p ON p.model = 'gpt-5.4-nano'\n  WHERE r.kind = 'gate' GROUP BY r.id),\ngate AS (SELECT gm.*, 100 * f1.macro_f1 AS macro_f1 FROM gm JOIN f1 ON f1.eval_run_id = gm.id)\nSELECT version AS gate, round(routing_accuracy, 1) AS \"routing accuracy\", round(turned_away_pct, 1) AS \"real issues turned away\",\n       round(extra_agent_runs_pct, 1) AS \"extra agent runs (no-agent messages sent to it)\"\nFROM gate WHERE id IN (SELECT DISTINCT ON (version) id FROM eval_runs WHERE kind = 'gate' AND suite = 'all' ORDER BY version, run_at DESC) ORDER BY version"
+        }
+      ],
+      "options": {
+        "orientation": "vertical",
+        "stacking": "none",
+        "xField": "gate",
+        "showValue": "auto",
+        "groupWidth": 0.75,
+        "barWidth": 0.9,
+        "xTickLabelRotation": 0,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "custom": {
+            "fillOpacity": 85,
+            "lineWidth": 0
+          }
+        },
+        "overrides": []
+      },
+      "id": 109,
+      "gridPos": {
+        "x": 10,
+        "y": 83,
+        "w": 14,
+        "h": 8
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Est. cost per 1,000 messages by gate version (with the selected main agent)",
+      "description": "Stacked: what the gate costs on every message, and the main agent on the share it receives.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH a AS (\nWITH chk AS (\n  SELECT eval_run_id,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'escalation') AS escalation,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'reply_decision') AS reply_decision,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'sop') AS sop,\n    100.0 * avg(passed::int) FILTER (WHERE name IN ('tools_called', 'tools_not_called')) AS tools,\n    100.0 * avg(passed::int) FILTER (WHERE name IN ('no_internal_terms', 'max_words', 'not_a_repeat', 'must_contain_any')) AS reply_rules\n  FROM eval_agent_checks GROUP BY 1),\ncs AS (\n  SELECT a.eval_run_id, count(*) AS cases, 100.0 * avg(a.passed::int) AS pass_rate,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY a.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY a.seconds) AS p95_s,\n    avg(a.input_tokens + a.output_tokens) AS tokens, avg((greatest(a.input_tokens - a.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + a.cached_tokens * coalesce(p.cached_input_per_1m, 0) + a.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_case\n  FROM eval_agent_cases a LEFT JOIN model_prices p ON p.model = 'gpt-5.4-mini' GROUP BY 1),\nagent AS (\n  SELECT r.id, r.version, r.judge_version, r.suite, r.run_at, cs.cases, cs.pass_rate, chk.escalation,\n    (r.summary->>'missed_escalations')::int AS missed_escalations,\n    (r.summary->>'unneeded_escalations')::int AS unneeded_escalations,\n    chk.reply_decision, chk.sop, chk.tools, chk.reply_rules,\n    100 * (r.summary->>'judge_rubric_item_pass_rate')::numeric AS judge_rubric,\n    100 * (r.summary->>'judge_grounded_rate')::numeric AS grounded,\n    cs.p50_s, cs.p95_s, cs.tokens, cs.cost_per_case\n  FROM eval_runs r JOIN cs ON cs.eval_run_id = r.id LEFT JOIN chk ON chk.eval_run_id = r.id\n  WHERE r.kind = 'agent') SELECT * FROM agent WHERE id::text = '${agent_run}'), g AS (\nWITH classes AS (SELECT unnest(ARRAY['in_scope', 'mixed', 'no_issue', 'out_of_scope']) AS cls),\nper_class AS (\n  SELECT c.eval_run_id, k.cls,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision = k.cls) AS tp,\n         count(*) FILTER (WHERE c.expected <> k.cls AND c.decision = k.cls) AS fp,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision <> k.cls) AS fn\n  FROM eval_gate_cases c CROSS JOIN classes k GROUP BY 1, 2),\nf1 AS (SELECT eval_run_id, avg(2.0 * tp / nullif(2 * tp + fp + fn, 0)) FILTER (WHERE tp + fn > 0) AS macro_f1\n       FROM per_class GROUP BY 1),\ngm AS (\n  SELECT r.id, r.version, r.suite, r.run_at, count(*) AS cases,\n    100.0 * count(*) FILTER (WHERE c.decision = c.expected) / count(*) AS accuracy,\n    100.0 * count(*) FILTER (WHERE (c.expected IN ('in_scope', 'mixed')) = (c.decision IN ('in_scope', 'mixed'))) / count(*) AS routing_accuracy,\n    count(*) FILTER (WHERE c.wrongly_rejected) AS turned_away,\n    100.0 * count(*) FILTER (WHERE c.wrongly_rejected) / nullif(count(*) FILTER (WHERE c.expected IN ('in_scope', 'mixed')), 0) AS turned_away_pct,\n    100.0 * count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed') AND c.decision IN ('in_scope', 'mixed'))\n          / nullif(count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed')), 0) AS extra_agent_runs_pct,\n    100.0 * count(*) FILTER (WHERE c.decision NOT IN ('in_scope', 'mixed')) / count(*) AS skipped_agent_pct,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.expected = 'out_of_scope'), 0) AS oos_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.decision = 'out_of_scope'), 0) AS oos_precision,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.expected = 'no_issue'), 0) AS no_issue_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.decision = 'no_issue'), 0) AS no_issue_precision,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY c.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY c.seconds) AS p95_s,\n    avg(c.input_tokens + c.output_tokens) AS tokens,\n    avg((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_message\n  FROM eval_runs r JOIN eval_gate_cases c ON c.eval_run_id = r.id LEFT JOIN model_prices p ON p.model = 'gpt-5.4-nano'\n  WHERE r.kind = 'gate' GROUP BY r.id),\ngate AS (SELECT gm.*, 100 * f1.macro_f1 AS macro_f1 FROM gm JOIN f1 ON f1.eval_run_id = gm.id) SELECT * FROM gate WHERE id IN (SELECT DISTINCT ON (version) id FROM eval_runs WHERE kind = 'gate' AND suite = 'all' ORDER BY version, run_at DESC))\nSELECT g.version AS gate, round((1000 * g.cost_per_message)::numeric, 3) AS \"scope gate\",\n       round((1000 * (100 - g.skipped_agent_pct) / 100 * a.cost_per_case)::numeric, 3) AS \"main agent\"\nFROM g, a ORDER BY g.version"
+        }
+      ],
+      "options": {
+        "orientation": "vertical",
+        "stacking": "normal",
+        "xField": "gate",
+        "showValue": "auto",
+        "groupWidth": 0.75,
+        "barWidth": 0.9,
+        "xTickLabelRotation": 0,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "custom": {
+            "fillOpacity": 85,
+            "lineWidth": 0
+          }
+        },
+        "overrides": []
+      },
+      "id": 110,
+      "gridPos": {
+        "x": 0,
+        "y": 91,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Est. latency of an in-scope message by gate version (p50, stacked)",
+      "description": "The gate runs before the main agent, so its latency adds to every in-scope reply.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH a AS (\nWITH chk AS (\n  SELECT eval_run_id,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'escalation') AS escalation,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'reply_decision') AS reply_decision,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'sop') AS sop,\n    100.0 * avg(passed::int) FILTER (WHERE name IN ('tools_called', 'tools_not_called')) AS tools,\n    100.0 * avg(passed::int) FILTER (WHERE name IN ('no_internal_terms', 'max_words', 'not_a_repeat', 'must_contain_any')) AS reply_rules\n  FROM eval_agent_checks GROUP BY 1),\ncs AS (\n  SELECT a.eval_run_id, count(*) AS cases, 100.0 * avg(a.passed::int) AS pass_rate,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY a.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY a.seconds) AS p95_s,\n    avg(a.input_tokens + a.output_tokens) AS tokens, avg((greatest(a.input_tokens - a.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + a.cached_tokens * coalesce(p.cached_input_per_1m, 0) + a.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_case\n  FROM eval_agent_cases a LEFT JOIN model_prices p ON p.model = 'gpt-5.4-mini' GROUP BY 1),\nagent AS (\n  SELECT r.id, r.version, r.judge_version, r.suite, r.run_at, cs.cases, cs.pass_rate, chk.escalation,\n    (r.summary->>'missed_escalations')::int AS missed_escalations,\n    (r.summary->>'unneeded_escalations')::int AS unneeded_escalations,\n    chk.reply_decision, chk.sop, chk.tools, chk.reply_rules,\n    100 * (r.summary->>'judge_rubric_item_pass_rate')::numeric AS judge_rubric,\n    100 * (r.summary->>'judge_grounded_rate')::numeric AS grounded,\n    cs.p50_s, cs.p95_s, cs.tokens, cs.cost_per_case\n  FROM eval_runs r JOIN cs ON cs.eval_run_id = r.id LEFT JOIN chk ON chk.eval_run_id = r.id\n  WHERE r.kind = 'agent') SELECT * FROM agent WHERE id::text = '${agent_run}'), g AS (\nWITH classes AS (SELECT unnest(ARRAY['in_scope', 'mixed', 'no_issue', 'out_of_scope']) AS cls),\nper_class AS (\n  SELECT c.eval_run_id, k.cls,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision = k.cls) AS tp,\n         count(*) FILTER (WHERE c.expected <> k.cls AND c.decision = k.cls) AS fp,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision <> k.cls) AS fn\n  FROM eval_gate_cases c CROSS JOIN classes k GROUP BY 1, 2),\nf1 AS (SELECT eval_run_id, avg(2.0 * tp / nullif(2 * tp + fp + fn, 0)) FILTER (WHERE tp + fn > 0) AS macro_f1\n       FROM per_class GROUP BY 1),\ngm AS (\n  SELECT r.id, r.version, r.suite, r.run_at, count(*) AS cases,\n    100.0 * count(*) FILTER (WHERE c.decision = c.expected) / count(*) AS accuracy,\n    100.0 * count(*) FILTER (WHERE (c.expected IN ('in_scope', 'mixed')) = (c.decision IN ('in_scope', 'mixed'))) / count(*) AS routing_accuracy,\n    count(*) FILTER (WHERE c.wrongly_rejected) AS turned_away,\n    100.0 * count(*) FILTER (WHERE c.wrongly_rejected) / nullif(count(*) FILTER (WHERE c.expected IN ('in_scope', 'mixed')), 0) AS turned_away_pct,\n    100.0 * count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed') AND c.decision IN ('in_scope', 'mixed'))\n          / nullif(count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed')), 0) AS extra_agent_runs_pct,\n    100.0 * count(*) FILTER (WHERE c.decision NOT IN ('in_scope', 'mixed')) / count(*) AS skipped_agent_pct,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.expected = 'out_of_scope'), 0) AS oos_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.decision = 'out_of_scope'), 0) AS oos_precision,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.expected = 'no_issue'), 0) AS no_issue_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.decision = 'no_issue'), 0) AS no_issue_precision,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY c.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY c.seconds) AS p95_s,\n    avg(c.input_tokens + c.output_tokens) AS tokens,\n    avg((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_message\n  FROM eval_runs r JOIN eval_gate_cases c ON c.eval_run_id = r.id LEFT JOIN model_prices p ON p.model = 'gpt-5.4-nano'\n  WHERE r.kind = 'gate' GROUP BY r.id),\ngate AS (SELECT gm.*, 100 * f1.macro_f1 AS macro_f1 FROM gm JOIN f1 ON f1.eval_run_id = gm.id) SELECT * FROM gate WHERE id IN (SELECT DISTINCT ON (version) id FROM eval_runs WHERE kind = 'gate' AND suite = 'all' ORDER BY version, run_at DESC))\nSELECT g.version AS gate, round(g.p50_s::numeric, 2) AS \"scope gate\", round(a.p50_s::numeric, 2) AS \"main agent\"\nFROM g, a ORDER BY g.version"
+        }
+      ],
+      "options": {
+        "orientation": "vertical",
+        "stacking": "normal",
+        "xField": "gate",
+        "showValue": "auto",
+        "groupWidth": 0.75,
+        "barWidth": 0.9,
+        "xTickLabelRotation": 0,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 2,
+          "custom": {
+            "fillOpacity": 85,
+            "lineWidth": 0
+          }
+        },
+        "overrides": []
+      },
+      "id": 111,
+      "gridPos": {
+        "x": 12,
+        "y": 91,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "row",
+      "title": "Scope gate (orchestrator, step 1): a 4-way classifier, versions compared",
+      "id": 120,
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 99,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "table",
+      "title": "Gate versions compared",
+      "description": "Accuracy: the decision equals the label. Macro F1: F1 averaged over the 4 classes (in_scope, mixed, no_issue, out_of_scope), so small classes count as much as big ones. Recall: of the messages with this label, the share the gate found. Precision: of the messages the gate gave this label, the share that were right. Turned away: real issues sent to a template (lower is better). v1 ran on the 41 handwritten cases only.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH classes AS (SELECT unnest(ARRAY['in_scope', 'mixed', 'no_issue', 'out_of_scope']) AS cls),\nper_class AS (\n  SELECT c.eval_run_id, k.cls,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision = k.cls) AS tp,\n         count(*) FILTER (WHERE c.expected <> k.cls AND c.decision = k.cls) AS fp,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision <> k.cls) AS fn\n  FROM eval_gate_cases c CROSS JOIN classes k GROUP BY 1, 2),\nf1 AS (SELECT eval_run_id, avg(2.0 * tp / nullif(2 * tp + fp + fn, 0)) FILTER (WHERE tp + fn > 0) AS macro_f1\n       FROM per_class GROUP BY 1),\ngm AS (\n  SELECT r.id, r.version, r.suite, r.run_at, count(*) AS cases,\n    100.0 * count(*) FILTER (WHERE c.decision = c.expected) / count(*) AS accuracy,\n    100.0 * count(*) FILTER (WHERE (c.expected IN ('in_scope', 'mixed')) = (c.decision IN ('in_scope', 'mixed'))) / count(*) AS routing_accuracy,\n    count(*) FILTER (WHERE c.wrongly_rejected) AS turned_away,\n    100.0 * count(*) FILTER (WHERE c.wrongly_rejected) / nullif(count(*) FILTER (WHERE c.expected IN ('in_scope', 'mixed')), 0) AS turned_away_pct,\n    100.0 * count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed') AND c.decision IN ('in_scope', 'mixed'))\n          / nullif(count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed')), 0) AS extra_agent_runs_pct,\n    100.0 * count(*) FILTER (WHERE c.decision NOT IN ('in_scope', 'mixed')) / count(*) AS skipped_agent_pct,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.expected = 'out_of_scope'), 0) AS oos_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.decision = 'out_of_scope'), 0) AS oos_precision,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.expected = 'no_issue'), 0) AS no_issue_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.decision = 'no_issue'), 0) AS no_issue_precision,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY c.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY c.seconds) AS p95_s,\n    avg(c.input_tokens + c.output_tokens) AS tokens,\n    avg((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_message\n  FROM eval_runs r JOIN eval_gate_cases c ON c.eval_run_id = r.id LEFT JOIN model_prices p ON p.model = 'gpt-5.4-nano'\n  WHERE r.kind = 'gate' GROUP BY r.id),\ngate AS (SELECT gm.*, 100 * f1.macro_f1 AS macro_f1 FROM gm JOIN f1 ON f1.eval_run_id = gm.id)\nSELECT version AS gate, suite, to_char(run_at, 'YYYY-MM-DD HH24:MI') AS run_at, cases,\n       round(accuracy, 1) AS \"accuracy %\", round(macro_f1, 1) AS \"macro F1 %\",\n       turned_away AS \"turned away\", round(turned_away_pct, 1) AS \"turned away %\",\n       round(oos_recall, 1) AS \"out of scope recall %\", round(oos_precision, 1) AS \"out of scope precision %\",\n       round(no_issue_recall, 1) AS \"no issue recall %\", round(no_issue_precision, 1) AS \"no issue precision %\",\n       round(p50_s::numeric, 2) AS p50_s, round(p95_s::numeric, 2) AS p95_s, round(tokens) AS tokens_per_message,\n       round((1000 * cost_per_message)::numeric, 3) AS \"$ per 1k messages\"\nFROM gate ORDER BY version DESC, run_at DESC"
+        }
+      ],
+      "transformations": [],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "turned away %"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 3
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "accuracy %"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 60
+                    },
+                    {
+                      "color": "green",
+                      "value": 85
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "macro F1 %"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 60
+                    },
+                    {
+                      "color": "green",
+                      "value": 85
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*%$"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "id": 121,
+      "gridPos": {
+        "x": 0,
+        "y": 100,
+        "w": 24,
+        "h": 6
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Quality by gate version (all cases)",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH classes AS (SELECT unnest(ARRAY['in_scope', 'mixed', 'no_issue', 'out_of_scope']) AS cls),\nper_class AS (\n  SELECT c.eval_run_id, k.cls,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision = k.cls) AS tp,\n         count(*) FILTER (WHERE c.expected <> k.cls AND c.decision = k.cls) AS fp,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision <> k.cls) AS fn\n  FROM eval_gate_cases c CROSS JOIN classes k GROUP BY 1, 2),\nf1 AS (SELECT eval_run_id, avg(2.0 * tp / nullif(2 * tp + fp + fn, 0)) FILTER (WHERE tp + fn > 0) AS macro_f1\n       FROM per_class GROUP BY 1),\ngm AS (\n  SELECT r.id, r.version, r.suite, r.run_at, count(*) AS cases,\n    100.0 * count(*) FILTER (WHERE c.decision = c.expected) / count(*) AS accuracy,\n    100.0 * count(*) FILTER (WHERE (c.expected IN ('in_scope', 'mixed')) = (c.decision IN ('in_scope', 'mixed'))) / count(*) AS routing_accuracy,\n    count(*) FILTER (WHERE c.wrongly_rejected) AS turned_away,\n    100.0 * count(*) FILTER (WHERE c.wrongly_rejected) / nullif(count(*) FILTER (WHERE c.expected IN ('in_scope', 'mixed')), 0) AS turned_away_pct,\n    100.0 * count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed') AND c.decision IN ('in_scope', 'mixed'))\n          / nullif(count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed')), 0) AS extra_agent_runs_pct,\n    100.0 * count(*) FILTER (WHERE c.decision NOT IN ('in_scope', 'mixed')) / count(*) AS skipped_agent_pct,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.expected = 'out_of_scope'), 0) AS oos_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.decision = 'out_of_scope'), 0) AS oos_precision,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.expected = 'no_issue'), 0) AS no_issue_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.decision = 'no_issue'), 0) AS no_issue_precision,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY c.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY c.seconds) AS p95_s,\n    avg(c.input_tokens + c.output_tokens) AS tokens,\n    avg((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_message\n  FROM eval_runs r JOIN eval_gate_cases c ON c.eval_run_id = r.id LEFT JOIN model_prices p ON p.model = 'gpt-5.4-nano'\n  WHERE r.kind = 'gate' GROUP BY r.id),\ngate AS (SELECT gm.*, 100 * f1.macro_f1 AS macro_f1 FROM gm JOIN f1 ON f1.eval_run_id = gm.id)\nSELECT version AS gate, round(accuracy, 1) AS accuracy, round(macro_f1, 1) AS \"macro F1\",\n       round(oos_recall, 1) AS \"out of scope recall\", round(oos_precision, 1) AS \"out of scope precision\",\n       round(no_issue_recall, 1) AS \"no issue recall\", round(no_issue_precision, 1) AS \"no issue precision\"\nFROM gate WHERE id IN (SELECT DISTINCT ON (version) id FROM eval_runs WHERE kind = 'gate' AND suite = 'all' ORDER BY version, run_at DESC) ORDER BY version"
+        }
+      ],
+      "options": {
+        "orientation": "vertical",
+        "stacking": "none",
+        "xField": "gate",
+        "showValue": "auto",
+        "groupWidth": 0.75,
+        "barWidth": 0.9,
+        "xTickLabelRotation": 0,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "custom": {
+            "fillOpacity": 85,
+            "lineWidth": 0
+          }
+        },
+        "overrides": []
+      },
+      "id": 122,
+      "gridPos": {
+        "x": 0,
+        "y": 106,
+        "w": 14,
+        "h": 9
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Latency per message by gate version",
+      "description": "One gpt-5.4-nano call per message.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH classes AS (SELECT unnest(ARRAY['in_scope', 'mixed', 'no_issue', 'out_of_scope']) AS cls),\nper_class AS (\n  SELECT c.eval_run_id, k.cls,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision = k.cls) AS tp,\n         count(*) FILTER (WHERE c.expected <> k.cls AND c.decision = k.cls) AS fp,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision <> k.cls) AS fn\n  FROM eval_gate_cases c CROSS JOIN classes k GROUP BY 1, 2),\nf1 AS (SELECT eval_run_id, avg(2.0 * tp / nullif(2 * tp + fp + fn, 0)) FILTER (WHERE tp + fn > 0) AS macro_f1\n       FROM per_class GROUP BY 1),\ngm AS (\n  SELECT r.id, r.version, r.suite, r.run_at, count(*) AS cases,\n    100.0 * count(*) FILTER (WHERE c.decision = c.expected) / count(*) AS accuracy,\n    100.0 * count(*) FILTER (WHERE (c.expected IN ('in_scope', 'mixed')) = (c.decision IN ('in_scope', 'mixed'))) / count(*) AS routing_accuracy,\n    count(*) FILTER (WHERE c.wrongly_rejected) AS turned_away,\n    100.0 * count(*) FILTER (WHERE c.wrongly_rejected) / nullif(count(*) FILTER (WHERE c.expected IN ('in_scope', 'mixed')), 0) AS turned_away_pct,\n    100.0 * count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed') AND c.decision IN ('in_scope', 'mixed'))\n          / nullif(count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed')), 0) AS extra_agent_runs_pct,\n    100.0 * count(*) FILTER (WHERE c.decision NOT IN ('in_scope', 'mixed')) / count(*) AS skipped_agent_pct,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.expected = 'out_of_scope'), 0) AS oos_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.decision = 'out_of_scope'), 0) AS oos_precision,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.expected = 'no_issue'), 0) AS no_issue_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.decision = 'no_issue'), 0) AS no_issue_precision,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY c.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY c.seconds) AS p95_s,\n    avg(c.input_tokens + c.output_tokens) AS tokens,\n    avg((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_message\n  FROM eval_runs r JOIN eval_gate_cases c ON c.eval_run_id = r.id LEFT JOIN model_prices p ON p.model = 'gpt-5.4-nano'\n  WHERE r.kind = 'gate' GROUP BY r.id),\ngate AS (SELECT gm.*, 100 * f1.macro_f1 AS macro_f1 FROM gm JOIN f1 ON f1.eval_run_id = gm.id)\nSELECT version AS gate, round(p50_s::numeric, 2) AS p50, round(p95_s::numeric, 2) AS p95\nFROM gate WHERE id IN (SELECT DISTINCT ON (version) id FROM eval_runs WHERE kind = 'gate' AND suite = 'all' ORDER BY version, run_at DESC) ORDER BY version"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "stacking": "none",
+        "xField": "gate",
+        "showValue": "auto",
+        "groupWidth": 0.75,
+        "barWidth": 0.9,
+        "xTickLabelRotation": 0,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: s",
+          "decimals": 2,
+          "custom": {
+            "fillOpacity": 85,
+            "lineWidth": 0
+          }
+        },
+        "overrides": []
+      },
+      "id": 123,
+      "gridPos": {
+        "x": 14,
+        "y": 106,
+        "w": 10,
+        "h": 9
+      }
+    },
+    {
+      "type": "table",
+      "title": "Recall % by class and gate version",
+      "description": "Of the messages with this label, the share the gate found.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH classes AS (SELECT unnest(ARRAY['in_scope', 'mixed', 'no_issue', 'out_of_scope']) AS cls)\nSELECT k.cls AS class, r.version AS gate,\n       round(100.0 * count(*) FILTER (WHERE c.expected = k.cls AND c.decision = k.cls)\n             / nullif(count(*) FILTER (WHERE c.expected = k.cls), 0), 1) AS value\nFROM eval_runs r JOIN eval_gate_cases c ON c.eval_run_id = r.id CROSS JOIN classes k\nWHERE r.id IN (SELECT DISTINCT ON (version) id FROM eval_runs WHERE kind = 'gate' AND suite = 'all' ORDER BY version, run_at DESC) GROUP BY 1, 2 ORDER BY 1, 2"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "class",
+            "columnField": "gate",
+            "valueField": "value",
+            "emptyValue": "null"
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          },
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byType",
+              "options": "number"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-RdYlGr"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "id": 124,
+      "gridPos": {
+        "x": 0,
+        "y": 115,
+        "w": 12,
+        "h": 6
+      }
+    },
+    {
+      "type": "table",
+      "title": "Accuracy % by eval set and gate version",
+      "description": "Handwritten: threads written for the gate (small talk, thanks, out of scope, tricky in-scope). Retrieval emails: the retrieval eval sets with hand-reviewed scope labels.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT CASE WHEN c.category LIKE 'set:%' THEN 'retrieval emails · ' || substr(c.category, 5)\n            ELSE 'handwritten · ' || c.category END AS eval_set,\n       r.version AS gate, round(100.0 * avg((c.decision = c.expected)::int), 1) AS value\nFROM eval_runs r JOIN eval_gate_cases c ON c.eval_run_id = r.id\nWHERE r.id IN (SELECT DISTINCT ON (version) id FROM eval_runs WHERE kind = 'gate' AND suite = 'all' ORDER BY version, run_at DESC) GROUP BY 1, 2 ORDER BY 1, 2"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "eval_set",
+            "columnField": "gate",
+            "valueField": "value",
+            "emptyValue": "null"
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          },
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byType",
+              "options": "number"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-RdYlGr"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "id": 126,
+      "gridPos": {
+        "x": 12,
+        "y": 115,
+        "w": 12,
+        "h": 12
+      }
+    },
+    {
+      "type": "table",
+      "title": "Precision % by class and gate version",
+      "description": "Of the messages the gate gave this label, the share that were right.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH classes AS (SELECT unnest(ARRAY['in_scope', 'mixed', 'no_issue', 'out_of_scope']) AS cls)\nSELECT k.cls AS class, r.version AS gate,\n       round(100.0 * count(*) FILTER (WHERE c.expected = k.cls AND c.decision = k.cls)\n             / nullif(count(*) FILTER (WHERE c.decision = k.cls), 0), 1) AS value\nFROM eval_runs r JOIN eval_gate_cases c ON c.eval_run_id = r.id CROSS JOIN classes k\nWHERE r.id IN (SELECT DISTINCT ON (version) id FROM eval_runs WHERE kind = 'gate' AND suite = 'all' ORDER BY version, run_at DESC) GROUP BY 1, 2 ORDER BY 1, 2"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "class",
+            "columnField": "gate",
+            "valueField": "value",
+            "emptyValue": "null"
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          },
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byType",
+              "options": "number"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-RdYlGr"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "id": 125,
+      "gridPos": {
+        "x": 0,
+        "y": 121,
+        "w": 12,
+        "h": 6
+      }
+    },
+    {
+      "type": "row",
+      "title": "Scope gate: case explorer for the selected gate run",
+      "id": 130,
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 127,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "table",
+      "title": "Label → gate decision, % of each label (selected run)",
+      "description": "A confusion matrix as row percentages: each row adds up to 100. The diagonal is right.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH classes AS (SELECT cls, n FROM unnest(ARRAY['in_scope', 'mixed', 'no_issue', 'out_of_scope']) WITH ORDINALITY AS t(cls, n)),\ncounts AS (SELECT expected, decision, count(*) AS cases FROM eval_gate_cases c WHERE c.eval_run_id::text = '${gate_run}' GROUP BY 1, 2)\nSELECT l.n || '. ' || l.cls AS label, 'decided ' || d.n || '. ' || d.cls AS decided,\n       round(100.0 * coalesce(counts.cases, 0) / nullif(sum(coalesce(counts.cases, 0)) OVER (PARTITION BY l.cls), 0), 1) AS value\nFROM classes l CROSS JOIN classes d LEFT JOIN counts ON counts.expected = l.cls AND counts.decision = d.cls\nORDER BY l.n, d.n"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "label",
+            "columnField": "decided",
+            "valueField": "value",
+            "emptyValue": "null"
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          },
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byType",
+              "options": "number"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-blues"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "id": 131,
+      "gridPos": {
+        "x": 0,
+        "y": 128,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Accuracy",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT accuracy FROM (\nWITH classes AS (SELECT unnest(ARRAY['in_scope', 'mixed', 'no_issue', 'out_of_scope']) AS cls),\nper_class AS (\n  SELECT c.eval_run_id, k.cls,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision = k.cls) AS tp,\n         count(*) FILTER (WHERE c.expected <> k.cls AND c.decision = k.cls) AS fp,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision <> k.cls) AS fn\n  FROM eval_gate_cases c CROSS JOIN classes k GROUP BY 1, 2),\nf1 AS (SELECT eval_run_id, avg(2.0 * tp / nullif(2 * tp + fp + fn, 0)) FILTER (WHERE tp + fn > 0) AS macro_f1\n       FROM per_class GROUP BY 1),\ngm AS (\n  SELECT r.id, r.version, r.suite, r.run_at, count(*) AS cases,\n    100.0 * count(*) FILTER (WHERE c.decision = c.expected) / count(*) AS accuracy,\n    100.0 * count(*) FILTER (WHERE (c.expected IN ('in_scope', 'mixed')) = (c.decision IN ('in_scope', 'mixed'))) / count(*) AS routing_accuracy,\n    count(*) FILTER (WHERE c.wrongly_rejected) AS turned_away,\n    100.0 * count(*) FILTER (WHERE c.wrongly_rejected) / nullif(count(*) FILTER (WHERE c.expected IN ('in_scope', 'mixed')), 0) AS turned_away_pct,\n    100.0 * count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed') AND c.decision IN ('in_scope', 'mixed'))\n          / nullif(count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed')), 0) AS extra_agent_runs_pct,\n    100.0 * count(*) FILTER (WHERE c.decision NOT IN ('in_scope', 'mixed')) / count(*) AS skipped_agent_pct,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.expected = 'out_of_scope'), 0) AS oos_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.decision = 'out_of_scope'), 0) AS oos_precision,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.expected = 'no_issue'), 0) AS no_issue_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.decision = 'no_issue'), 0) AS no_issue_precision,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY c.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY c.seconds) AS p95_s,\n    avg(c.input_tokens + c.output_tokens) AS tokens,\n    avg((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_message\n  FROM eval_runs r JOIN eval_gate_cases c ON c.eval_run_id = r.id LEFT JOIN model_prices p ON p.model = 'gpt-5.4-nano'\n  WHERE r.kind = 'gate' GROUP BY r.id),\ngate AS (SELECT gm.*, 100 * f1.macro_f1 AS macro_f1 FROM gm JOIN f1 ON f1.eval_run_id = gm.id) SELECT * FROM gate WHERE id::text = '${gate_run}') s"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      },
+      "id": 132,
+      "gridPos": {
+        "x": 12,
+        "y": 128,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Macro F1",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT macro_f1 FROM (\nWITH classes AS (SELECT unnest(ARRAY['in_scope', 'mixed', 'no_issue', 'out_of_scope']) AS cls),\nper_class AS (\n  SELECT c.eval_run_id, k.cls,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision = k.cls) AS tp,\n         count(*) FILTER (WHERE c.expected <> k.cls AND c.decision = k.cls) AS fp,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision <> k.cls) AS fn\n  FROM eval_gate_cases c CROSS JOIN classes k GROUP BY 1, 2),\nf1 AS (SELECT eval_run_id, avg(2.0 * tp / nullif(2 * tp + fp + fn, 0)) FILTER (WHERE tp + fn > 0) AS macro_f1\n       FROM per_class GROUP BY 1),\ngm AS (\n  SELECT r.id, r.version, r.suite, r.run_at, count(*) AS cases,\n    100.0 * count(*) FILTER (WHERE c.decision = c.expected) / count(*) AS accuracy,\n    100.0 * count(*) FILTER (WHERE (c.expected IN ('in_scope', 'mixed')) = (c.decision IN ('in_scope', 'mixed'))) / count(*) AS routing_accuracy,\n    count(*) FILTER (WHERE c.wrongly_rejected) AS turned_away,\n    100.0 * count(*) FILTER (WHERE c.wrongly_rejected) / nullif(count(*) FILTER (WHERE c.expected IN ('in_scope', 'mixed')), 0) AS turned_away_pct,\n    100.0 * count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed') AND c.decision IN ('in_scope', 'mixed'))\n          / nullif(count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed')), 0) AS extra_agent_runs_pct,\n    100.0 * count(*) FILTER (WHERE c.decision NOT IN ('in_scope', 'mixed')) / count(*) AS skipped_agent_pct,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.expected = 'out_of_scope'), 0) AS oos_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.decision = 'out_of_scope'), 0) AS oos_precision,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.expected = 'no_issue'), 0) AS no_issue_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.decision = 'no_issue'), 0) AS no_issue_precision,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY c.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY c.seconds) AS p95_s,\n    avg(c.input_tokens + c.output_tokens) AS tokens,\n    avg((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_message\n  FROM eval_runs r JOIN eval_gate_cases c ON c.eval_run_id = r.id LEFT JOIN model_prices p ON p.model = 'gpt-5.4-nano'\n  WHERE r.kind = 'gate' GROUP BY r.id),\ngate AS (SELECT gm.*, 100 * f1.macro_f1 AS macro_f1 FROM gm JOIN f1 ON f1.eval_run_id = gm.id) SELECT * FROM gate WHERE id::text = '${gate_run}') s"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      },
+      "id": 133,
+      "gridPos": {
+        "x": 18,
+        "y": 128,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Real issues turned away (cases)",
+      "description": "Read them in the table below.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT turned_away FROM (\nWITH classes AS (SELECT unnest(ARRAY['in_scope', 'mixed', 'no_issue', 'out_of_scope']) AS cls),\nper_class AS (\n  SELECT c.eval_run_id, k.cls,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision = k.cls) AS tp,\n         count(*) FILTER (WHERE c.expected <> k.cls AND c.decision = k.cls) AS fp,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision <> k.cls) AS fn\n  FROM eval_gate_cases c CROSS JOIN classes k GROUP BY 1, 2),\nf1 AS (SELECT eval_run_id, avg(2.0 * tp / nullif(2 * tp + fp + fn, 0)) FILTER (WHERE tp + fn > 0) AS macro_f1\n       FROM per_class GROUP BY 1),\ngm AS (\n  SELECT r.id, r.version, r.suite, r.run_at, count(*) AS cases,\n    100.0 * count(*) FILTER (WHERE c.decision = c.expected) / count(*) AS accuracy,\n    100.0 * count(*) FILTER (WHERE (c.expected IN ('in_scope', 'mixed')) = (c.decision IN ('in_scope', 'mixed'))) / count(*) AS routing_accuracy,\n    count(*) FILTER (WHERE c.wrongly_rejected) AS turned_away,\n    100.0 * count(*) FILTER (WHERE c.wrongly_rejected) / nullif(count(*) FILTER (WHERE c.expected IN ('in_scope', 'mixed')), 0) AS turned_away_pct,\n    100.0 * count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed') AND c.decision IN ('in_scope', 'mixed'))\n          / nullif(count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed')), 0) AS extra_agent_runs_pct,\n    100.0 * count(*) FILTER (WHERE c.decision NOT IN ('in_scope', 'mixed')) / count(*) AS skipped_agent_pct,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.expected = 'out_of_scope'), 0) AS oos_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.decision = 'out_of_scope'), 0) AS oos_precision,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.expected = 'no_issue'), 0) AS no_issue_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.decision = 'no_issue'), 0) AS no_issue_precision,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY c.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY c.seconds) AS p95_s,\n    avg(c.input_tokens + c.output_tokens) AS tokens,\n    avg((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_message\n  FROM eval_runs r JOIN eval_gate_cases c ON c.eval_run_id = r.id LEFT JOIN model_prices p ON p.model = 'gpt-5.4-nano'\n  WHERE r.kind = 'gate' GROUP BY r.id),\ngate AS (SELECT gm.*, 100 * f1.macro_f1 AS macro_f1 FROM gm JOIN f1 ON f1.eval_run_id = gm.id) SELECT * FROM gate WHERE id::text = '${gate_run}') s"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          }
+        },
+        "overrides": []
+      },
+      "id": 134,
+      "gridPos": {
+        "x": 12,
+        "y": 132,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Out of scope precision",
+      "description": "When the gate says out of scope, how often it is right.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT oos_precision FROM (\nWITH classes AS (SELECT unnest(ARRAY['in_scope', 'mixed', 'no_issue', 'out_of_scope']) AS cls),\nper_class AS (\n  SELECT c.eval_run_id, k.cls,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision = k.cls) AS tp,\n         count(*) FILTER (WHERE c.expected <> k.cls AND c.decision = k.cls) AS fp,\n         count(*) FILTER (WHERE c.expected = k.cls AND c.decision <> k.cls) AS fn\n  FROM eval_gate_cases c CROSS JOIN classes k GROUP BY 1, 2),\nf1 AS (SELECT eval_run_id, avg(2.0 * tp / nullif(2 * tp + fp + fn, 0)) FILTER (WHERE tp + fn > 0) AS macro_f1\n       FROM per_class GROUP BY 1),\ngm AS (\n  SELECT r.id, r.version, r.suite, r.run_at, count(*) AS cases,\n    100.0 * count(*) FILTER (WHERE c.decision = c.expected) / count(*) AS accuracy,\n    100.0 * count(*) FILTER (WHERE (c.expected IN ('in_scope', 'mixed')) = (c.decision IN ('in_scope', 'mixed'))) / count(*) AS routing_accuracy,\n    count(*) FILTER (WHERE c.wrongly_rejected) AS turned_away,\n    100.0 * count(*) FILTER (WHERE c.wrongly_rejected) / nullif(count(*) FILTER (WHERE c.expected IN ('in_scope', 'mixed')), 0) AS turned_away_pct,\n    100.0 * count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed') AND c.decision IN ('in_scope', 'mixed'))\n          / nullif(count(*) FILTER (WHERE c.expected NOT IN ('in_scope', 'mixed')), 0) AS extra_agent_runs_pct,\n    100.0 * count(*) FILTER (WHERE c.decision NOT IN ('in_scope', 'mixed')) / count(*) AS skipped_agent_pct,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.expected = 'out_of_scope'), 0) AS oos_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'out_of_scope' AND c.decision = 'out_of_scope')\n          / nullif(count(*) FILTER (WHERE c.decision = 'out_of_scope'), 0) AS oos_precision,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.expected = 'no_issue'), 0) AS no_issue_recall,\n    100.0 * count(*) FILTER (WHERE c.expected = 'no_issue' AND c.decision = 'no_issue')\n          / nullif(count(*) FILTER (WHERE c.decision = 'no_issue'), 0) AS no_issue_precision,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY c.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY c.seconds) AS p95_s,\n    avg(c.input_tokens + c.output_tokens) AS tokens,\n    avg((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_message\n  FROM eval_runs r JOIN eval_gate_cases c ON c.eval_run_id = r.id LEFT JOIN model_prices p ON p.model = 'gpt-5.4-nano'\n  WHERE r.kind = 'gate' GROUP BY r.id),\ngate AS (SELECT gm.*, 100 * f1.macro_f1 AS macro_f1 FROM gm JOIN f1 ON f1.eval_run_id = gm.id) SELECT * FROM gate WHERE id::text = '${gate_run}') s"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      },
+      "id": 135,
+      "gridPos": {
+        "x": 18,
+        "y": 132,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "type": "table",
+      "title": "Mistakes in the selected gate run (worst first)",
+      "description": "Customer turned away: the costly mistake. Extra agent run: costs one run.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT CASE WHEN c.wrongly_rejected THEN 'customer turned away'\n            WHEN c.expected NOT IN ('in_scope', 'mixed') AND c.decision IN ('in_scope', 'mixed') THEN 'extra agent run'\n            WHEN c.decision <> c.expected THEN 'wrong class, same route' ELSE 'wrong kind or reply' END AS impact,\n       c.case_id, CASE WHEN c.category LIKE 'set:%' THEN substr(c.category, 5) ELSE c.category END AS eval_set,\n       c.expected AS label, c.decision AS decided, c.message, c.reason AS gate_reason\nFROM eval_gate_cases c WHERE NOT c.passed AND c.eval_run_id::text = '${gate_run}'\nORDER BY c.wrongly_rejected DESC, (c.expected NOT IN ('in_scope', 'mixed') AND c.decision IN ('in_scope', 'mixed')) DESC, eval_set, c.case_id"
+        }
+      ],
+      "transformations": [],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "impact"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 170
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "customer turned away": {
+                        "color": "red"
+                      },
+                      "extra agent run": {
+                        "color": "orange"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "message"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 420
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "case_id"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 190
+              }
+            ]
+          }
+        ]
+      },
+      "id": 136,
+      "gridPos": {
+        "x": 0,
+        "y": 136,
+        "w": 24,
+        "h": 14
+      }
+    },
+    {
+      "type": "row",
+      "title": "Main agent (orchestrator, step 2): SOP retrieval + tools + reply, versions compared",
+      "id": 140,
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 150,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "text",
+      "title": "",
+      "id": 141,
+      "gridPos": {
+        "x": 0,
+        "y": 151,
+        "w": 24,
+        "h": 2
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Each case runs the real retrieval and LLM on a demo customer's data and is graded by deterministic checks and an LLM judge. **Few cases so far (the thread suite)**: treat differences between versions as anecdotes until the single-email suite exists."
+      }
+    },
+    {
+      "type": "table",
+      "title": "Main agent versions compared",
+      "description": "Pass: every check and the judge passed. Escalation: escalated exactly when it should (missed escalations are the dangerous ones). Reply decision: replied or stayed silent correctly. SOP: followed a right SOP. Tools: called the expected tools and none of the forbidden ones. Reply rules: no internal codes, short enough, not a repeat, key facts present. Judge rubric / grounded: the LLM judge's must / must-not points, and no invented facts. $ per case: the agent's tokens only (not the judge's).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH chk AS (\n  SELECT eval_run_id,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'escalation') AS escalation,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'reply_decision') AS reply_decision,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'sop') AS sop,\n    100.0 * avg(passed::int) FILTER (WHERE name IN ('tools_called', 'tools_not_called')) AS tools,\n    100.0 * avg(passed::int) FILTER (WHERE name IN ('no_internal_terms', 'max_words', 'not_a_repeat', 'must_contain_any')) AS reply_rules\n  FROM eval_agent_checks GROUP BY 1),\ncs AS (\n  SELECT a.eval_run_id, count(*) AS cases, 100.0 * avg(a.passed::int) AS pass_rate,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY a.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY a.seconds) AS p95_s,\n    avg(a.input_tokens + a.output_tokens) AS tokens, avg((greatest(a.input_tokens - a.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + a.cached_tokens * coalesce(p.cached_input_per_1m, 0) + a.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_case\n  FROM eval_agent_cases a LEFT JOIN model_prices p ON p.model = 'gpt-5.4-mini' GROUP BY 1),\nagent AS (\n  SELECT r.id, r.version, r.judge_version, r.suite, r.run_at, cs.cases, cs.pass_rate, chk.escalation,\n    (r.summary->>'missed_escalations')::int AS missed_escalations,\n    (r.summary->>'unneeded_escalations')::int AS unneeded_escalations,\n    chk.reply_decision, chk.sop, chk.tools, chk.reply_rules,\n    100 * (r.summary->>'judge_rubric_item_pass_rate')::numeric AS judge_rubric,\n    100 * (r.summary->>'judge_grounded_rate')::numeric AS grounded,\n    cs.p50_s, cs.p95_s, cs.tokens, cs.cost_per_case\n  FROM eval_runs r JOIN cs ON cs.eval_run_id = r.id LEFT JOIN chk ON chk.eval_run_id = r.id\n  WHERE r.kind = 'agent')\nSELECT version AS agent, judge_version AS judge, suite, to_char(run_at, 'YYYY-MM-DD HH24:MI') AS run_at, cases,\n       round(pass_rate, 1) AS \"pass %\", round(escalation, 1) AS \"escalation %\", missed_escalations AS \"missed escalations\",\n       round(reply_decision, 1) AS \"reply decision %\", round(sop, 1) AS \"SOP %\", round(tools, 1) AS \"tools %\",\n       round(reply_rules, 1) AS \"reply rules %\", round(judge_rubric, 1) AS \"judge rubric %\", round(grounded, 1) AS \"grounded %\",\n       round(p50_s::numeric, 1) AS p50_s, round(p95_s::numeric, 1) AS p95_s, round(tokens) AS tokens_per_case,\n       round(cost_per_case::numeric, 4) AS \"$ per case\"\nFROM agent ORDER BY version DESC, run_at DESC"
+        }
+      ],
+      "transformations": [],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pass %"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 60
+                    },
+                    {
+                      "color": "green",
+                      "value": 85
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "missed escalations"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*%$"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "id": 142,
+      "gridPos": {
+        "x": 0,
+        "y": 153,
+        "w": 24,
+        "h": 6
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Quality by main agent version",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH chk AS (\n  SELECT eval_run_id,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'escalation') AS escalation,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'reply_decision') AS reply_decision,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'sop') AS sop,\n    100.0 * avg(passed::int) FILTER (WHERE name IN ('tools_called', 'tools_not_called')) AS tools,\n    100.0 * avg(passed::int) FILTER (WHERE name IN ('no_internal_terms', 'max_words', 'not_a_repeat', 'must_contain_any')) AS reply_rules\n  FROM eval_agent_checks GROUP BY 1),\ncs AS (\n  SELECT a.eval_run_id, count(*) AS cases, 100.0 * avg(a.passed::int) AS pass_rate,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY a.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY a.seconds) AS p95_s,\n    avg(a.input_tokens + a.output_tokens) AS tokens, avg((greatest(a.input_tokens - a.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + a.cached_tokens * coalesce(p.cached_input_per_1m, 0) + a.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_case\n  FROM eval_agent_cases a LEFT JOIN model_prices p ON p.model = 'gpt-5.4-mini' GROUP BY 1),\nagent AS (\n  SELECT r.id, r.version, r.judge_version, r.suite, r.run_at, cs.cases, cs.pass_rate, chk.escalation,\n    (r.summary->>'missed_escalations')::int AS missed_escalations,\n    (r.summary->>'unneeded_escalations')::int AS unneeded_escalations,\n    chk.reply_decision, chk.sop, chk.tools, chk.reply_rules,\n    100 * (r.summary->>'judge_rubric_item_pass_rate')::numeric AS judge_rubric,\n    100 * (r.summary->>'judge_grounded_rate')::numeric AS grounded,\n    cs.p50_s, cs.p95_s, cs.tokens, cs.cost_per_case\n  FROM eval_runs r JOIN cs ON cs.eval_run_id = r.id LEFT JOIN chk ON chk.eval_run_id = r.id\n  WHERE r.kind = 'agent')\nSELECT version || ' · ' || suite AS agent, round(pass_rate, 1) AS pass, round(escalation, 1) AS escalation,\n       round(reply_decision, 1) AS \"reply decision\", round(sop, 1) AS SOP, round(tools, 1) AS tools,\n       round(reply_rules, 1) AS \"reply rules\", round(judge_rubric, 1) AS \"judge rubric\", round(grounded, 1) AS grounded\nFROM agent WHERE id IN (SELECT DISTINCT ON (version, suite) id FROM eval_runs WHERE kind = 'agent' ORDER BY version, suite, run_at DESC) ORDER BY version, suite"
+        }
+      ],
+      "options": {
+        "orientation": "vertical",
+        "stacking": "none",
+        "xField": "agent",
+        "showValue": "auto",
+        "groupWidth": 0.75,
+        "barWidth": 0.9,
+        "xTickLabelRotation": 0,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "custom": {
+            "fillOpacity": 85,
+            "lineWidth": 0
+          }
+        },
+        "overrides": []
+      },
+      "id": 143,
+      "gridPos": {
+        "x": 0,
+        "y": 159,
+        "w": 14,
+        "h": 9
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Latency per case by main agent version",
+      "description": "Retrieval + every LLM turn + tool calls.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH chk AS (\n  SELECT eval_run_id,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'escalation') AS escalation,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'reply_decision') AS reply_decision,\n    100.0 * avg(passed::int) FILTER (WHERE name = 'sop') AS sop,\n    100.0 * avg(passed::int) FILTER (WHERE name IN ('tools_called', 'tools_not_called')) AS tools,\n    100.0 * avg(passed::int) FILTER (WHERE name IN ('no_internal_terms', 'max_words', 'not_a_repeat', 'must_contain_any')) AS reply_rules\n  FROM eval_agent_checks GROUP BY 1),\ncs AS (\n  SELECT a.eval_run_id, count(*) AS cases, 100.0 * avg(a.passed::int) AS pass_rate,\n    percentile_cont(0.5) WITHIN GROUP (ORDER BY a.seconds) AS p50_s,\n    percentile_cont(0.95) WITHIN GROUP (ORDER BY a.seconds) AS p95_s,\n    avg(a.input_tokens + a.output_tokens) AS tokens, avg((greatest(a.input_tokens - a.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + a.cached_tokens * coalesce(p.cached_input_per_1m, 0) + a.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost_per_case\n  FROM eval_agent_cases a LEFT JOIN model_prices p ON p.model = 'gpt-5.4-mini' GROUP BY 1),\nagent AS (\n  SELECT r.id, r.version, r.judge_version, r.suite, r.run_at, cs.cases, cs.pass_rate, chk.escalation,\n    (r.summary->>'missed_escalations')::int AS missed_escalations,\n    (r.summary->>'unneeded_escalations')::int AS unneeded_escalations,\n    chk.reply_decision, chk.sop, chk.tools, chk.reply_rules,\n    100 * (r.summary->>'judge_rubric_item_pass_rate')::numeric AS judge_rubric,\n    100 * (r.summary->>'judge_grounded_rate')::numeric AS grounded,\n    cs.p50_s, cs.p95_s, cs.tokens, cs.cost_per_case\n  FROM eval_runs r JOIN cs ON cs.eval_run_id = r.id LEFT JOIN chk ON chk.eval_run_id = r.id\n  WHERE r.kind = 'agent')\nSELECT version || ' · ' || suite AS agent, round(p50_s::numeric, 1) AS p50, round(p95_s::numeric, 1) AS p95\nFROM agent WHERE id IN (SELECT DISTINCT ON (version, suite) id FROM eval_runs WHERE kind = 'agent' ORDER BY version, suite, run_at DESC) ORDER BY version, suite"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "stacking": "none",
+        "xField": "agent",
+        "showValue": "auto",
+        "groupWidth": 0.75,
+        "barWidth": 0.9,
+        "xTickLabelRotation": 0,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 1,
+          "custom": {
+            "fillOpacity": 85,
+            "lineWidth": 0
+          }
+        },
+        "overrides": []
+      },
+      "id": 144,
+      "gridPos": {
+        "x": 14,
+        "y": 159,
+        "w": 10,
+        "h": 9
+      }
+    },
+    {
+      "type": "table",
+      "title": "Check pass rate % by check and main agent version",
+      "description": "Deterministic checks (sop, tools, escalation, reply decision, internal terms, repeats...) plus 'judge' (LLM rubric + groundedness).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nSELECT c.name AS \"check\", r.version || ' · ' || r.suite || ' · ' || to_char(r.run_at, 'MM-DD HH24:MI') AS run,\n       round(100.0 * count(*) FILTER (WHERE c.passed) / count(*), 1) AS pass_pct\nFROM eval_agent_checks c JOIN eval_runs r ON r.id = c.eval_run_id\nGROUP BY c.name, r.version, r.suite, r.run_at ORDER BY c.name"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "rowField": "check",
+            "columnField": "run",
+            "valueField": "pass_pct",
+            "emptyValue": "null"
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          },
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byType",
+              "options": "number"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-RdYlGr"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "id": 145,
+      "gridPos": {
+        "x": 0,
+        "y": 168,
+        "w": 12,
+        "h": 9
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Tokens per case by main agent version",
+      "description": "What drives cost: uncached input is the expensive part; cached input is 10x cheaper.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT r.version || ' · ' || r.suite AS agent, round(avg(a.cached_tokens)) AS cached,\n       round(avg(a.input_tokens - a.cached_tokens)) AS \"uncached input\", round(avg(a.output_tokens)) AS output\nFROM eval_runs r JOIN eval_agent_cases a ON a.eval_run_id = r.id\nWHERE r.id IN (SELECT DISTINCT ON (version, suite) id FROM eval_runs WHERE kind = 'agent' ORDER BY version, suite, run_at DESC) GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "options": {
+        "orientation": "vertical",
+        "stacking": "normal",
+        "xField": "agent",
+        "showValue": "auto",
+        "groupWidth": 0.75,
+        "barWidth": 0.9,
+        "xTickLabelRotation": 0,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "custom": {
+            "fillOpacity": 85,
+            "lineWidth": 0
+          }
+        },
+        "overrides": []
+      },
+      "id": 146,
+      "gridPos": {
+        "x": 12,
+        "y": 168,
+        "w": 12,
+        "h": 9
+      }
+    },
+    {
+      "type": "row",
+      "title": "Main agent: case explorer for the selected main agent run",
+      "id": 150,
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 177,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "table",
+      "title": "Cases of the selected main agent run",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nSELECT c.case_id, CASE WHEN c.passed THEN 'PASS' ELSE 'FAIL' END AS result,\n       nullif(array_to_string(ARRAY(SELECT json_array_elements_text(c.failed)), ', '), '') AS failed_checks,\n       round(c.seconds::numeric, 1) AS seconds, c.input_tokens AS input, c.cached_tokens AS cached,\n       c.output_tokens AS output, c.judge_tokens, c.reply_kind, c.escalate,\n       array_to_string(ARRAY(SELECT json_array_elements_text(c.tools_called)), ', ') AS tools,\n       coalesce(c.reply, '(no reply)') AS reply\nFROM eval_agent_cases c WHERE c.eval_run_id::text = '${agent_run}' ORDER BY c.passed, c.case_id"
+        }
+      ],
+      "transformations": [],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "result"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "PASS": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "FAIL": {
+                        "color": "red",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "id": 151,
+      "gridPos": {
+        "x": 0,
+        "y": 178,
+        "w": 24,
+        "h": 10
+      }
+    },
+    {
+      "type": "table",
+      "title": "LLM judge rubric of the selected run",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nSELECT c.case_id, i.value->>'kind' AS kind, i.value->>'item' AS rubric_item,\n       CASE WHEN (i.value->>'passed')::boolean THEN 'PASS' ELSE 'FAIL' END AS result, i.value->>'reason' AS reason\nFROM eval_agent_cases c, json_array_elements(c.judge->'items') AS i\nWHERE c.eval_run_id::text = '${agent_run}' ORDER BY c.case_id"
+        }
+      ],
+      "transformations": [],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "result"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "PASS": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "FAIL": {
+                        "color": "red",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "id": 152,
+      "gridPos": {
+        "x": 0,
+        "y": 188,
+        "w": 24,
+        "h": 9
+      }
+    }
+  ]
+}

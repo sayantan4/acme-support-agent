@@ -1,0 +1,354 @@
+[
+  {
+    "id": "closure-long-001",
+    "email": {
+      "from": "rahul.mehta@example.com",
+      "subject": "Request to close my account after resolving all pending balances",
+      "body": "Hello Support Team,\n\nI have been using the platform for quite some time, but I have decided that I no longer want to maintain this account. Before I close it, I checked my wallet and trading balances and I believe there is no pending order or withdrawal on my side. I also want to make sure that there are no outstanding fees, unsettled transactions, or other obligations that could prevent closure.\n\nCould you please confirm what I need to do to permanently close the account? I would also like to know whether I need to complete any additional verification before the closure request can be processed. If there is anything I should download or save before the account is closed, such as transaction history or statements, please let me know.\n\nI am not asking for a temporary lock. I specifically want the account closure process and would appreciate clear instructions on the next steps.\n\nRegards,\nRahul"
+    },
+    "expected_category": "closure",
+    "expected_sop_ids": [
+      "CLS-01"
+    ],
+    "acceptable_sop_ids": [],
+    "reply_must_include": [
+      "account closure request",
+      "outstanding balance or transaction check",
+      "steps required to close the account"
+    ],
+    "reply_must_not_include": [
+      "guaranteed immediate deletion of all records",
+      "asking for the customer's password"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Long English email testing whether the model identifies a genuine account closure request despite several secondary questions."
+  },
+  {
+    "id": "security-long-001",
+    "email": {
+      "from": "ananya.s@example.com",
+      "subject": "Urgent: I think someone accessed my account and attempted a withdrawal",
+      "body": "Hi Team,\n\nI noticed something unusual this morning while reviewing my account activity. I received a notification for a withdrawal that I did not initiate. I immediately checked my recent login activity and also saw a login from a device/location that I do not recognize. I have not shared my password intentionally, although I may have logged in from a new laptop yesterday.\n\nThe withdrawal appears to have been attempted shortly after that login. I have not approved the transaction and I am worried that someone may still have access to the account. I have already changed my password and enabled the security option available in the app, but I am not sure whether that is enough.\n\nPlease secure the account and tell me whether the withdrawal can be stopped. I can provide the transaction reference, approximate time of the login, and any other information required for investigation. Please treat this as urgent because I do not want another withdrawal attempt to go through.\n\nThanks,\nAnanya"
+    },
+    "expected_category": "security",
+    "expected_sop_ids": [
+      "SEC-01"
+    ],
+    "acceptable_sop_ids": [
+      "SEC-02"
+    ],
+    "reply_must_include": [
+      "account is being secured",
+      "security team review",
+      "transaction or login details for investigation"
+    ],
+    "reply_must_not_include": [
+      "asking for OTP or private key",
+      "guaranteeing recovery of funds"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "Long English security incident. Tests detection of unauthorized activity embedded among legitimate account-security details."
+  },
+  {
+    "id": "technical-long-001",
+    "email": {
+      "from": "vivek.r@example.com",
+      "subject": "App keeps logging me out and shows an error after the latest update",
+      "body": "Hello,\n\nI am having a recurring issue with the mobile app since the latest update. The first time I noticed it was when I tried to open the portfolio screen after logging in. The screen loaded for a few seconds and then displayed an error. When I tried again, the app logged me out completely.\n\nI have reproduced the issue several times today. I restarted my phone, switched from Wi-Fi to mobile data, cleared the app cache, and installed the latest version again. The problem still occurs. It seems to happen more frequently when I move from the portfolio screen to the transaction screen, although I cannot say with certainty that this is the trigger.\n\nMy phone is running a recent version of Android. I can share screenshots, the approximate time of the failures, and the app version if that helps your team investigate. Please let me know whether there is any additional troubleshooting I should perform, because I currently cannot reliably access the account through the app.\n\nRegards,\nVivek"
+    },
+    "expected_category": "technical",
+    "expected_sop_ids": [
+      "APP-03"
+    ],
+    "acceptable_sop_ids": [
+      "APP-06",
+      "APP-01"
+    ],
+    "reply_must_include": [
+      "app troubleshooting",
+      "app version and device details",
+      "screenshots or error details"
+    ],
+    "reply_must_not_include": [
+      "asking for the account password",
+      "claiming the issue is permanently fixed without investigation"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Long troubleshooting email with several attempted fixes; tests whether the model avoids repeating already-completed steps."
+  },
+  {
+    "id": "bank-long-001",
+    "email": {
+      "from": "neha.k@example.com",
+      "subject": "Bank account verification is still pending even though I uploaded the requested document",
+      "body": "Hi Support,\n\nI am trying to complete the bank account verification required for withdrawals. I uploaded the requested bank document yesterday and the app accepted the upload without showing an error. However, the bank account is still showing as pending in my account.\n\nI checked the document before uploading it and the account holder name appears to match the name on my profile. The account number and IFSC are also visible. I am therefore unsure whether the document itself is the problem or whether the verification is simply taking longer than expected.\n\nI need to make a withdrawal soon, so I would appreciate it if you could tell me what is currently pending and whether I need to upload the document again. If there are specific requirements for the bank proof, please explain them so I can correct the submission instead of repeatedly uploading the same document.\n\nI can provide the upload reference and a screenshot of the pending status if required.\n\nRegards,\nNeha"
+    },
+    "expected_category": "bank_account",
+    "expected_sop_ids": [
+      "BNK-08"
+    ],
+    "acceptable_sop_ids": [
+      "BNK-01",
+      "BNK-02"
+    ],
+    "reply_must_include": [
+      "bank verification status",
+      "document requirements",
+      "whether re-upload is required"
+    ],
+    "reply_must_not_include": [
+      "asking for banking password or OTP",
+      "guaranteeing approval"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Long English verification query with document details and withdrawal urgency."
+  },
+  {
+    "id": "complaint-long-001",
+    "email": {
+      "from": "sanjay.p@example.com",
+      "subject": "Formal complaint regarding repeated unresolved support issues",
+      "body": "Dear Support Team,\n\nI am writing to raise a formal complaint about an issue that has now remained unresolved across multiple interactions. I first contacted support after noticing a problem with one of my transactions. I followed the troubleshooting and information requests provided to me, but the issue was not resolved. I contacted support again and received another request for information that I had already supplied in the earlier conversation.\n\nAt this point, my concern is not only the original transaction issue but also the repeated delays and lack of a clear resolution. I would like this complaint to be formally recorded and reviewed by the appropriate escalation team. Please provide me with the complaint or escalation reference if one is generated.\n\nI can share previous ticket numbers, screenshots, transaction references, and dates of the earlier conversations. I would also like confirmation of what happens after a complaint is escalated and whether I will receive an update once the review is completed.\n\nPlease do not close this request without addressing the complaint and providing the relevant escalation details.\n\nSincerely,\nSanjay"
+    },
+    "expected_category": "complaint",
+    "expected_sop_ids": [
+      "CMP-01"
+    ],
+    "acceptable_sop_ids": [
+      "CMP-02"
+    ],
+    "reply_must_include": [
+      "formal complaint or escalation",
+      "complaint reference",
+      "review/update process"
+    ],
+    "reply_must_not_include": [
+      "dismissive language",
+      "guaranteeing a specific resolution date"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "Long complaint email where the escalation intent is explicit but the customer also asks procedural questions."
+  },
+  {
+    "id": "crypto-long-001",
+    "email": {
+      "from": "arjun.t@example.com",
+      "subject": "Crypto deposit sent on the wrong network — please help recover it",
+      "body": "Hello Support,\n\nI made a crypto deposit earlier today and only realized afterward that I selected the wrong network. The asset and destination address were entered from the deposit screen, but I chose a network different from the one shown in the instructions. The transaction is already confirmed on the blockchain, but the balance has not appeared in my account.\n\nI understand that this may be different from a normal pending deposit because the transaction was sent using the wrong network. I have the transaction hash, the sending wallet address, the receiving address, and the exact amount and timestamp. Please let me know if your team can investigate whether manual recovery is possible.\n\nI understand that blockchain transactions may not be reversible and I am not expecting an immediate refund. I mainly want to know whether the transaction can be reviewed and what information is required from me for a recovery assessment.\n\nPlease also confirm whether I should avoid sending another transaction while this one is being investigated.\n\nRegards,\nArjun"
+    },
+    "expected_category": "crypto",
+    "expected_sop_ids": [
+      "CRY-02"
+    ],
+    "acceptable_sop_ids": [
+      "CRY-01"
+    ],
+    "reply_must_include": [
+      "manual recovery",
+      "recovery is not guaranteed",
+      "transaction hash"
+    ],
+    "reply_must_not_include": [
+      "guaranteeing recovery",
+      "asking the customer to send another test transaction"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "Long crypto-transfer incident. Tests whether the response distinguishes wrong-network recovery from an ordinary pending deposit."
+  },
+  {
+    "id": "fees-long-001",
+    "email": {
+      "from": "priya.m@example.com",
+      "subject": "Please explain the deductions shown on my recent transaction",
+      "body": "Hi,\n\nI noticed that the amount I received after my recent transaction was lower than I expected. I compared the amount shown before confirming the transaction with the final amount credited and there is a difference that I cannot explain.\n\nThe transaction details show a separate deduction, but I am not sure whether this is a platform fee, a network-related charge, or a tax deduction. I have checked the fee information available in the app, but I still cannot reconcile the exact amount because the deduction appears larger than what I expected from the displayed rate.\n\nCould you please break down the deduction and explain what each component represents? If the amount includes TDS or another statutory deduction rather than a trading fee, please make that distinction clear. I can provide the transaction ID, date, asset, and screenshots of the amount displayed before and after the transaction.\n\nI am not asking for a refund at this stage; I first want to understand exactly why the final amount differs from the amount I expected.\n\nThanks,\nPriya"
+    },
+    "expected_category": "fees",
+    "expected_sop_ids": [
+      "FEE-07"
+    ],
+    "acceptable_sop_ids": [
+      "FEE-01",
+      "FEE-05"
+    ],
+    "reply_must_include": [
+      "deduction breakdown",
+      "TDS versus fee distinction",
+      "transaction details for verification"
+    ],
+    "reply_must_not_include": [
+      "claiming every deduction is a platform fee",
+      "guaranteeing a refund before verification"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Long fee query designed to test classification of a percentage/statutory deduction rather than generic fee explanation."
+  },
+  {
+    "id": "risk-long-001",
+    "email": {
+      "from": "mohit.g@example.com",
+      "subject": "My withdrawal is on hold and I need to understand the security review",
+      "body": "Hello Team,\n\nI initiated a withdrawal after completing my normal account checks, but the withdrawal is currently on hold. I received a message indicating that the transaction may require a routine risk or security review. I have not knowingly changed any account information recently, and this is a wallet/address I have used before.\n\nThe amount is larger than some of my previous withdrawals, so I understand that additional checks may sometimes be required. However, I need clarity on whether I have to provide any documents or information before the withdrawal can continue. I also want to make sure that repeatedly cancelling and retrying the withdrawal will not create another review or delay.\n\nPlease tell me what the current status means, whether there is an action required from me, and whether I should simply wait for the review to finish. I can provide the withdrawal ID and timestamp if needed.\n\nRegards,\nMohit"
+    },
+    "expected_category": "risk",
+    "expected_sop_ids": [
+      "RSK-02"
+    ],
+    "acceptable_sop_ids": [
+      "RSK-01"
+    ],
+    "reply_must_include": [
+      "deposit/withdrawal hold",
+      "routine review",
+      "withdrawal ID or transaction details"
+    ],
+    "reply_must_not_include": [
+      "guaranteeing immediate release",
+      "claiming the review has found fraud without evidence"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "Long English risk-review query with potentially alarming context but no evidence of fraud."
+  },
+  {
+    "id": "kyc-long-001",
+    "email": {
+      "from": "meera.j@example.com",
+      "subject": "KYC has been pending for more than two days",
+      "body": "Hi Support,\n\nI completed my KYC submission more than two days ago and the status has not changed. I uploaded the requested identity document and completed the verification steps shown in the app. The submission did not show an error, so I assumed it had gone through successfully.\n\nI understand that verification may take some time, but the status is now beyond the timeframe mentioned during the process. I have checked the app several times and there is no clear message telling me whether the document was rejected, whether another document is needed, or whether the review is simply still in progress.\n\nCould you please check the current KYC status and tell me whether I need to take any action? If there is a problem with the document, please specify what needs to be corrected rather than asking me to submit everything again without an explanation.\n\nI can provide my KYC reference and screenshots of the current status if required.\n\nThanks,\nMeera"
+    },
+    "expected_category": "kyc",
+    "expected_sop_ids": [
+      "KYC-02"
+    ],
+    "acceptable_sop_ids": [
+      "KYC-01"
+    ],
+    "reply_must_include": [
+      "KYC status",
+      "more than 48 hours or the expected review timeframe",
+      "KYC reference or submission details"
+    ],
+    "reply_must_not_include": [
+      "asking for OTP or password",
+      "guaranteeing approval"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "Long KYC delay case. Tests escalation when the stated review window has been exceeded."
+  },
+  {
+    "id": "onboarding-long-001",
+    "email": {
+      "from": "rohan.d@example.com",
+      "subject": "Unable to complete signup because the SMS OTP never arrives",
+      "body": "Hello,\n\nI am trying to create a new account but I cannot complete the signup process because the SMS OTP is not arriving on my phone. I have tried requesting the code several times over the last hour. Sometimes the screen continues loading for a while, and sometimes it gives me the option to resend the OTP, but I still do not receive a usable code.\n\nI confirmed that I entered my mobile number correctly. I also checked that my phone has network coverage and that I am able to receive other SMS messages. I restarted the phone once and tried the signup process again, but the result was the same.\n\nCould you please tell me whether there is a cooldown period between OTP requests and whether I should wait before trying again? If there is a supported way to resend the SMS OTP, please provide the steps. I am trying to complete the signup today and would like to understand whether this is an issue with my phone or the signup service.\n\nRegards,\nRohan"
+    },
+    "expected_category": "onboarding",
+    "expected_sop_ids": [
+      "ONB-01"
+    ],
+    "acceptable_sop_ids": [
+      "ONB-02"
+    ],
+    "reply_must_include": [
+      "SMS OTP",
+      "resend",
+      "mobile number or OTP troubleshooting"
+    ],
+    "reply_must_not_include": [
+      "asking for the OTP itself",
+      "asking for the account password"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Long onboarding issue with repeated OTP attempts and basic troubleshooting already completed."
+  },
+  {
+    "id": "payments-long-001",
+    "email": {
+      "from": "aditya.v@example.com",
+      "subject": "UPI payment was deducted but the deposit is still not visible",
+      "body": "Hi Team,\n\nI added money using UPI today and my bank account was debited successfully. However, the amount has not appeared in my platform balance even though the UPI transaction shows as successful in my bank app.\n\nI waited for some time and refreshed the balance several times. I also closed and reopened the app, but there is still no credit. The UPI reference/UTR is available in my bank transaction details, and I can share it along with the exact amount and time of payment.\n\nI want to know whether the deposit is still being processed or whether something went wrong between the bank payment and the account credit. Please do not ask me to make the payment again because the original amount has already been deducted from my bank account.\n\nCould you check the deposit status using the UTR and let me know what happens next? If there is a standard processing window, please tell me that as well.\n\nThanks,\nAditya"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-01"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-02"
+    ],
+    "reply_must_include": [
+      "deposit is being checked",
+      "UTR",
+      "deposit status or processing window"
+    ],
+    "reply_must_not_include": [
+      "asking the customer to pay again",
+      "claiming the money is lost"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Long English payment issue with explicit bank debit and available UTR. Tests distinction from a failed-and-debited payment."
+  },
+  {
+    "id": "rewards-long-001",
+    "email": {
+      "from": "kavya.s@example.com",
+      "subject": "My reward is showing as on hold even though I completed the required activity",
+      "body": "Hello Support,\n\nI participated in the reward activity shown in the app and completed what I understood to be all the required steps. The activity was completed within the stated period, and I can see the relevant transaction in my account history. However, the reward is currently shown as being on hold rather than credited.\n\nI reviewed the campaign information again because I wanted to make sure I had not misunderstood an eligibility condition. I am not sure whether the hold means that my activity is still being reviewed or whether there is some missing requirement that I need to satisfy.\n\nCould you please check the reward status and explain what the hold means? If the reward is under a routine eligibility review, I am happy to wait, but I would like confirmation that my completed activity has been recorded correctly. I can provide the campaign name, transaction reference, and screenshots of the reward status.\n\nPlease let me know if any action is required from my side.\n\nRegards,\nKavya"
+    },
+    "expected_category": "rewards",
+    "expected_sop_ids": [
+      "RWD-07"
+    ],
+    "acceptable_sop_ids": [
+      "RWD-01"
+    ],
+    "reply_must_include": [
+      "reward is under review",
+      "eligibility/review process",
+      "campaign or transaction details"
+    ],
+    "reply_must_not_include": [
+      "guaranteeing reward credit",
+      "revealing internal review details that are not available"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Long reward-hold case testing whether the model avoids promising credit while explaining the review state."
+  },
+  {
+    "id": "general-long-001",
+    "email": {
+      "from": "sameer.b@example.com",
+      "subject": "I need help understanding what information I should and should not share with support",
+      "body": "Hi Support Team,\n\nI am contacting you because I received a message from someone claiming to be from customer support. They asked me to provide information about my account and said they needed an OTP to verify that I was the account owner. The person also asked me to continue the conversation through a different messaging channel.\n\nI did not provide the OTP, but I want to make sure I handled the situation correctly. I am now confused about what information genuine support representatives may ask for and what information I should never share. I also want to know whether I should report the message somewhere, because I still have the sender's details and screenshots of the conversation.\n\nPlease provide clear guidance on safe communication with support. In particular, I want to understand whether support will ever ask for my password, OTP, private key, or other security credentials. I would also appreciate instructions for reporting a suspected impersonation attempt.\n\nThanks,\nSameer"
+    },
+    "expected_category": "general",
+    "expected_sop_ids": [
+      "SUP-03"
+    ],
+    "acceptable_sop_ids": [
+      "SEC-07"
+    ],
+    "reply_must_include": [
+      "do not share OTPs",
+      "do not share passwords",
+      "report the impersonation"
+    ],
+    "reply_must_not_include": [
+      "requesting the customer's OTP",
+      "requesting the customer's password or private key"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Long general-support safety question. Tests correct routing between generic support guidance and security impersonation."
+  }
+]

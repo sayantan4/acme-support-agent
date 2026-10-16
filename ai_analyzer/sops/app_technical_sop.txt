@@ -1,0 +1,609 @@
+SOP_ID: APP
+TITLE: App and Technical Issues: Crashes, Errors, Prices, Notifications, Versions, Web and API
+CATEGORY: technical
+VERSION: 1.0
+LAST_REVIEWED: 2026-09-27
+OWNER: Tech On-call
+NOTE: Fictional sample SOP for the Acme Invest demo. Policy values live in data_dictionary.txt
+      (DD-09). Values marked "(sample value)" are not in DD-09 and are placeholders only.
+
+======================================================================
+## APP-00: Scope and quick triage
+======================================================================
+Covers app and website problems that are not about a specific money movement: crashes,
+blank screens, generic errors, prices/charts, notifications, forced updates, browser
+issues, app-specific OTP delays, feedback, outages and API trading.
+
+If the "technical" error happened while doing a money action, the money SOP decides the
+outcome - always check the transaction first (APP-03). A customer who says "app error" but
+whose money is missing is a P1 money case, not a technical case (support_guidelines_sop SUP-07).
+
+Collect in ONE message (support_guidelines_sop SUP-04) whatever is missing:
+  - App version (Profile > About) and platform: Android / iOS / Web (browser + version)
+  - Device model and OS version (e.g. "<phone model>, Android 14")
+  - Screenshot or screen recording of the error, including the exact error text
+  - Date and time of the error (IST) and what they were doing (screen, button)
+  - Network type: Wi-Fi / mobile data (4G/5G), VPN on or off
+  - Whether it happens every time, and whether reinstall/another device helps
+
+TOOLS: get_user_devices
+Standard device lookup (after support_guidelines_sop SUP-02):
+  Call get_user_devices().
+
+Sample technical policy (not in DD-09):
+  - Minimum supported app version: 5.2.0 on Android and iOS (sample value).
+  - Public status page: status.acmeinvest.example (sample value) - check it and the
+    internal incident channel for an ongoing incident before troubleshooting.
+  - Scheduled maintenance: announced 24 hours in advance in the app (sample value).
+
+Priorities: technical issue blocking trading/withdrawals for a user: P2; many users affected
+(incident): P1 for Tech On-call; cosmetic/how-to: P4; feedback: P4 (DD-09).
+
+DO NOT (applies to every APP section):
+  - Do not ask for OTPs, passwords or remote-screen access (support_guidelines_sop SUP-06).
+  - Do not name cloud, CDN, SMS, analytics or other vendors.
+  - Do not speculate on causes of an outage.
+
+======================================================================
+## APP-01: App crashes on open
+======================================================================
+CUSTOMER MAY SAY:
+  - "App crashes as soon as I open it"
+  - "Acme app khulte hi band ho jata hai"
+  - "After the latest update the app keeps closing"
+  - "App opens, shows logo, then goes back to home screen"
+INFO NEEDED FROM CUSTOMER:
+  - App version, platform, device model, OS version, screen recording if possible, when it
+    started (after an update? after an OS update?), free storage on the phone
+TOOLS: get_user_devices, get_auth_events
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Check for an ongoing incident (status page / incident channel):
+     - Known crash incident for this platform/version -> APP-10 reply. Resolve (wait).
+  3. Check the device record:
+     Call get_user_devices().
+     - app_version below the minimum supported (5.2.0, sample value) -> APP-06.
+     - last_seen_at updates recently from another device (e.g. WEB works): the problem is
+       device-specific; continue to step 4.
+  4. Standard self-help (send all at once):
+     a. Update the app from the official app store (Android or iOS).
+     b. Restart the phone.
+     c. Clear app cache (Android: Settings > Apps > Acme Invest > Storage > Clear cache).
+        Do NOT clear data unless they know their login details.
+     d. Make sure at least 500 MB of free storage (sample value).
+     e. Uninstall and reinstall. Balances are safe on Acme's servers.
+     f. Meanwhile use the website to trade/withdraw.
+  5. Check whether the customer can still log in anywhere:
+     Call get_auth_events(). Look at the latest 10 events.
+     - LOGIN_SUCCESS on WEB recently: account is fine; the issue is the app build/device.
+  6. Still crashing after steps 4a-4e:
+     -> Escalate to Tech On-call (P3; P2 if they need to act on an open position or
+        pending withdrawal and web is not an option), with the collected info.
+RESOLUTION:
+  Guide through self-help; point to the website as a workaround; escalate device-specific
+  crashes with full details.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Sorry the app is closing on you - that's frustrating. Your account and balances are safe.
+  Please try these steps in order:
+  1. Update Acme Invest from the official app store.
+  2. Restart your phone and make sure it has some free storage.
+  3. Clear the app's cache, or uninstall and reinstall the app.
+  Meanwhile, you can use our website to access your account. If the app still crashes,
+  please reply with your app version, phone model, OS version and a screen recording, and
+  we will get our technical team to look into it.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Crash persists after reinstall on a supported version -> Tech On-call, P3, include:
+    user_id, platform, app_version, device model, OS version, time, recording.
+  - Many customers report the same crash in a short time -> Tech On-call, P1 (possible
+    incident), include: count, versions, first report time.
+DO NOT:
+  - Do not tell the customer to install the app from APK links or third-party stores.
+
+======================================================================
+## APP-02: Stuck on loading / blank screen
+======================================================================
+CUSTOMER MAY SAY:
+  - "App is stuck on the loading screen"
+  - "White blank screen after login"
+  - "Portfolio page just keeps spinning"
+  - "Loading hi hota rehta hai, kuch dikhta nahi"
+INFO NEEDED FROM CUSTOMER:
+  - Which screen, platform, app version, network type, VPN on/off, screenshot, time
+TOOLS: get_auth_events, check_wallet_balance
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02). If the user's status is FROZEN, the app
+     may show a limited screen -> fraud_risk_sop RSK-01. If DORMANT/CLOSED -> account_closure_sop
+     CLS-04 / CLS-05.
+  2. Check for an ongoing incident -> APP-10 if yes.
+  3. Did login succeed?
+     Call get_auth_events(). Look at the latest 10 events.
+     - LOGIN_FAILED with ACCOUNT_BLOCKED -> onboarding_sop ONB-05.
+     - DEVICE_NOT_TRUSTED -> onboarding flow for new device (onboarding_sop).
+     - LOGIN_SUCCESS then nothing: the data screen is not loading -> step 4.
+  4. Network self-help: switch Wi-Fi <-> mobile data, turn off VPN / ad-blocker / private DNS,
+     check the date & time on the phone is automatic, update the app, clear cache.
+  5. Only one screen blank (e.g. Portfolio) and others fine: collect screenshot and time;
+     escalate to Tech On-call (P3). If it hides balances and the customer is worried about
+     funds, confirm balances are safe without sharing exact figures unless
+     the sender is verified (SUP-01):
+     Call check_wallet_balance().
+  6. Still stuck on every network after self-help -> escalate Tech On-call (P3).
+RESOLUTION:
+  Self-help for network/VPN/cache; use web as workaround; escalate persistent screen issues.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Sorry the app is stuck on loading. Your account is safe. Please try:
+  - switching between Wi-Fi and mobile data, and turning off any VPN or ad-blocker
+  - checking your phone's date and time is set to automatic
+  - updating the app and clearing its cache
+  If it still doesn't load, please send us a screenshot, your app version, phone model and
+  the time it happened, and we'll investigate. You can also log in on our website meanwhile.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Persistent blank screen after self-help -> Tech On-call, P3 (P2 if it blocks a
+    time-sensitive trade or withdrawal and web also fails), include: user_id, screen,
+    platform, app_version, network, VPN, screenshot, time.
+DO NOT:
+  - Do not promise a fix date.
+
+======================================================================
+## APP-03: "Something went wrong" error on a specific action
+======================================================================
+CUSTOMER MAY SAY:
+  - "Something went wrong error when I try to add money"
+  - "Getting error while placing order, please try again later"
+  - "Withdraw button pe error aa raha hai"
+  - "KYC upload fails with an error"
+  - "Error while uploading documents in Help section"
+INFO NEEDED FROM CUSTOMER:
+  - Which action (deposit, withdrawal, order, KYC, bank add, document upload, coupon), exact
+    error text or screenshot, time (IST), amount if money was involved, app version/platform
+TOOLS: get_deposits, get_withdrawals, get_orders, get_kyc_applications, get_bank_accounts, get_user
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. FIRST check whether the action actually went through (the error can appear even if it
+     succeeded). Map the action to its SOP:
+     - Deposit / add money:
+       Call get_deposits(from_time=<error_time - 1 hour>).
+       -> Any deposit: follow payment_sop from its status. Money debited from bank with none:
+          payment_sop (P1 if missing).
+     - INR withdrawal: Call get_withdrawals(asset="INR",
+       days=<days since error_time + 1>). Look at withdrawals from 1 hour before error_time on.
+       -> Follow withdrawal_sop. Crypto withdrawal -> crypto_transfers_sop.
+     - Order: Call get_orders(from_time=<error_time - 1 hour>).
+       -> REJECTED with a reason -> trade_sop. SYSTEM_ERROR -> trade_sop + Tech On-call (P2).
+     - KYC: Call get_kyc_applications(). -> kyc_sop.
+     - Bank add: Call get_bank_accounts(). -> bank_account_sop.
+     - Coupon: -> rewards_sop RWD-05.
+     - Risk document upload (Help > Documents): collect file type/size (PDF/JPG up to 10 MB,
+       sample value); ask to retry on Wi-Fi or from the website; if it still fails, escalate
+       Tech On-call (P2) since it blocks a review (fraud_risk_sop RSK-03).
+  3. Nothing recorded for the action (request never reached the server):
+     - Account status/holds: Call get_user(). status FROZEN ->
+       fraud_risk_sop RSK-01. Active holds -> RSK-02 / RSK-04.
+     - Old app version -> APP-06. Known incident -> APP-10.
+     - Otherwise: self-help (update, retry on another network, try web). If still failing ->
+       escalate Tech On-call (P3; P2 if it blocks money movement or trading).
+RESOLUTION:
+  Tell the customer whether the action went through; route money/trade outcomes to the
+  relevant SOP; escalate genuine errors with the collected details.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Sorry you saw an error while <action>. I checked your account: <one of: "your <deposit /
+  order / withdrawal> of Rs <amount> at <time> did go through and is <status in plain words>"
+  / "the request did not reach us, so nothing was deducted from your Acme balance">.
+  Please update the app and try again, preferably on a different network. If the error
+  continues, reply with a screenshot and the time it happened, and we'll get it fixed.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Money debited from bank / balance changed with no matching record -> payment_sop /
+    withdrawal_sop, P1.
+  - Order REJECTED with SYSTEM_ERROR, or action fails repeatedly on a supported version ->
+    Tech On-call, P2 (money/trading) or P3 (other), include: user_id, action, error text,
+    time, platform, app_version, IDs checked.
+DO NOT:
+  - Do not tell the customer to "retry" a deposit before checking whether the first one
+    went through (risk of paying twice).
+
+======================================================================
+## APP-04: Prices or charts not loading, or stale
+======================================================================
+CUSTOMER MAY SAY:
+  - "BTC price is not updating in the app"
+  - "Charts are blank since morning"
+  - "App shows different price than the website / other exchanges"
+  - "Price freeze ho gaya tha, maine galat price pe buy kiya"
+  - "Portfolio value is wrong, shows zero"
+INFO NEEDED FROM CUSTOMER:
+  - Symbol (e.g. BTC-INR), screenshot with time visible, platform/app version, network
+INFO NOTE:
+  Prices on Acme come from Acme's own order book; they can differ from other exchanges or
+  global USD prices. This is normal and not an error.
+TOOLS: get_instrument, get_price_incidents, get_orders
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02) if the question involves their orders.
+  2. Check the instrument:
+     Call get_instrument(symbol=<symbol>).
+     - HALTED / DELISTED / POST_ONLY: trading paused or limited; prices may not move ->
+       trade_sop. Resolve with that explanation.
+  3. Check for a price incident at the reported time:
+     Call get_price_incidents(symbol=<symbol>, at_time=<reported_time>).
+     - Incident found and ended_at IS NULL: ongoing -> APP-10 reply; wait for update.
+     - Incident found and customer traded during it: route the order question to trade_sop
+       (the compensation_policy is applied by Trading Ops only; do not promise it).
+     - No incident: continue.
+  4. Only this customer affected: self-help (network, VPN off, update app, clear cache,
+     compare with web). If web is fine and app is stale -> escalate Tech On-call (P3).
+  5. Customer says they bought/sold at a "wrong" price because the screen was stale:
+     Call get_orders(symbol=<symbol>). Look at the latest 5.
+     -> Explain market orders execute at the live order-book price (trade_sop slippage).
+        No incident -> no reversal. Incident -> Trading Ops (P2).
+  6. Portfolio value zero/wrong but trades fine -> trade_sop (portfolio mismatch).
+RESOLUTION:
+  Explain how prices are formed, check for incidents, give self-help, escalate app-only
+  staleness.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for flagging this. I checked <symbol> for <time>: <one of: "we had a temporary issue
+  with price updates between <start> and <end> IST, which is now fixed" / "prices were
+  updating normally on our side">.
+  Prices on Acme Invest come from trades on our own platform, so they can differ slightly
+  from other exchanges. If the app still shows old prices, please update it, switch networks
+  or turn off VPN, and check on our website.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - App stale while web fine for the same user after self-help -> Tech On-call, P3.
+  - Multiple users report stale prices with no price_incidents row -> Tech On-call, P1.
+  - Customer traded during a recorded price incident -> Trading Ops, P2, include: order_ids,
+    incident_id.
+DO NOT:
+  - Do not promise compensation or trade reversal (support_guidelines_sop SUP-04).
+  - Do not compare Acme's prices with named competitors.
+
+======================================================================
+## APP-05: Push, SMS or email notifications not received
+======================================================================
+CUSTOMER MAY SAY:
+  - "I don't get any notification when my order fills"
+  - "Deposit success SMS nahi aaya"
+  - "Not receiving emails from Acme, even the monthly statement"
+  - "Price alerts stopped working"
+INFO NEEDED FROM CUSTOMER:
+  - Which notification (order, deposit, withdrawal, price alert, statement, marketing),
+    channel (push/SMS/email), approximate time of the event, platform/app version
+TOOLS: get_notifications
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02). Confirm the user's phone/email are correct
+     (show masked only: e.g. +91XXXXXX5678, s****@example.com).
+  2. Call get_notifications(days=7).
+     - Notifications SENT on that channel around the event: Acme sent it; delivery is on the device /
+       mail side. Go to self-help for that channel (step 3).
+     - Notifications FAILED: note template and channel.
+       -> Isolated failures: ask the customer to confirm details; escalate Tech On-call (P3)
+          if repeated for the same user.
+       -> Many users FAILED on the same channel in the same period: Tech On-call, P2 (P1 if
+          it affects OTP/security alerts).
+     - No row at all for the event: the notification was not triggered. Check the event
+       happened (e.g. deposits/orders). If yes -> Tech On-call (P3).
+  3. Self-help by channel:
+     - PUSH: allow notifications for Acme in phone settings; disable battery optimisation for
+       Acme (Android); log out and back in to refresh the device token; check
+       Profile > Notifications in app (sample path).
+     - SMS: check DND/spam folder, phone has network; transactional SMS can be delayed by
+       the operator.
+     - EMAIL: check spam/promotions; add support@acmeinvest.example (sample value) to contacts.
+  4. OTP not received -> APP-08 / onboarding_sop ONB-01 (not this section).
+  5. Customer wants to STOP notifications: marketing can be turned off in Profile >
+     Notifications (sample path); transactional and security alerts cannot be turned off.
+RESOLUTION:
+  Confirm whether Acme sent the notification; give channel-specific self-help; escalate
+  repeated failures.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for letting us know. I checked, and <we did send the <channel> notification for your
+  <event> on <date, time IST> / the notification for your <event> did not go out, and I have
+  reported this to our technical team>.
+  To make sure you receive notifications:
+  - Push: allow notifications for Acme Invest in your phone settings and turn off battery
+    optimisation for the app.
+  - SMS/email: please check spam folders and DND settings.
+  You can always see your latest activity in the app under Profile > History.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Notification never triggered or repeatedly FAILED for the user -> Tech On-call, P3,
+    include: user_id, channel, template, timestamps.
+  - Channel-wide FAILED spike -> Tech On-call, P2 (P1 for security/OTP messages).
+DO NOT:
+  - Do not reveal the full phone/email on file to an unverified sender.
+  - Do not name SMS/email providers.
+
+======================================================================
+## APP-06: App update required / old app version
+======================================================================
+CUSTOMER MAY SAY:
+  - "App says update required but the app store shows no update"
+  - "I don't want to update, why are you forcing me?"
+  - "My phone is old, the new version doesn't install"
+  - "Update ke baad bhi purana version dikha raha hai"
+INFO NEEDED FROM CUSTOMER:
+  - Current app version, platform, device model, OS version
+TOOLS: get_user_devices
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_user_devices(platform="ANDROID").
+     Call get_user_devices(platform="IOS").
+     - app_version < 5.2.0 (minimum supported, sample value): the old version is blocked for
+       security and compliance reasons. Customer must update. Continue.
+     - app_version >= 5.2.0 and still prompted: stale store cache -> step 3; if persists ->
+       escalate (P3).
+  3. Store shows no update: open the store page directly, pull to refresh, clear the app store
+     cache (Android), check for pending OS updates, sign in to the store account.
+  4. Device OS too old for the latest version (sample value: minimum Android 9 / iOS 15):
+     the app cannot be updated on that phone -> use the website on the phone's browser or
+     another device. Resolve.
+  5. Customer refuses to update: explain old versions are no longer supported; web is an
+     alternative. Resolve.
+RESOLUTION:
+  Update to the latest version from the official store; if the device is unsupported, use
+  the website.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for writing in. Your app is on version <version>, which is no longer supported - we
+  retire older versions to keep your account secure and add new features. Please update
+  Acme Invest from the official app store (if you don't see the update, open the store
+  page, refresh it, or restart your phone).
+  If your phone's operating system is too old for the latest version, you can continue to
+  use your account on our website from any browser.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Supported version still forced to update, or store has no update available for a
+    supported OS -> Tech On-call, P3, include: user_id, platform, app_version, OS, store region.
+DO NOT:
+  - Do not share APK files or links to old versions.
+
+======================================================================
+## APP-07: Web platform issues (browser, cache, cookies)
+======================================================================
+CUSTOMER MAY SAY:
+  - "Website login page keeps reloading"
+  - "Web trading screen not showing order book on my browser"
+  - "Cannot download my statement from the website"
+  - "Website pe 'session expired' baar baar aa raha hai"
+INFO NEEDED FROM CUSTOMER:
+  - Browser and version, OS, extensions (ad-blocker, VPN), screenshot with URL bar visible,
+    time of error
+TOOLS: get_auth_events
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Check the URL in the screenshot is the official website (sample value:
+     www.acmeinvest.example). Look-alike domain -> phishing: account_security_sop, warn the
+     customer (SUP-06). If they entered credentials there -> SEC-01 (P1).
+  3. Call get_auth_events(). Look at the latest 20 events.
+     - Repeated SESSION_REVOKED or LOGIN_SUCCESS loops: cookie/session problem -> step 4.
+     - LOGIN_FAILED WRONG_PASSWORD / ACCOUNT_BLOCKED -> onboarding_sop (ONB-05 for blocked).
+  4. Browser self-help:
+     - Use a supported browser, latest version (sample value: last 2 versions of major
+       desktop and mobile browsers).
+     - Allow cookies for the Acme site; disable ad-blockers/VPN for it.
+     - Clear cache and cookies for the site, or try an incognito/private window.
+     - Make sure the computer's date/time is correct (affects login sessions).
+     - Allow pop-ups/downloads for statements.
+  5. Works in incognito but not normal window: an extension or cached data -> resolved by
+     clearing/disabling. Fails everywhere on supported browsers -> escalate (P3).
+RESOLUTION:
+  Browser self-help; verify official domain; escalate persistent issues.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Sorry the website isn't working properly for you. Please check that you are on our
+  official website, then try:
+  - updating your browser to the latest version
+  - clearing cache and cookies for our site, or opening it in a private/incognito window
+  - turning off ad-blockers or VPN for our site and allowing cookies and pop-ups
+  If it still doesn't work, reply with your browser name and version and a screenshot
+  (with the address bar visible), and we'll look into it.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Fails on a supported, updated browser in incognito -> Tech On-call, P3, include:
+    user_id, browser/version, OS, screenshot, time.
+  - Customer used a look-alike site -> account_security_sop SEC-01, P1; report domain to
+    Legal, P3.
+DO NOT:
+  - Do not recommend disabling antivirus entirely or installing browser extensions.
+
+======================================================================
+## APP-08: OTP delays specific to the app
+======================================================================
+For all OTP issues (not received, expired, wrong OTP, WhatsApp/SMS/email channels) follow
+onboarding_sop ONB-01. This section only adds app-specific checks.
+CUSTOMER MAY SAY:
+  - "OTP comes after the timer ends in the app"
+  - "App doesn't auto-read the OTP"
+  - "Resend OTP button is greyed out"
+  - "OTP late aata hai, tab tak expire ho jata hai"
+INFO NEEDED FROM CUSTOMER:
+  - Phone/email, time of attempt, platform/app version, dual SIM (which SIM has the number)
+TOOLS: get_otp_logs
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02). Pre-signup users may have no user_id;
+     search the OTP logs by destination.
+  2. Call get_otp_logs(destination=<phone_or_email>). Look at the latest 10.
+     - Status/provider analysis: follow onboarding_sop ONB-01.
+  3. App-specific checks:
+     - Auto-read not working (Android): permission for SMS retrieval is not needed; the app
+       uses the phone's one-tap prompt - tap "Allow" or type the OTP manually.
+     - Resend greyed out: resend is available after a 30-second timer (sample value), up to
+       3 resends per 10 minutes (sample value). Wait and retry.
+     - Dual SIM: the registered number must be the SIM with active network/SMS.
+     - Old app version -> APP-06. Phone clock wrong -> set automatic time.
+  4. OTP never arrives on any channel and ONB-01 steps done -> as per ONB-01 escalation.
+RESOLUTION:
+  App-side tips plus ONB-01 handling.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Sorry for the trouble with OTPs. A few things that usually help in the app:
+  - wait for the timer to finish before tapping Resend (you can resend a few times)
+  - if the OTP isn't filled automatically, you can type it in manually
+  - if you use two SIMs, make sure the registered number's SIM has network
+  - update the app to the latest version
+  Please never share your OTP with anyone, including anyone claiming to be from Acme.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - As per onboarding_sop ONB-01. App-only bug (e.g. resend never enabled) -> Tech On-call,
+    P3, include: platform, app_version, time, screenshot.
+DO NOT:
+  - Do not read out, send or ask for an OTP.
+
+======================================================================
+## APP-09: Feature request or product feedback
+======================================================================
+CUSTOMER MAY SAY:
+  - "Please add dark mode"
+  - "You should add SIP for more coins"
+  - "App UI is confusing, can't find the withdraw button"
+  - "Please add Hindi language option"
+  - "Would love a price alert feature for percentage moves"
+INFO NEEDED FROM CUSTOMER:
+  - None required; optionally platform and a short description of the use case
+TOOLS: none
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02) if possible (not required).
+  2. Check whether it is really a how-to (feature already exists): answer the how-to
+     directly (e.g. where the withdraw button is). Resolve.
+  3. Check whether it is a bug disguised as feedback ("button doesn't work") -> APP-03.
+  4. Otherwise log as feedback: tickets.category = 'technical', subcategory = 'feedback',
+     priority P4, assigned_team Tech On-call (product feedback queue).
+RESOLUTION:
+  Thank the customer, log the request, no commitments on if/when.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thank you for the suggestion - we really appreciate you taking the time to share it. I have
+  passed your idea about <feature> to our product team. We can't promise if or when it will
+  be added, but customer feedback like yours directly shapes what we build next.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Always log -> Tech On-call feedback queue, P4, include: user_id (if known), feature,
+    platform, customer's use case.
+DO NOT:
+  - Do not promise features, timelines or beta access.
+
+======================================================================
+## APP-10: Known outage or maintenance window
+======================================================================
+CUSTOMER MAY SAY:
+  - "Is Acme down? Nothing is working"
+  - "App under maintenance message since 2 hours"
+  - "Couldn't sell during the crash because your app was down, who will pay my loss?"
+  - "Server down hai kya?"
+INFO NEEDED FROM CUSTOMER:
+  - Time the problem started, what they were trying to do, platform
+TOOLS: get_price_incidents
+DEBUGGING STEPS:
+  1. Check the status page and the internal incident channel for an ongoing or recent
+     incident/maintenance at the reported time. Also:
+     Call get_price_incidents(at_time=<reported_time>).
+     - Ongoing incident/maintenance: reply with the holding template; give the expected end
+       time only if the status page states one. Tag the ticket to the incident. Wait.
+     - Incident ended: tell the customer it is resolved; ask them to update/restart the app.
+     - No incident recorded and several customers report the same: escalate to Tech On-call
+       as a possible incident (P1).
+     - No incident, single customer: treat as APP-01/APP-02/APP-07.
+  2. Money actions during the outage: check the customer's transactions (APP-03 step 2) and
+     reassure with facts. Pending deposits auto-reconcile every 15 minutes for 72 hours
+     (DD-09).
+  3. Loss claims ("could not sell"): identify the user (support_guidelines_sop SUP-02), list
+     affected orders if any, and route to Trading Ops (P2). Compensation is decided only per
+     price_incidents.compensation_policy or via Grievance Officer
+     (complaints_escalation_sop CMP-08). Do not promise.
+RESOLUTION:
+  Acknowledge the incident, share only confirmed information and time frames from the status
+  page, reassure funds are safe, and follow up once resolved.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for your patience, and sorry for the disruption. Some Acme Invest services are
+  <currently unavailable due to scheduled maintenance until <time IST> / facing a temporary
+  issue that our team is actively working on>. Your funds and holdings are safe.
+  You can check live updates on our status page. <If ended: "The issue was fixed at <time>
+  IST - please restart the app.">
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Multiple reports with no known incident -> Tech On-call, P1, include: count of reports,
+    first report time, platforms, error text.
+  - Loss or compensation claims linked to an incident -> Trading Ops, P2 (and CMP-08).
+DO NOT:
+  - Do not speculate on the cause ("hack", "server overload", "cloud provider down").
+  - Do not give an ETA the status page does not give.
+  - Do not promise compensation.
+
+======================================================================
+## APP-11: API key and API trading issues
+======================================================================
+CUSTOMER MAY SAY:
+  - "My API key stopped working, getting 401 unauthorized"
+  - "How do I create an API key for my trading bot?"
+  - "Getting 429 too many requests"
+  - "API orders are rejected but same order works in app"
+  - "Mera bot trade nahi kar raha since morning"
+INFO NEEDED FROM CUSTOMER:
+  - The API key's label or first 6 characters only (NEVER the secret), endpoint, full error
+    response, timestamp (UTC or IST), client IP address, request rate
+TOOLS: get_auth_events, get_orders
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. If the customer pasted an API secret in the email: tell them to delete that key
+     immediately in web settings and create a new one; do not repeat the secret. Continue.
+  3. Key management (sample policy): API keys are created, viewed and deleted only on the
+     website under Settings > API Keys, require 2FA, and may be restricted to whitelisted IPs.
+     Keys are revoked automatically after a password reset or 2FA reset (sample value).
+     Call get_auth_events(event_types=["PASSWORD_RESET", "TWO_FA_RESET", "SESSION_REVOKED"]). Look at the latest 5.
+     - Reset around when the key stopped: key was revoked -> create a new key. Resolve.
+  4. Error branches:
+     - 401/403 unauthorized: wrong/expired/revoked key, IP not whitelisted, clock skew (request
+       timestamp must be within 5 seconds, sample value), wrong signature. Explain checks.
+     - 429 too many requests: rate limit is 10 requests per second per key (sample value).
+       Advise backoff and retry. Resolve.
+     - Order rejected: look at the rejection like any other order:
+       Call get_orders(source="API").
+       -> INSUFFICIENT_BALANCE / BELOW_MIN_ORDER_VALUE / PRICE_OUT_OF_BAND / INSTRUMENT_HALTED
+          -> trade_sop. ACCOUNT_RESTRICTED -> fraud_risk_sop RSK-04. SYSTEM_ERROR -> Tech
+          On-call (P2).
+     - 5xx errors from many API users -> APP-10 (possible incident, P1).
+  5. Integration/how-to questions (endpoints, signatures, websockets): point to the API
+     documentation on the website (sample path: /docs/api). Support does not debug customer
+     code. Resolve.
+RESOLUTION:
+  Resolve key lifecycle, rate limit and rejection causes; point to docs for integration;
+  escalate platform-side errors.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for the details on your API issue. <One of:
+  "Your API key was automatically disabled after the password reset on <date>, for your
+  security. Please create a new key on the website under Settings > API Keys." /
+  "The error means requests are above the limit of 10 per second per key; please add a short
+  wait and retry in your code." /
+  "Your API orders were rejected because <plain reason>, the same as it would be in the app.">
+  Please never share your API secret with anyone, including us. Our API documentation is
+  available on the website.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - SYSTEM_ERROR rejections or unexplained 5xx for one user -> Tech On-call, P2, include:
+    user_id, key label, endpoint, error body, timestamps, client IP.
+  - Many API users failing -> Tech On-call, P1.
+  - Customer suspects their key was used by someone else (orders they did not place) ->
+    account_security_sop SEC-01, P1.
+DO NOT:
+  - Do not ask for or store the API secret.
+  - Do not raise rate limits or whitelist IPs on request.
+  - Do not debug or rewrite the customer's trading bot code.

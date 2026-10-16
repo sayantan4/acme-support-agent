@@ -1,0 +1,524 @@
+SOP_ID: BNK
+TITLE: Bank Accounts (adding, verifying, changing, removing)
+CATEGORY: bank_account
+VERSION: 1.0
+LAST_REVIEWED: 2026-09-27
+OWNER: Payments Ops
+NOTE: Fictional sample SOP for the Acme Invest demo. Policy values live in data_dictionary.txt
+      (DD-09). Values marked "(sample value)" are not in the data dictionary yet.
+
+======================================================================
+## BNK-00: Scope and quick triage
+======================================================================
+SCOPE:
+  Bank accounts linked to an Acme Invest account for INR deposits and withdrawals: how to add,
+  penny drop and reverse penny drop verification, name mismatch, pending verification,
+  primary account, removal, unsupported account types, bank mergers / IFSC changes and
+  accounts already linked elsewhere.
+  NOT in scope:
+    - Deposits that failed because of the bank account -> payment_sop PAY-04 / PAY-12
+    - Withdrawals to a closed account -> withdrawal_sop WDR-09
+    - KYC name corrections -> kyc_sop
+
+KEY RULES (DD-09 unless marked):
+  - Only savings or current accounts held in the customer's own name, at an Indian bank,
+    can be linked. The account must be VERIFIED before any deposit or withdrawal.
+  - Maximum 3 active (non-REMOVED) bank accounts per user (sample value).
+  - Exactly one account is primary (is_primary = true); withdrawals default to it.
+  - Support never adds, edits or removes bank details because of an email request
+    (support_guidelines_sop SUP-01). The customer does it in the app.
+
+VERIFICATION METHODS:
+  - PENNY_DROP: Acme sends Re 1 to the account number + IFSC the customer typed; the bank
+    returns the account holder name (account_holder_name).
+  - REVERSE_PENNY_DROP: the customer pays Re 1 by UPI from the account; the bank shares the
+    account details and holder name; the Re 1 is refunded within 48 hours (sample value).
+
+NAME MATCH THRESHOLDS (sample values; bank_accounts.name_match_score, 0-100, compares the
+bank's account_holder_name with the KYC name):
+  - 80 or more: VERIFIED automatically.
+  - 60 to 79:   stays PENDING_VERIFICATION for manual review by Payments Ops (up to 48 hours,
+                sample value).
+  - Below 60:   FAILED.
+
+TOOLS: get_bank_accounts
+QUICK TRIAGE (find the user first, see support_guidelines_sop SUP-02, then):
+  Call get_bank_accounts().
+
+  status                 Go to
+  PENDING_VERIFICATION   BNK-08 (or BNK-03 if score 60-79)
+  VERIFIED               BNK-05 / BNK-06 / BNK-09 depending on the question
+  FAILED                 BNK-02 (no name returned) / BNK-03 (score < 60) / BNK-04 (reverse penny drop)
+  REMOVED                BNK-06
+  No accounts            BNK-01
+
+======================================================================
+## BNK-01: How to add a bank account
+======================================================================
+CUSTOMER MAY SAY:
+  - "How do I link my bank account?"
+  - "Where do I add bank details for withdrawal?"
+  - "Bank account kaise add kare?"
+  - "Can I add a second bank account?"
+  - "Please add my ICICI account to my profile" (email request)
+INFO NEEDED FROM CUSTOMER:
+  - None for a how-to. Do not ask for the full account number by email.
+TOOLS: get_user, get_bank_accounts
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_user(). Check kyc_status.
+     - Not VERIFIED: a bank account can be added only after KYC is VERIFIED (sample rule) ->
+       kyc_sop. Explain and resolve.
+  3. Call get_bank_accounts(). Count the accounts whose status is not REMOVED.
+     - 3 or more: limit reached (sample value); they must remove one first (BNK-06). Resolve.
+     - Fewer than 3: give the steps below. Resolve.
+  4. If the customer sent account details and asked us to add them: reply with the steps;
+     do not add. Remind them not to share full account numbers by email.
+  5. Joint, NRE/NRO, business or wallet accounts -> BNK-07.
+STEPS FOR THE CUSTOMER (sample app flow):
+  Profile > Bank Accounts > Add Bank Account, then either:
+  - Verify with UPI (reverse penny drop): pay Re 1 from the UPI app linked to that account;
+    it is refunded. Fastest option.
+  - Enter account number and IFSC (penny drop): Acme sends Re 1 to the account.
+  Verification usually completes within a few minutes.
+RESOLUTION:
+  Share the steps and the own-name rule.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for reaching out. You can add a bank account yourself in the app:
+  1. Go to Profile > Bank Accounts > Add Bank Account.
+  2. Choose "Verify with UPI" and pay Re 1 from the UPI app linked to that bank account (the
+     Re 1 is refunded), or enter the account number and IFSC and we will send Re 1 to check it.
+  The account must be a savings or current account in your own name, the same name as your
+  PAN. You can link up to 3 accounts. For your security, we cannot add bank details sent by
+  email, so please avoid sharing full account numbers with anyone.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Not needed for a how-to. If adding fails, use BNK-02 / BNK-04.
+DO NOT:
+  - Do not add or edit a bank account from email details.
+  - Do not repeat the customer's full account number back in the reply.
+
+======================================================================
+## BNK-02: Penny drop verification failed
+======================================================================
+CUSTOMER MAY SAY:
+  - "Bank verification failed while adding my account"
+  - "It says unable to verify account, but details are correct"
+  - "Penny drop failed, Re 1 not received"
+  - "Account verify nahi ho raha, IFSC sahi hai"
+  - "Error: account details invalid"
+INFO NEEDED FROM CUSTOMER:
+  - Bank name, last 4 digits of the account, IFSC; whether the account is active and
+    whether it is savings/current/NRE/joint
+TOOLS: get_bank_accounts, get_bank_verification_failures
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call get_bank_accounts(). Look at the accounts with verification_method
+     PENNY_DROP.
+  3. Branch on the latest FAILED account:
+     - account_holder_name is NULL and name_match_score is NULL: the bank did not confirm the
+       account. Common causes: wrong account number or IFSC, account closed/dormant/frozen at
+       the bank, NRE or other unsupported type, or the bank's systems were temporarily down.
+       -> Ask the customer to recheck the account number and IFSC (from a cheque or passbook,
+          not from memory), confirm the account is active, and retry after 2 hours
+          (sample value), or use Verify with UPI (BNK-04).
+     - account_holder_name present and name_match_score < 60: name mismatch -> BNK-03.
+     - Several FAILED attempts today (3 or more, sample value): the add option may be
+       paused until the next day (sample rule). Ask them to retry tomorrow or use UPI.
+     - The same account (same masked number + IFSC) failed 3 times on different days with
+       the customer confirming it is active: escalate to Payments Ops, P3 for a manual check.
+  4. IFSC looks outdated (bank merged): -> BNK-09.
+  5. Multiple users failing for the same bank in the last hour (pattern visible in several
+     tickets): possible bank outage -> escalate Tech On-call, P2.
+     Call get_bank_verification_failures(minutes=60). Check failures_by_bank.
+RESOLUTION:
+  Recheck details and retry, or verify with UPI. Escalate only repeated failures on a
+  confirmed active account.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Sorry that your bank account could not be verified. When we checked your account ending
+  <last 4> with <bank>, the bank did not confirm the details. This usually happens when the
+  account number or IFSC has a small error, or the account is inactive or not a regular
+  savings/current account.
+  Please:
+  - Check the account number and IFSC against your cheque book or passbook, and try again
+    after 2 hours, or
+  - Use "Verify with UPI" instead, which confirms the account in a few seconds.
+  If it still fails, reply to this email and we will check it for you.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - 3 failures on a confirmed active, supported account -> Payments Ops, P3, include user_id,
+    bank_account_ids, bank_name, ifsc, masked number, created_at of each attempt.
+  - Many users failing for one bank -> Tech On-call, P2, include bank_name and counts.
+DO NOT:
+  - Do not mark the account verified manually.
+  - Do not ask for a cancelled cheque or statement unless Payments Ops requests it.
+
+======================================================================
+## BNK-03: Name mismatch between bank and KYC
+======================================================================
+CUSTOMER MAY SAY:
+  - "Bank verification failed due to name mismatch but it is my account"
+  - "My bank has my name as R. Kumar and PAN has Rahul Kumar"
+  - "After marriage my surname changed in bank, not in PAN"
+  - "Naam match nahi ho raha, same person hoon"
+  - "Bank account under review for name check"
+INFO NEEDED FROM CUSTOMER:
+  - Confirmation that the account is in their own name (not joint/family)
+  - If a legal name change: which document has the new name (PAN, bank, both)
+TOOLS: get_bank_accounts, get_kyc_applications
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call get_bank_accounts().
+  3. Get the KYC name:
+     Call get_kyc_applications(). In the application with status VERIFIED, take
+     name_on_doc of the document with doc_type PAN and verification_status PASSED.
+  4. Branch on name_match_score (sample thresholds, see BNK-00):
+     - 80 or more and status VERIFIED: no issue; resolve.
+     - 60-79, PENDING_VERIFICATION: manual review. Within 48 hours of created_at -> tell the
+       customer to wait. Beyond 48 hours -> escalate Payments Ops, P3.
+     - Below 60, FAILED: compare the two names yourself:
+       - Clearly the same person written differently (initials, order, spelling like
+         "Mohd" / "Mohammed", missing middle name): ask the customer to add the account again
+         via Verify with UPI (some banks return the full name that way). If it fails again ->
+         escalate Payments Ops, P3 for manual review with both names.
+       - Different surname after marriage or legal name change: the customer should update
+         the name with the bank (or their KYC via kyc_sop re-KYC) so both match, then add the
+         account again. Resolve.
+       - A different person's name (spouse, parent, company): third-party account, cannot be
+         linked. Resolve (explain the own-name rule).
+  5. Never tell the customer the numeric score or the thresholds.
+RESOLUTION:
+  Same person, formatting difference -> retry/manual review. Different legal name -> align
+  records. Different person -> not allowed.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for explaining. We could not verify your bank account ending <last 4> because the
+  name your bank has on record does not closely match the name on your PAN.
+  <It is being reviewed by our team, and you will hear from us within 48 hours. / Please try
+  adding it again using "Verify with UPI"; if that also fails, reply and we will review it
+  manually. / If your name has changed, please update it with your bank so it matches your
+  PAN, then add the account again.>
+  For your safety, we can only link bank accounts held in your own name.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Score 60-79 pending beyond 48 hours -> Payments Ops, P3, include bank_account_id,
+    account_holder_name, KYC name, score.
+  - Same-person formatting difference that failed twice -> Payments Ops, P3, same details.
+DO NOT:
+  - Do not reveal the name match score, thresholds or the bank's returned name if it is not
+    the customer's (it may be another person's name).
+  - Do not approve an account in another person's name, even a family member's.
+
+======================================================================
+## BNK-04: Reverse penny drop / UPI verification issues
+======================================================================
+CUSTOMER MAY SAY:
+  - "I paid Re 1 for bank verification but account not added"
+  - "Re 1 debited, not refunded"
+  - "UPI verification linked the wrong bank account"
+  - "Verify with UPI fails, my UPI app says payment declined"
+  - "1 rupee kat gaya but verification fail"
+INFO NEEDED FROM CUSTOMER:
+  - UPI app used, date/time, which bank account (bank + last 4) was used to pay the Re 1
+TOOLS: get_bank_accounts
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call get_bank_accounts(). Look at the accounts with verification_method
+     REVERSE_PENNY_DROP.
+  3. Branch:
+     - Account VERIFIED but for a different bank than the customer intended: the UPI app paid from
+       its default account. The customer can keep it, or remove it (BNK-06) and retry after
+       selecting the right account in the UPI app. Resolve.
+     - Account FAILED with score < 60: name mismatch -> BNK-03.
+     - Account FAILED with no name: the bank did not share details (some banks do not support this
+       method) -> ask them to use account number + IFSC (penny drop, BNK-02). Resolve.
+     - No account created for the attempt: the Re 1 did not complete or reached us late. The
+       customer should retry. For the Re 1:
+       - Less than 48 hours (sample value): it is refunded automatically -> wait.
+       - More than 48 hours and still not refunded: ask for the UTR from the UPI app and
+         escalate to Payments Ops, P4 (amount is Re 1).
+     - Account PENDING_VERIFICATION -> BNK-08.
+  4. UPI app declines the payment: usually the UPI app or bank limit/PIN issue; ask them to
+     retry or use penny drop. Resolve.
+RESOLUTION:
+  Retry with the right account, or use penny drop; Re 1 is refunded automatically.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for letting us know. When you verify with UPI, your bank account is linked based on
+  the account your UPI app paid the Re 1 from. <Your UPI app used your <bank> account ending
+  <last 4>, which is now linked. If you want a different account, remove this one under
+  Profile > Bank Accounts and try again after selecting the right account in your UPI app. /
+  Your bank did not share the account details this way, so please add the account using the
+  account number and IFSC instead.>
+  The Re 1 used for verification is returned automatically within 48 hours.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Re 1 not refunded after 48 hours -> Payments Ops, P4, include UTR, date, user_id.
+DO NOT:
+  - Do not promise to link a different account than the one the UPI payment came from.
+
+======================================================================
+## BNK-05: Change primary bank account
+======================================================================
+CUSTOMER MAY SAY:
+  - "Please change my primary bank to Axis"
+  - "How do I make my new account the default for withdrawal?"
+  - "Primary account kaise change kare?"
+  - "Withdrawals keep going to my old account"
+INFO NEEDED FROM CUSTOMER:
+  - Which account they want as primary (bank + last 4)
+TOOLS: get_bank_accounts, get_withdrawals
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call get_bank_accounts(). Look at the accounts whose status is not REMOVED.
+     - Target account VERIFIED: the customer can set it as primary in the app (Profile > Bank
+       Accounts > select account > Make Primary) (sample flow). Resolve.
+     - Target account not yet added -> BNK-01. PENDING_VERIFICATION -> BNK-08. FAILED -> BNK-02/03.
+     - Target is already primary but withdrawals went elsewhere: check
+       Call get_withdrawals(asset="INR"). Look at the latest 5 (bank_account_id).
+       The account is chosen at the time of each withdrawal; earlier withdrawals are not
+       changed. If a withdrawal after the change went to the non-primary account without the
+       customer selecting it -> escalate Tech On-call, P3.
+  3. Pending withdrawal to the old account -> withdrawal_sop WDR-09 / WDR-11.
+RESOLUTION:
+  Customer changes primary in the app.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  You can change your primary bank account yourself: go to Profile > Bank Accounts, select
+  your <bank> account ending <last 4> and tap Make Primary. New withdrawals will go to that
+  account by default, and you can still pick another verified account while withdrawing.
+  For your security, we cannot change bank details by email.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Withdrawal went to a non-selected account after the change -> Tech On-call, P3, include
+    withdrawal_id, bank_account_ids, app version.
+DO NOT:
+  - Do not change is_primary on the customer's behalf.
+
+======================================================================
+## BNK-06: Remove a bank account
+======================================================================
+CUSTOMER MAY SAY:
+  - "Please delete my old bank account from Acme"
+  - "I closed my Kotak account, remove it"
+  - "Remove option not showing for my bank account"
+  - "Purana account hatana hai"
+INFO NEEDED FROM CUSTOMER:
+  - Which account (bank + last 4)
+TOOLS: get_bank_accounts, get_withdrawals, get_deposits
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call get_bank_accounts(). Look at the accounts whose status is not REMOVED.
+  3. Check what blocks removal (sample rules):
+     - It is the primary account and another VERIFIED account exists: make another primary
+       first (BNK-05), then remove.
+     - It is the only VERIFIED account: it can be removed, but the customer cannot withdraw
+       until a new one is verified. Warn them.
+     - Pending withdrawal to it:
+       Call get_withdrawals(bank_account_id=<bank_account_id>,
+            statuses=["REQUESTED", "PENDING_APPROVAL", "PROCESSING", "ON_HOLD"]).
+       -> Wait until it completes or cancel it (withdrawal_sop WDR-11).
+     - Pending deposit or refund from it:
+       Call get_deposits(status="PENDING").
+       Call get_deposits(status="REFUND_INITIATED").
+       A deposit with that bank_account_id: wait until complete; refunds still go to the source
+       account.
+     - No blocker: customer removes it in the app (Profile > Bank Accounts > select > Remove).
+       Resolve.
+  4. Remove option not visible and none of the blockers apply -> escalate Tech On-call, P3.
+  5. Customer wants to remove all bank details because they are closing their account ->
+     account_closure_sop.
+RESOLUTION:
+  Customer removes in the app after any blocker is cleared.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  You can remove the account yourself from Profile > Bank Accounts: select the <bank>
+  account ending <last 4> and tap Remove. <As it is currently your primary account, please
+  first make another verified account primary. / There is a withdrawal of Rs <amount> being
+  sent to it right now, so please wait until it completes.> Past transactions stay in your
+  history.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Remove fails with no blocker -> Tech On-call, P3, include bank_account_id, screenshot.
+DO NOT:
+  - Do not remove the account yourself because of an email request.
+
+======================================================================
+## BNK-07: Joint account, NRE/NRO or business account (not supported)
+======================================================================
+CUSTOMER MAY SAY:
+  - "Can I link my NRE account? I live in Dubai"
+  - "My account is a joint account with my wife, verification failed"
+  - "Can I use my company current account?"
+  - "NRO account add nahi ho raha"
+  - "Can I add my mobile wallet instead of a bank account?"
+INFO NEEDED FROM CUSTOMER:
+  - Account type; residency status if NRE/NRO is mentioned
+TOOLS: none
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Branch by account type (sample rules):
+     - NRE / NRO: not supported. Acme accounts are for Indian residents only (DD-09 KYC). If
+       the customer says they are now a non-resident, they should stop using the account;
+       escalate to Risk & Compliance, P3, to review residency (do not close the account).
+     - Joint account: supported only if the customer is the primary (first) holder and the
+       bank returns their name first; otherwise name matching fails (BNK-03). Many banks
+       return only the first holder's name. If the customer is second holder -> not possible.
+     - Business / company / partnership / HUF current account: not supported; must be a
+       personal account in the customer's name.
+     - Wallets, payments-bank wallets, credit cards, foreign accounts: not supported.
+       (Payments-bank savings accounts with an IFSC are treated like normal savings accounts.)
+  3. Resolve with an explanation.
+RESOLUTION:
+  Explain which account types are supported; suggest a personal savings/current account.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for your question. Acme Invest can link only personal savings or current accounts
+  at an Indian bank that are held in your own name. <NRE and NRO accounts / business
+  accounts / accounts where you are not the first holder> cannot be linked. Please add a
+  personal account in your own name from Profile > Bank Accounts.
+  <As Acme Invest is available only to Indian residents, our team will get in touch about
+  your residency status.>
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Customer says they are a non-resident -> Risk & Compliance, P3, include user_id and the
+    customer's statement.
+DO NOT:
+  - Do not make exceptions for NRE/NRO or business accounts.
+  - Do not close or freeze the account yourself.
+
+======================================================================
+## BNK-08: Bank account shows PENDING_VERIFICATION for a long time
+======================================================================
+CUSTOMER MAY SAY:
+  - "Bank account still under verification since 3 days"
+  - "Pending verification, can't withdraw"
+  - "Bank verification pending hai kab hoga?"
+  - "Added my account yesterday, still in progress"
+INFO NEEDED FROM CUSTOMER:
+  - Which account (bank + last 4)
+TOOLS: get_bank_accounts
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call get_bank_accounts(status="PENDING_VERIFICATION").
+  3. Branch:
+     - name_match_score between 60 and 79: in manual name review (BNK-03). Within 48 hours of
+       created_at -> wait. Beyond -> escalate Payments Ops, P3 (P2 if the customer has a
+       withdrawal blocked by it and no other verified account).
+     - name_match_score NULL and created_at less than 2 hours ago (sample value): the bank has
+       not answered yet -> wait 2 hours.
+     - name_match_score NULL and older than 2 hours: the verification call to the bank did not
+       complete. Ask the customer to remove it and add again (preferably Verify with UPI). If
+       they cannot remove it or it happens again -> escalate Payments Ops, P3.
+     - name_match_score 80 or more but still pending: status not updated -> escalate Payments
+       Ops, P3.
+RESOLUTION:
+  Wait inside the window; re-add or escalate outside it.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for your patience. Your bank account ending <last 4> is <being reviewed by our team
+  to confirm the account name; this is completed within 48 hours, by <date> / still waiting for
+  confirmation from your bank>. <Please remove it and add it again using "Verify with UPI",
+  which usually confirms in a few seconds.> We will let you know as soon as it is verified.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Manual review beyond 48 hours -> Payments Ops, P3 (P2 if blocking the only withdrawal
+    route), include bank_account_id, score, created_at.
+  - Score >= 80 but not VERIFIED -> Payments Ops, P3.
+DO NOT:
+  - Do not tell the customer the account "will be approved"; only give the review time frame.
+
+======================================================================
+## BNK-09: Bank merged or IFSC changed
+======================================================================
+CUSTOMER MAY SAY:
+  - "My bank merged with another bank, IFSC changed, withdrawals failing"
+  - "Bank sent new IFSC code, how do I update?"
+  - "Old IFSC not working while adding account"
+  - "Branch shift ho gaya, IFSC naya hai"
+INFO NEEDED FROM CUSTOMER:
+  - Bank name, last 4 digits, the new IFSC (the IFSC itself is not sensitive)
+TOOLS: get_bank_accounts, get_withdrawals
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call get_bank_accounts(). Look at the accounts whose status is not REMOVED.
+  3. Branch:
+     - Account VERIFIED with the old IFSC: IFSC cannot be edited in place (sample rule). The
+       customer must add the account again with the new IFSC (it will be verified again),
+       make it primary (BNK-05) and remove the old one (BNK-06). Resolve.
+     - Recent withdrawals to the old IFSC failing
+       (Call get_withdrawals(bank_account_id=<bank_account_id>). Latest 5.)
+       -> FAILED: money returns to the wallet (withdrawal_sop WDR-03); re-add with new IFSC.
+       -> Many customers of the same bank failing (mass change): escalate Payments Ops, P3,
+          so the old IFSCs can be mapped.
+     - Adding with the old IFSC fails: use the new IFSC from the bank's letter, passbook or
+       cheque book. Resolve.
+     - Adding the same account again is blocked because the old record exists: remove the old
+       one first. If removal is blocked -> BNK-06.
+RESOLUTION:
+  Re-add the account with the new IFSC, set primary, remove the old one.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for letting us know about the IFSC change. To keep your withdrawals working, please:
+  1. Add the same account again under Profile > Bank Accounts using the new IFSC <new IFSC>.
+  2. Once it is verified, make it your primary account.
+  3. Remove the old entry with the previous IFSC.
+  <Your recent withdrawal of Rs <amount> could not go through with the old IFSC; the money is
+  back in your Acme wallet, so you can withdraw again once the new details are verified.>
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Several customers of one bank affected -> Payments Ops, P3, include bank_name, old and new IFSC, ticket IDs.
+DO NOT:
+  - Do not update the IFSC in the customer's record yourself.
+
+======================================================================
+## BNK-10: Bank account already linked to another Acme account
+======================================================================
+CUSTOMER MAY SAY:
+  - "It says this bank account is already in use"
+  - "I created a new Acme account and can't add my bank"
+  - "Bank already linked with another user error"
+  - "Mera hi account hai, dusre account me bhi hai"
+INFO NEEDED FROM CUSTOMER:
+  - Bank name, last 4 digits, and whether they have another Acme account (old phone/email)
+TOOLS: find_bank_account_owners
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Look for other users with the same bank account (masked number + IFSC; the tool compares
+     holder names because the masked number alone is not unique):
+     Call find_bank_account_owners(account_number_masked=<masked>, ifsc=<ifsc>).
+  3. Branch:
+     - Match with same_name_as_customer = true: duplicate accounts ->
+       onboarding_sop ONB-07. Do not share details of the other account.
+     - Match with same_name_as_customer = false: a bank account cannot be shared
+       between people -> explain the own-name rule. If the customer insists it is only theirs
+       -> escalate Risk & Compliance, P3 (possible misuse).
+     - Other account is CLOSED (other_account_status = CLOSED): escalate Payments Ops, P3, to release
+       the bank account.
+     - No match: the error may be wrong -> escalate Tech On-call, P3, with a screenshot.
+RESOLUTION:
+  Use the existing account, or follow the duplicate account process.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for writing. A bank account can be linked to only one Acme Invest account. The
+  account ending <last 4> is already linked to another Acme Invest account. If you have an
+  older Acme account, please log in to that one, or reply and we will help you with the next
+  steps. For privacy, we cannot share details of any other account.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Different holder name on the other account and the customer disputes -> Risk & Compliance, P3.
+  - Other account closed -> Payments Ops, P3, include both user_ids (internal).
+DO NOT:
+  - Do not confirm whose account holds the bank account, or share its email/phone.

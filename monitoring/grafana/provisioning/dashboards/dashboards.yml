@@ -1,0 +1,12 @@
+# Dashboards are JSON files in monitoring/grafana/dashboards. You can edit in the UI; then run
+# `scripts/monitoring.sh export` to write the change back to the JSON file (the source of truth).
+apiVersion: 1
+
+providers:
+  - name: ai-agent
+    folder: AI agent
+    type: file
+    allowUiUpdates: true
+    updateIntervalSeconds: 10
+    options:
+      path: $MONITORING_DIR/grafana/dashboards

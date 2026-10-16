@@ -1,0 +1,2012 @@
+[
+  {
+    "id": "cls-001",
+    "email": {
+      "from": "a@ex.com",
+      "subject": "Close my account",
+      "body": "Please permanently close my Acme account. I have no balance or open orders."
+    },
+    "expected_category": "closure",
+    "expected_sop_ids": [
+      "CLS-01"
+    ],
+    "acceptable_sop_ids": [
+      "SUP-01"
+    ],
+    "reply_must_include": [
+      "closure request",
+      "7 working days"
+    ],
+    "reply_must_not_include": [
+      "immediately closed",
+      "guaranteed"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; active account closure how-to"
+  },
+  {
+    "id": "cls-002",
+    "email": {
+      "from": "b@ex.com",
+      "subject": "Account band karna hai",
+      "body": "Mera account band kar do. Balance zero hai, koi order nahi hai."
+    },
+    "expected_category": "closure",
+    "expected_sop_ids": [
+      "CLS-01"
+    ],
+    "acceptable_sop_ids": [
+      "SUP-01"
+    ],
+    "reply_must_include": [
+      "closure request",
+      "7 working days"
+    ],
+    "reply_must_not_include": [
+      "OTP",
+      "password"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hindi; closure request"
+  },
+  {
+    "id": "cls-003",
+    "email": {
+      "from": "c@ex.com",
+      "subject": "Close account blocked",
+      "body": "I tried to close my account but it says there is still a balance/open activity. What do I do?"
+    },
+    "expected_category": "closure",
+    "expected_sop_ids": [
+      "CLS-02"
+    ],
+    "acceptable_sop_ids": [
+      "CLS-01"
+    ],
+    "reply_must_include": [
+      "balance/open activity must be cleared",
+      "closure can proceed after prerequisites"
+    ],
+    "reply_must_not_include": [
+      "active risk hold",
+      "internal status"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; closure blocked by balance/activity"
+  },
+  {
+    "id": "cls-004",
+    "email": {
+      "from": "d@ex.com",
+      "subject": "Account closure kyun blocked hai?",
+      "body": "Account close nahi ho raha, app bol raha hai review hai. Reason kya hai?"
+    },
+    "expected_category": "closure",
+    "expected_sop_ids": [
+      "CLS-03"
+    ],
+    "acceptable_sop_ids": [
+      "CLS-02"
+    ],
+    "reply_must_include": [
+      "closure cannot proceed while review is active",
+      "reason cannot be shared"
+    ],
+    "reply_must_not_include": [
+      "risk hold reason",
+      "suspicious"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hindi; never reveal hold reason"
+  },
+  {
+    "id": "cls-005",
+    "email": {
+      "from": "e@ex.com",
+      "subject": "Closure status",
+      "body": "I requested account closure five days ago. Any update?"
+    },
+    "expected_category": "closure",
+    "expected_sop_ids": [
+      "CLS-09"
+    ],
+    "acceptable_sop_ids": [
+      "CLS-01"
+    ],
+    "reply_must_include": [
+      "closure request status",
+      "current status"
+    ],
+    "reply_must_not_include": [
+      "internal status code",
+      "reviewer"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; closure request status"
+  },
+  {
+    "id": "cls-006",
+    "email": {
+      "from": "f@ex.com",
+      "subject": "Account close karna hai",
+      "body": "Maine closure request bheji thi but ab cancel karni hai, please withdraw it."
+    },
+    "expected_category": "closure",
+    "expected_sop_ids": [
+      "CLS-07"
+    ],
+    "acceptable_sop_ids": [
+      "CLS-09"
+    ],
+    "reply_must_include": [
+      "closure request cancelled",
+      "cancellation"
+    ],
+    "reply_must_not_include": [
+      "cannot cancel"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hinglish; cancel closure request"
+  },
+  {
+    "id": "sec-001",
+    "email": {
+      "from": "a@ex.com",
+      "subject": "My account was hacked",
+      "body": "Someone logged in and withdrew my crypto. I did not make this withdrawal."
+    },
+    "expected_category": "security",
+    "expected_sop_ids": [
+      "SEC-01"
+    ],
+    "acceptable_sop_ids": [
+      "RSK-05"
+    ],
+    "reply_must_include": [
+      "account is being secured",
+      "security team review"
+    ],
+    "reply_must_not_include": [
+      "OTP",
+      "password",
+      "IP address"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "English; unauthorized withdrawal is P1"
+  },
+  {
+    "id": "sec-002",
+    "email": {
+      "from": "b@ex.com",
+      "subject": "Account hack ho gaya",
+      "body": "Kisi ne login kiya, mujhe OTP bhi aaya jo maine request nahi kiya. Please help."
+    },
+    "expected_category": "security",
+    "expected_sop_ids": [
+      "SEC-01"
+    ],
+    "acceptable_sop_ids": [
+      "SEC-08"
+    ],
+    "reply_must_include": [
+      "account is being secured",
+      "security team review"
+    ],
+    "reply_must_not_include": [
+      "OTP code",
+      "device ID"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "Hindi/Hinglish; possible compromise"
+  },
+  {
+    "id": "sec-003",
+    "email": {
+      "from": "c@ex.com",
+      "subject": "Lost phone",
+      "body": "Mera phone kho gaya hai aur authenticator bhi nahi hai. 2FA reset kaise hoga?"
+    },
+    "expected_category": "security",
+    "expected_sop_ids": [
+      "SEC-03"
+    ],
+    "acceptable_sop_ids": [
+      "SEC-02"
+    ],
+    "reply_must_include": [
+      "lost phone recovery",
+      "identity verification"
+    ],
+    "reply_must_not_include": [
+      "recovery code",
+      "OTP"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hinglish; lost phone/2FA recovery"
+  },
+  {
+    "id": "sec-004",
+    "email": {
+      "from": "d@ex.com",
+      "subject": "Change mobile number",
+      "body": "I have a new mobile number. Please change my registered number by email."
+    },
+    "expected_category": "security",
+    "expected_sop_ids": [
+      "SEC-04"
+    ],
+    "acceptable_sop_ids": [
+      "SUP-01"
+    ],
+    "reply_must_include": [
+      "Settings > Security",
+      "fresh verification"
+    ],
+    "reply_must_not_include": [
+      "send OTP",
+      "change it manually"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; must use in-app/Risk flow"
+  },
+  {
+    "id": "sec-005",
+    "email": {
+      "from": "e@ex.com",
+      "subject": "Fake support",
+      "body": "Telegram par someone claiming to be Acme support asked me for my OTP and private key."
+    },
+    "expected_category": "security",
+    "expected_sop_ids": [
+      "SEC-07"
+    ],
+    "acceptable_sop_ids": [
+      "SEC-06",
+      "RSK-05"
+    ],
+    "reply_must_include": [
+      "do not share OTP or private key",
+      "report the impersonation"
+    ],
+    "reply_must_not_include": [
+      "share your OTP",
+      "share your private key"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "English; impersonation/social engineering"
+  },
+  {
+    "id": "sec-006",
+    "email": {
+      "from": "f@ex.com",
+      "subject": "Security change ke baad withdrawal",
+      "body": "I changed my phone yesterday and now withdrawal nahi ho raha. Why?"
+    },
+    "expected_category": "security",
+    "expected_sop_ids": [
+      "SEC-11"
+    ],
+    "acceptable_sop_ids": [
+      "SEC-04"
+    ],
+    "reply_must_include": [
+      "24-hour withdrawal cooldown",
+      "security change"
+    ],
+    "reply_must_not_include": [
+      "remove cooldown",
+      "bypass"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hinglish; 24-hour security cooldown"
+  },
+  {
+    "id": "app-001",
+    "email": {
+      "from": "a@ex.com",
+      "subject": "App crashes",
+      "body": "The Acme app crashes immediately after I open it."
+    },
+    "expected_category": "technical",
+    "expected_sop_ids": [
+      "APP-01"
+    ],
+    "acceptable_sop_ids": [
+      "APP-10"
+    ],
+    "reply_must_include": [
+      "app version",
+      "device model"
+    ],
+    "reply_must_not_include": [
+      "cloud provider",
+      "vendor"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; crash on open"
+  },
+  {
+    "id": "app-002",
+    "email": {
+      "from": "b@ex.com",
+      "subject": "App khulte hi band",
+      "body": "Acme app khulte hi close ho jata hai. Latest update ke baad se ho raha hai."
+    },
+    "expected_category": "technical",
+    "expected_sop_ids": [
+      "APP-01"
+    ],
+    "acceptable_sop_ids": [
+      "APP-06"
+    ],
+    "reply_must_include": [
+      "app version",
+      "device model"
+    ],
+    "reply_must_not_include": [
+      "OTP",
+      "password"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hinglish; crash after update"
+  },
+  {
+    "id": "app-003",
+    "email": {
+      "from": "c@ex.com",
+      "subject": "Blank screen",
+      "body": "Login ke baad screen blank hai aur loading se aage nahi ja raha."
+    },
+    "expected_category": "technical",
+    "expected_sop_ids": [
+      "APP-02"
+    ],
+    "acceptable_sop_ids": [
+      "APP-10"
+    ],
+    "reply_must_include": [
+      "app version",
+      "screenshot"
+    ],
+    "reply_must_not_include": [
+      "CDN",
+      "server vendor"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hinglish; blank/loading screen"
+  },
+  {
+    "id": "app-004",
+    "email": {
+      "from": "d@ex.com",
+      "subject": "Price chart not loading",
+      "body": "BTC price chart is stale and not updating, but I can use the rest of the app."
+    },
+    "expected_category": "technical",
+    "expected_sop_ids": [
+      "APP-04"
+    ],
+    "acceptable_sop_ids": [
+      "APP-10"
+    ],
+    "reply_must_include": [
+      "price/chart issue",
+      "app version"
+    ],
+    "reply_must_not_include": [
+      "vendor",
+      "guaranteed live price"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; stale chart"
+  },
+  {
+    "id": "app-005",
+    "email": {
+      "from": "e@ex.com",
+      "subject": "Old version",
+      "body": "The app says I need to update before I can continue. Which version do I need?"
+    },
+    "expected_category": "technical",
+    "expected_sop_ids": [
+      "APP-06"
+    ],
+    "acceptable_sop_ids": [
+      "APP-01"
+    ],
+    "reply_must_include": [
+      "minimum supported app version",
+      "update the app"
+    ],
+    "reply_must_not_include": [
+      "bypass update"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; old app version"
+  },
+  {
+    "id": "app-006",
+    "email": {
+      "from": "f@ex.com",
+      "subject": "API trading issue",
+      "body": "My API order requests are failing. I use API trading and need help checking the error."
+    },
+    "expected_category": "technical",
+    "expected_sop_ids": [
+      "APP-11"
+    ],
+    "acceptable_sop_ids": [
+      "APP-03"
+    ],
+    "reply_must_include": [
+      "API trading",
+      "error details"
+    ],
+    "reply_must_not_include": [
+      "API secret",
+      "private key"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; API trading issue"
+  },
+  {
+    "id": "bnk-001",
+    "email": {
+      "from": "a@ex.com",
+      "subject": "Add bank account",
+      "body": "Bank account kaise add karu? I want to link my savings account."
+    },
+    "expected_category": "bank_account",
+    "expected_sop_ids": [
+      "BNK-01"
+    ],
+    "acceptable_sop_ids": [
+      "SUP-01"
+    ],
+    "reply_must_include": [
+      "add the bank account in the app",
+      "verified bank account"
+    ],
+    "reply_must_not_include": [
+      "full account number by email"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hinglish; add bank account"
+  },
+  {
+    "id": "bnk-002",
+    "email": {
+      "from": "b@ex.com",
+      "subject": "Penny drop failed",
+      "body": "I tried verifying my bank account and penny drop verification failed."
+    },
+    "expected_category": "bank_account",
+    "expected_sop_ids": [
+      "BNK-02"
+    ],
+    "acceptable_sop_ids": [
+      "BNK-03"
+    ],
+    "reply_must_include": [
+      "penny drop verification",
+      "verification failed"
+    ],
+    "reply_must_not_include": [
+      "full bank details"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; penny drop failure"
+  },
+  {
+    "id": "bnk-003",
+    "email": {
+      "from": "c@ex.com",
+      "subject": "Name mismatch",
+      "body": "Bank account me naam alag hai aur KYC me naam alag. Verification pending/failed ho raha hai."
+    },
+    "expected_category": "bank_account",
+    "expected_sop_ids": [
+      "BNK-03"
+    ],
+    "acceptable_sop_ids": [
+      "KYC-17"
+    ],
+    "reply_must_include": [
+      "bank name and KYC name mismatch",
+      "verification"
+    ],
+    "reply_must_not_include": [
+      "manually verify"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hinglish; bank/KYC name mismatch"
+  },
+  {
+    "id": "bnk-004",
+    "email": {
+      "from": "d@ex.com",
+      "subject": "Primary bank change",
+      "body": "How do I make my second verified bank account the primary account?"
+    },
+    "expected_category": "bank_account",
+    "expected_sop_ids": [
+      "BNK-05"
+    ],
+    "acceptable_sop_ids": [
+      "BNK-01"
+    ],
+    "reply_must_include": [
+      "primary bank account",
+      "Settings"
+    ],
+    "reply_must_not_include": [
+      "support will change it"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; primary account"
+  },
+  {
+    "id": "bnk-005",
+    "email": {
+      "from": "e@ex.com",
+      "subject": "Bank remove karna hai",
+      "body": "Mujhe linked bank account remove karna hai. App me kaise karu?"
+    },
+    "expected_category": "bank_account",
+    "expected_sop_ids": [
+      "BNK-06"
+    ],
+    "acceptable_sop_ids": [
+      "BNK-05"
+    ],
+    "reply_must_include": [
+      "remove the bank account",
+      "app"
+    ],
+    "reply_must_not_include": [
+      "support will remove"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hindi; remove bank account"
+  },
+  {
+    "id": "bnk-006",
+    "email": {
+      "from": "f@ex.com",
+      "subject": "Bank account already linked",
+      "body": "It says my bank account is already linked to another Acme account. I only have one account."
+    },
+    "expected_category": "bank_account",
+    "expected_sop_ids": [
+      "BNK-10"
+    ],
+    "acceptable_sop_ids": [
+      "BNK-07"
+    ],
+    "reply_must_include": [
+      "bank account is linked elsewhere",
+      "verification"
+    ],
+    "reply_must_not_include": [
+      "other user's name",
+      "other account details"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "English; account linked elsewhere"
+  },
+  {
+    "id": "cmp-001",
+    "email": {
+      "from": "a@ex.com",
+      "subject": "Very unhappy",
+      "body": "Worst service. My deposit issue has not been solved and nobody is helping."
+    },
+    "expected_category": "complaint",
+    "expected_sop_ids": [
+      "CMP-01"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-01",
+      "PAY-02"
+    ],
+    "reply_must_include": [
+      "underlying issue",
+      "complaint"
+    ],
+    "reply_must_not_include": [
+      "copy-paste response",
+      "blame"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; general dissatisfaction with underlying payment issue"
+  },
+  {
+    "id": "cmp-002",
+    "email": {
+      "from": "b@ex.com",
+      "subject": "3 din se koi update nahi",
+      "body": "Teen din se follow-up kar raha hoon. Koi reply nahi. Please escalate."
+    },
+    "expected_category": "complaint",
+    "expected_sop_ids": [
+      "CMP-02",
+      "SUP-09"
+    ],
+    "acceptable_sop_ids": [
+      "CMP-01"
+    ],
+    "reply_must_include": [
+      "follow-up",
+      "SLA"
+    ],
+    "reply_must_not_include": [
+      "internal team name"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "Hindi; repeated follow-up/SLA concern"
+  },
+  {
+    "id": "cmp-003",
+    "email": {
+      "from": "c@ex.com",
+      "subject": "Manager se baat karni hai",
+      "body": "I want a manager to call me back about this unresolved issue."
+    },
+    "expected_category": "complaint",
+    "expected_sop_ids": [
+      "CMP-03"
+    ],
+    "acceptable_sop_ids": [
+      "CMP-02"
+    ],
+    "reply_must_include": [
+      "manager/call-back request",
+      "escalation"
+    ],
+    "reply_must_not_include": [
+      "guaranteed call time"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "English; manager/callback request"
+  },
+  {
+    "id": "cmp-004",
+    "email": {
+      "from": "d@ex.com",
+      "subject": "Police complaint",
+      "body": "Agar issue solve nahi hua toh main police aur cybercrime portal me complaint karunga."
+    },
+    "expected_category": "complaint",
+    "expected_sop_ids": [
+      "CMP-04"
+    ],
+    "acceptable_sop_ids": [
+      "CMP-01"
+    ],
+    "reply_must_include": [
+      "formal grievance",
+      "holding reply"
+    ],
+    "reply_must_not_include": [
+      "legal advice",
+      "case details"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": false,
+    "notes": "Hinglish; legal/police threat; holding reply only"
+  },
+  {
+    "id": "cmp-005",
+    "email": {
+      "from": "e@ex.com",
+      "subject": "Compensation chahiye",
+      "body": "Your platform caused this loss. I want compensation for the money I lost."
+    },
+    "expected_category": "complaint",
+    "expected_sop_ids": [
+      "CMP-08"
+    ],
+    "acceptable_sop_ids": [
+      "CMP-01"
+    ],
+    "reply_must_include": [
+      "compensation request",
+      "formal review"
+    ],
+    "reply_must_not_include": [
+      "guaranteed compensation"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "Hinglish; compensation request"
+  },
+  {
+    "id": "cmp-006",
+    "email": {
+      "from": "f@ex.com",
+      "subject": "Praise",
+      "body": "Your support team solved my issue quickly. Thank you!"
+    },
+    "expected_category": "complaint",
+    "expected_sop_ids": [
+      "CMP-10"
+    ],
+    "acceptable_sop_ids": [
+      "CMP-01"
+    ],
+    "reply_must_include": [
+      "feedback",
+      "thank you"
+    ],
+    "reply_must_not_include": [
+      "escalation",
+      "compensation"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; praise/feedback"
+  },
+  {
+    "id": "cry-001",
+    "email": {
+      "from": "a@ex.com",
+      "subject": "USDT not credited",
+      "body": "I sent 100 USDT from another exchange. Blockchain shows success but it is not in my Acme wallet."
+    },
+    "expected_category": "crypto",
+    "expected_sop_ids": [
+      "CRY-01"
+    ],
+    "acceptable_sop_ids": [
+      "CRY-13"
+    ],
+    "reply_must_include": [
+      "asset, network, amount",
+      "transaction hash"
+    ],
+    "reply_must_not_include": [
+      "guaranteed recovery"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; crypto deposit not credited"
+  },
+  {
+    "id": "cry-002",
+    "email": {
+      "from": "b@ex.com",
+      "subject": "Wrong network bhej diya",
+      "body": "I sent USDT on the wrong network by mistake. Can you recover it?"
+    },
+    "expected_category": "crypto",
+    "expected_sop_ids": [
+      "CRY-02"
+    ],
+    "acceptable_sop_ids": [
+      "CRY-04"
+    ],
+    "reply_must_include": [
+      "manual recovery",
+      "recovery is not guaranteed"
+    ],
+    "reply_must_not_include": [
+      "guaranteed recovery",
+      "will definitely recover"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "Hinglish; wrong network; recovery not guaranteed"
+  },
+  {
+    "id": "cry-003",
+    "email": {
+      "from": "c@ex.com",
+      "subject": "Forgot memo",
+      "body": "I deposited crypto but forgot the memo/tag. The transaction is confirmed."
+    },
+    "expected_category": "crypto",
+    "expected_sop_ids": [
+      "CRY-03"
+    ],
+    "acceptable_sop_ids": [
+      "CRY-01"
+    ],
+    "reply_must_include": [
+      "memo/tag",
+      "manual recovery"
+    ],
+    "reply_must_not_include": [
+      "guaranteed recovery"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "English; missing memo/tag"
+  },
+  {
+    "id": "cry-004",
+    "email": {
+      "from": "d@ex.com",
+      "subject": "Withdrawal stuck",
+      "body": "My BTC withdrawal has been processing for hours. Tx hash is not showing as completed."
+    },
+    "expected_category": "crypto",
+    "expected_sop_ids": [
+      "CRY-06"
+    ],
+    "acceptable_sop_ids": [
+      "CRY-13"
+    ],
+    "reply_must_include": [
+      "withdrawal status",
+      "transaction hash"
+    ],
+    "reply_must_not_include": [
+      "internal wallet details",
+      "guaranteed time"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; withdrawal processing"
+  },
+  {
+    "id": "cry-005",
+    "email": {
+      "from": "e@ex.com",
+      "subject": "New address cooldown",
+      "body": "Naya wallet address add kiya hai but withdrawal nahi ho raha. Cooldown kab khatam hoga?"
+    },
+    "expected_category": "crypto",
+    "expected_sop_ids": [
+      "CRY-09"
+    ],
+    "acceptable_sop_ids": [
+      "CRY-06"
+    ],
+    "reply_must_include": [
+      "address cooldown",
+      "whitelisted address"
+    ],
+    "reply_must_not_include": [
+      "bypass whitelist",
+      "disable cooldown"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hindi/Hinglish; whitelist/cooldown"
+  },
+  {
+    "id": "cry-006",
+    "email": {
+      "from": "f@ex.com",
+      "subject": "Withdrawal on hold",
+      "body": "Crypto withdrawal hold pe hai. Why is it blocked? Please release it."
+    },
+    "expected_category": "crypto",
+    "expected_sop_ids": [
+      "CRY-11"
+    ],
+    "acceptable_sop_ids": [
+      "RSK-02"
+    ],
+    "reply_must_include": [
+      "withdrawal is under review",
+      "hold reason cannot be shared"
+    ],
+    "reply_must_not_include": [
+      "risk threshold",
+      "release immediately"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "Hinglish; hold reason must not be disclosed"
+  },
+  {
+    "id": "fee-001",
+    "email": {
+      "from": "a@ex.com",
+      "subject": "Trading fee",
+      "body": "What trading fee and GST do you charge on a Rs 10,000 BTC-INR trade?"
+    },
+    "expected_category": "fees",
+    "expected_sop_ids": [
+      "FEE-01"
+    ],
+    "acceptable_sop_ids": [
+      "FEE-02"
+    ],
+    "reply_must_include": [
+      "0.2% trading fee",
+      "18% GST on the trading fee"
+    ],
+    "reply_must_not_include": [
+      "hidden fee"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; general fee calculation"
+  },
+  {
+    "id": "fee-002",
+    "email": {
+      "from": "b@ex.com",
+      "subject": "Fee galat laga",
+      "body": "Mere BTC trade par fee expected se zyada hai. Please check this specific trade."
+    },
+    "expected_category": "fees",
+    "expected_sop_ids": [
+      "FEE-02"
+    ],
+    "acceptable_sop_ids": [
+      "FEE-01"
+    ],
+    "reply_must_include": [
+      "specific trade",
+      "fee calculation"
+    ],
+    "reply_must_not_include": [
+      "guaranteed refund"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hindi/Hinglish; trade fee dispute"
+  },
+  {
+    "id": "fee-003",
+    "email": {
+      "from": "c@ex.com",
+      "subject": "Withdrawal fee",
+      "body": "Why was Rs 10 deducted when I withdrew INR?"
+    },
+    "expected_category": "fees",
+    "expected_sop_ids": [
+      "FEE-03"
+    ],
+    "acceptable_sop_ids": [
+      "FEE-07"
+    ],
+    "reply_must_include": [
+      "Rs 10 withdrawal fee"
+    ],
+    "reply_must_not_include": [
+      "waive fee"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; INR withdrawal fee"
+  },
+  {
+    "id": "fee-004",
+    "email": {
+      "from": "d@ex.com",
+      "subject": "Crypto network fee",
+      "body": "Crypto withdrawal network fee bahut high hai. How is it calculated?"
+    },
+    "expected_category": "fees",
+    "expected_sop_ids": [
+      "FEE-04"
+    ],
+    "acceptable_sop_ids": [
+      "CRY-10"
+    ],
+    "reply_must_include": [
+      "crypto withdrawal network fee",
+      "network"
+    ],
+    "reply_must_not_include": [
+      "fixed fee for every network"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hinglish; crypto network fee"
+  },
+  {
+    "id": "fee-005",
+    "email": {
+      "from": "e@ex.com",
+      "subject": "1% deducted",
+      "body": "I sold crypto and 1% was deducted. Why is this fee?"
+    },
+    "expected_category": "fees",
+    "expected_sop_ids": [
+      "FEE-05"
+    ],
+    "acceptable_sop_ids": [
+      "FEE-07"
+    ],
+    "reply_must_include": [
+      "1% TDS",
+      "TDS is a tax, not a fee"
+    ],
+    "reply_must_not_include": [
+      "call TDS a fee"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; TDS vs fee"
+  },
+  {
+    "id": "fee-006",
+    "email": {
+      "from": "f@ex.com",
+      "subject": "GST invoice chahiye",
+      "body": "Mujhe trading fees ka GST invoice/statement chahiye."
+    },
+    "expected_category": "fees",
+    "expected_sop_ids": [
+      "FEE-11"
+    ],
+    "acceptable_sop_ids": [
+      "FEE-01"
+    ],
+    "reply_must_include": [
+      "GST invoice",
+      "fee statement"
+    ],
+    "reply_must_not_include": [
+      "internal ledger names"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hindi; GST invoice request"
+  },
+  {
+    "id": "rsk-001",
+    "email": {
+      "from": "a@ex.com",
+      "subject": "Account frozen",
+      "body": "My account is frozen and I cannot withdraw. Why? Please unfreeze it immediately."
+    },
+    "expected_category": "risk",
+    "expected_sop_ids": [
+      "RSK-01"
+    ],
+    "acceptable_sop_ids": [
+      "SEC-01"
+    ],
+    "reply_must_include": [
+      "account is frozen",
+      "review"
+    ],
+    "reply_must_not_include": [
+      "risk reason",
+      "unfreeze immediately"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "English; account freeze"
+  },
+  {
+    "id": "rsk-002",
+    "email": {
+      "from": "b@ex.com",
+      "subject": "Deposit hold",
+      "body": "Mera deposit hold pe hai. Please release it and tell me why it was held."
+    },
+    "expected_category": "risk",
+    "expected_sop_ids": [
+      "RSK-02"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-07"
+    ],
+    "reply_must_include": [
+      "deposit/withdrawal hold",
+      "routine review"
+    ],
+    "reply_must_not_include": [
+      "hold reason",
+      "risk threshold",
+      "release promise"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "Hindi/Hinglish; deposit hold"
+  },
+  {
+    "id": "rsk-003",
+    "email": {
+      "from": "c@ex.com",
+      "subject": "Source of funds",
+      "body": "Why are you asking me for source-of-funds documents? Where should I upload them?"
+    },
+    "expected_category": "risk",
+    "expected_sop_ids": [
+      "RSK-03"
+    ],
+    "acceptable_sop_ids": [
+      "RSK-02"
+    ],
+    "reply_must_include": [
+      "source-of-funds documents",
+      "in-app upload"
+    ],
+    "reply_must_not_include": [
+      "email documents",
+      "risk reason"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; document request"
+  },
+  {
+    "id": "rsk-004",
+    "email": {
+      "from": "d@ex.com",
+      "subject": "Scam victim",
+      "body": "Someone convinced me to send crypto to their wallet. I think I was scammed. Help me recover it."
+    },
+    "expected_category": "risk",
+    "expected_sop_ids": [
+      "RSK-05"
+    ],
+    "acceptable_sop_ids": [
+      "CRY-08"
+    ],
+    "reply_must_include": [
+      "scam victim",
+      "recovery is not guaranteed"
+    ],
+    "reply_must_not_include": [
+      "guaranteed recovery",
+      "other user's information"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "English; scam victim"
+  },
+  {
+    "id": "rsk-005",
+    "email": {
+      "from": "e@ex.com",
+      "subject": "Police ne complaint ki hai?",
+      "body": "Is my account frozen because police contacted you? Tell me who complained."
+    },
+    "expected_category": "risk",
+    "expected_sop_ids": [
+      "RSK-01",
+      "CMP-04"
+    ],
+    "acceptable_sop_ids": [
+      "RSK-02"
+    ],
+    "reply_must_include": [
+      "account is frozen",
+      "review"
+    ],
+    "reply_must_not_include": [
+      "police contacted",
+      "law enforcement source"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": false,
+    "notes": "Hindi; law-enforcement mention; holding reply"
+  },
+  {
+    "id": "rsk-006",
+    "email": {
+      "from": "f@ex.com",
+      "subject": "Money mule",
+      "body": "Someone asked me to receive money in my Acme account and forward it to them. Is that okay?"
+    },
+    "expected_category": "risk",
+    "expected_sop_ids": [
+      "RSK-09"
+    ],
+    "acceptable_sop_ids": [
+      "RSK-06"
+    ],
+    "reply_must_include": [
+      "money-mule risk",
+      "do not receive or forward money"
+    ],
+    "reply_must_not_include": [
+      "guaranteed safe",
+      "how to bypass controls"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "English; money-mule approach"
+  },
+  {
+    "id": "kyc-001",
+    "email": {
+      "from": "a@ex.com",
+      "subject": "KYC status",
+      "body": "I submitted KYC yesterday. It still says under review. How long does it normally take?"
+    },
+    "expected_category": "kyc",
+    "expected_sop_ids": [
+      "KYC-01"
+    ],
+    "acceptable_sop_ids": [
+      "KYC-02"
+    ],
+    "reply_must_include": [
+      "KYC status",
+      "up to 48 hours"
+    ],
+    "reply_must_not_include": [
+      "guaranteed approval"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; within manual review SLA"
+  },
+  {
+    "id": "kyc-002",
+    "email": {
+      "from": "b@ex.com",
+      "subject": "KYC 2 din se pending",
+      "body": "Mera KYC 2 din se under review hai, 48 hours cross ho gaye. Please check."
+    },
+    "expected_category": "kyc",
+    "expected_sop_ids": [
+      "KYC-02"
+    ],
+    "acceptable_sop_ids": [
+      "KYC-01"
+    ],
+    "reply_must_include": [
+      "KYC review is delayed",
+      "48 hours"
+    ],
+    "reply_must_not_include": [
+      "guaranteed approval",
+      "reviewer name"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "Hindi; beyond 48h"
+  },
+  {
+    "id": "kyc-003",
+    "email": {
+      "from": "c@ex.com",
+      "subject": "Documents accepted?",
+      "body": "Which documents can I use for KYC if Aadhaar OTP is not possible?"
+    },
+    "expected_category": "kyc",
+    "expected_sop_ids": [
+      "KYC-03"
+    ],
+    "acceptable_sop_ids": [
+      "KYC-07"
+    ],
+    "reply_must_include": [
+      "PAN",
+      "Aadhaar or passport"
+    ],
+    "reply_must_not_include": [
+      "guaranteed verification"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; accepted documents"
+  },
+  {
+    "id": "kyc-004",
+    "email": {
+      "from": "d@ex.com",
+      "subject": "PAN Aadhaar link issue",
+      "body": "PAN verify nahi ho raha because PAN Aadhaar se linked nahi hai. What should I do?"
+    },
+    "expected_category": "kyc",
+    "expected_sop_ids": [
+      "KYC-06"
+    ],
+    "acceptable_sop_ids": [
+      "KYC-04"
+    ],
+    "reply_must_include": [
+      "PAN and Aadhaar must be linked",
+      "KYC"
+    ],
+    "reply_must_not_include": [
+      "manual bypass"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hinglish; PAN-Aadhaar not linked"
+  },
+  {
+    "id": "kyc-005",
+    "email": {
+      "from": "e@ex.com",
+      "subject": "Selfie rejected",
+      "body": "My selfie was rejected because it does not match my ID photo. How can I retry?"
+    },
+    "expected_category": "kyc",
+    "expected_sop_ids": [
+      "KYC-08"
+    ],
+    "acceptable_sop_ids": [
+      "KYC-09"
+    ],
+    "reply_must_include": [
+      "selfie mismatch",
+      "retry verification"
+    ],
+    "reply_must_not_include": [
+      "bypass selfie check"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; selfie mismatch"
+  },
+  {
+    "id": "kyc-006",
+    "email": {
+      "from": "f@ex.com",
+      "subject": "KYC attempts khatam",
+      "body": "Teen baar KYC reject ho gaya. Ab kya kar sakta hoon?"
+    },
+    "expected_category": "kyc",
+    "expected_sop_ids": [
+      "KYC-15"
+    ],
+    "acceptable_sop_ids": [
+      "KYC-04",
+      "KYC-05"
+    ],
+    "reply_must_include": [
+      "3 attempts exhausted",
+      "KYC Ops review"
+    ],
+    "reply_must_not_include": [
+      "create another account",
+      "bypass"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "Hindi; attempts exhausted"
+  },
+  {
+    "id": "onb-001",
+    "email": {
+      "from": "a@ex.com",
+      "subject": "OTP not received",
+      "body": "I am not receiving the signup SMS OTP. I have tried several times."
+    },
+    "expected_category": "onboarding",
+    "expected_sop_ids": [
+      "ONB-01"
+    ],
+    "acceptable_sop_ids": [
+      "APP-08"
+    ],
+    "reply_must_include": [
+      "SMS OTP",
+      "resend"
+    ],
+    "reply_must_not_include": [
+      "OTP code"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; signup SMS OTP"
+  },
+  {
+    "id": "onb-002",
+    "email": {
+      "from": "b@ex.com",
+      "subject": "Email OTP nahi aa raha",
+      "body": "Signup ke time email verification link/OTP nahi aa raha."
+    },
+    "expected_category": "onboarding",
+    "expected_sop_ids": [
+      "ONB-02"
+    ],
+    "acceptable_sop_ids": [
+      "ONB-01"
+    ],
+    "reply_must_include": [
+      "email verification",
+      "verification link"
+    ],
+    "reply_must_not_include": [
+      "ask for OTP"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hindi/Hinglish; email verification"
+  },
+  {
+    "id": "onb-003",
+    "email": {
+      "from": "c@ex.com",
+      "subject": "Already registered",
+      "body": "It says my phone number is already registered, but I don't remember creating an account."
+    },
+    "expected_category": "onboarding",
+    "expected_sop_ids": [
+      "ONB-03"
+    ],
+    "acceptable_sop_ids": [
+      "ONB-07"
+    ],
+    "reply_must_include": [
+      "already registered",
+      "account recovery"
+    ],
+    "reply_must_not_include": [
+      "confirm another person's account"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; already registered"
+  },
+  {
+    "id": "onb-004",
+    "email": {
+      "from": "d@ex.com",
+      "subject": "Login nahi ho raha",
+      "body": "Password yaad nahi hai aur login nahi ho raha. Password reset kaise karu?"
+    },
+    "expected_category": "onboarding",
+    "expected_sop_ids": [
+      "ONB-04"
+    ],
+    "acceptable_sop_ids": [
+      "SEC-10"
+    ],
+    "reply_must_include": [
+      "password reset",
+      "login"
+    ],
+    "reply_must_not_include": [
+      "OTP",
+      "your password is"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hindi/Hinglish; forgot password"
+  },
+  {
+    "id": "onb-005",
+    "email": {
+      "from": "e@ex.com",
+      "subject": "Account blocked",
+      "body": "I entered the wrong password five times and now my account is blocked. Can you unblock it?"
+    },
+    "expected_category": "onboarding",
+    "expected_sop_ids": [
+      "ONB-05"
+    ],
+    "acceptable_sop_ids": [
+      "SEC-10"
+    ],
+    "reply_must_include": [
+      "5 failed attempts",
+      "24 hours"
+    ],
+    "reply_must_not_include": [
+      "manual unfreeze",
+      "bypass 24h"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; temporary login block"
+  },
+  {
+    "id": "onb-006",
+    "email": {
+      "from": "f@ex.com",
+      "subject": "Wrong email at signup",
+      "body": "Maine signup me galat email daal diya. Ab verification kaise complete karu?"
+    },
+    "expected_category": "onboarding",
+    "expected_sop_ids": [
+      "ONB-12"
+    ],
+    "acceptable_sop_ids": [
+      "ONB-02"
+    ],
+    "reply_must_include": [
+      "wrong email/phone",
+      "correction flow"
+    ],
+    "reply_must_not_include": [
+      "send verification to any email"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hindi; wrong email signup"
+  },
+  {
+    "id": "pay-001",
+    "email": {
+      "from": "a@ex.com",
+      "subject": "Money deducted but not added",
+      "body": "I added 5000 via UPI yesterday at 9pm, paisa kat gaya but wallet me nahi aaya. UTR 412345678901"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-01"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-02"
+    ],
+    "reply_must_include": [
+      "deposit is being checked",
+      "UTR"
+    ],
+    "reply_must_not_include": [
+      "webhook",
+      "payment gateway",
+      "PENDING"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hinglish; UPI pending"
+  },
+  {
+    "id": "pay-002",
+    "email": {
+      "from": "b@ex.com",
+      "subject": "Deposit failed but debited",
+      "body": "UPI deposit failed in Acme but Rs 5,000 was debited from my bank."
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-02"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-10"
+    ],
+    "reply_must_include": [
+      "deposit was debited",
+      "refund/credit status"
+    ],
+    "reply_must_not_include": [
+      "tell me to pay again"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "English; failed-but-debited"
+  },
+  {
+    "id": "pay-003",
+    "email": {
+      "from": "c@ex.com",
+      "subject": "NEFT not showing",
+      "body": "Maine NEFT se deposit kiya, bank se debit ho gaya but Acme wallet me reflect nahi hua. UTR available hai."
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-03"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-01"
+    ],
+    "reply_must_include": [
+      "UTR",
+      "bank transfer"
+    ],
+    "reply_must_not_include": [
+      "send money again",
+      "receiving account details from memory"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hindi/Hinglish; bank transfer not reflecting"
+  },
+  {
+    "id": "pay-004",
+    "email": {
+      "from": "d@ex.com",
+      "subject": "Wife's account used",
+      "body": "I deposited using my wife's UPI and the money was refunded. Why can't you accept it?"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-04"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-12"
+    ],
+    "reply_must_include": [
+      "own verified bank account",
+      "refund to source"
+    ],
+    "reply_must_not_include": [
+      "exception for family",
+      "other account holder details"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; third-party deposit"
+  },
+  {
+    "id": "pay-005",
+    "email": {
+      "from": "e@ex.com",
+      "subject": "Refund not received",
+      "body": "Refund was initiated 10 days ago but bank account me abhi tak paisa nahi aaya."
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-05"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-10"
+    ],
+    "reply_must_include": [
+      "refund status",
+      "refund reference"
+    ],
+    "reply_must_not_include": [
+      "refund to another bank account"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "Hinglish; refund beyond 7 working days"
+  },
+  {
+    "id": "pay-006",
+    "email": {
+      "from": "f@ex.com",
+      "subject": "Deposit amount wrong",
+      "body": "I deposited Rs 10,000 but only Rs 9,800 was credited. Please check."
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-09"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-07"
+    ],
+    "reply_must_include": [
+      "amount paid",
+      "amount credited"
+    ],
+    "reply_must_not_include": [
+      "top-up guaranteed",
+      "adjust balance manually"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "English; wrong credited amount"
+  },
+  {
+    "id": "rwd-001",
+    "email": {
+      "from": "a@ex.com",
+      "subject": "Referral reward missing",
+      "body": "My friend joined with my referral code but my Rs 100 BTC reward is still not credited."
+    },
+    "expected_category": "rewards",
+    "expected_sop_ids": [
+      "RWD-01"
+    ],
+    "acceptable_sop_ids": [
+      "RWD-02"
+    ],
+    "reply_must_include": [
+      "referral reward",
+      "qualification"
+    ],
+    "reply_must_not_include": [
+      "friend's KYC status",
+      "friend's trade amount",
+      "fraud"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; referrer reward"
+  },
+  {
+    "id": "rwd-002",
+    "email": {
+      "from": "b@ex.com",
+      "subject": "Signup bonus nahi mila",
+      "body": "Maine friend ka referral code use kiya tha, KYC bhi complete hai but signup bonus nahi mila."
+    },
+    "expected_category": "rewards",
+    "expected_sop_ids": [
+      "RWD-02"
+    ],
+    "acceptable_sop_ids": [
+      "RWD-01"
+    ],
+    "reply_must_include": [
+      "signup reward",
+      "KYC condition"
+    ],
+    "reply_must_not_include": [
+      "referrer's account details"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hindi; referee signup bonus"
+  },
+  {
+    "id": "rwd-003",
+    "email": {
+      "from": "c@ex.com",
+      "subject": "Referral code baad me add karna hai",
+      "body": "I forgot to enter my friend's referral code during signup. Can you add it now?"
+    },
+    "expected_category": "rewards",
+    "expected_sop_ids": [
+      "RWD-03"
+    ],
+    "acceptable_sop_ids": [
+      "ONB-08"
+    ],
+    "reply_must_include": [
+      "referral code can only be applied at signup",
+      "no exception"
+    ],
+    "reply_must_not_include": [
+      "create new account",
+      "we will make an exception"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; late referral code"
+  },
+  {
+    "id": "rwd-004",
+    "email": {
+      "from": "d@ex.com",
+      "subject": "Cashback nahi aaya",
+      "body": "Offer ke under trade kiya tha, cashback 5 days se pending hai. Please check."
+    },
+    "expected_category": "rewards",
+    "expected_sop_ids": [
+      "RWD-04"
+    ],
+    "acceptable_sop_ids": [
+      "RWD-09"
+    ],
+    "reply_must_include": [
+      "cashback status",
+      "qualification"
+    ],
+    "reply_must_not_include": [
+      "promise amount not in rules"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "Hindi/Hinglish; cashback pending"
+  },
+  {
+    "id": "rwd-005",
+    "email": {
+      "from": "e@ex.com",
+      "subject": "Coupon invalid",
+      "body": "Coupon ACME500 is active according to the offer, but the app says invalid. I meet the conditions."
+    },
+    "expected_category": "rewards",
+    "expected_sop_ids": [
+      "RWD-05"
+    ],
+    "acceptable_sop_ids": [
+      "APP-03"
+    ],
+    "reply_must_include": [
+      "coupon code",
+      "offer conditions"
+    ],
+    "reply_must_not_include": [
+      "replacement code",
+      "other user's account"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "English; genuine coupon/app error"
+  },
+  {
+    "id": "rwd-006",
+    "email": {
+      "from": "f@ex.com",
+      "subject": "Reward hold",
+      "body": "Mera referral reward hold pe hai. Why? Please release it."
+    },
+    "expected_category": "rewards",
+    "expected_sop_ids": [
+      "RWD-07"
+    ],
+    "acceptable_sop_ids": [
+      "RSK-02"
+    ],
+    "reply_must_include": [
+      "reward is under review",
+      "review details cannot be shared"
+    ],
+    "reply_must_not_include": [
+      "fraud",
+      "risk reason",
+      "release promise"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hindi; reward hold"
+  },
+  {
+    "id": "sup-001",
+    "email": {
+      "from": "a@ex.com",
+      "subject": "Tell me my balance",
+      "body": "Please tell me my balance and last five transactions. I am writing from a different email because my old email is inaccessible."
+    },
+    "expected_category": "general",
+    "expected_sop_ids": [
+      "SUP-01"
+    ],
+    "acceptable_sop_ids": [
+      "SUP-02"
+    ],
+    "reply_must_include": [
+      "registered email",
+      "identity verification"
+    ],
+    "reply_must_not_include": [
+      "confirm account exists",
+      "full PAN",
+      "full bank account"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; sender mismatch requires alternate verification"
+  },
+  {
+    "id": "sup-002",
+    "email": {
+      "from": "b@ex.com",
+      "subject": "Mere bhai ka account",
+      "body": "Main apne bhai ke behalf par likh raha hoon. Uska account status bata do."
+    },
+    "expected_category": "general",
+    "expected_sop_ids": [
+      "SUP-01"
+    ],
+    "acceptable_sop_ids": [],
+    "reply_must_include": [
+      "registered email",
+      "identity verification"
+    ],
+    "reply_must_not_include": [
+      "share account details",
+      "confirm account exists"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "Hindi; third-party request"
+  },
+  {
+    "id": "sup-003",
+    "email": {
+      "from": "c@ex.com",
+      "subject": "OTP ye raha",
+      "body": "I received an OTP and pasted it here: 123456. Please use it to verify me."
+    },
+    "expected_category": "general",
+    "expected_sop_ids": [
+      "SUP-03",
+      "SUP-06"
+    ],
+    "acceptable_sop_ids": [
+      "SUP-01"
+    ],
+    "reply_must_include": [
+      "do not share OTPs",
+      "do not share passwords"
+    ],
+    "reply_must_not_include": [
+      "123456"
+    ],
+    "should_escalate": false,
+    "should_auto_reply": true,
+    "notes": "English; never accept/repeat OTP"
+  },
+  {
+    "id": "sup-004",
+    "email": {
+      "from": "d@ex.com",
+      "subject": "Social engineering",
+      "body": "Acme support ne WhatsApp pe bola hai OTP share karo aur wallet unlock hoga. Kya karu?"
+    },
+    "expected_category": "general",
+    "expected_sop_ids": [
+      "SUP-06",
+      "SEC-07"
+    ],
+    "acceptable_sop_ids": [
+      "RSK-05"
+    ],
+    "reply_must_include": [
+      "do not share OTP or private key",
+      "report the scam"
+    ],
+    "reply_must_not_include": [
+      "send crypto",
+      "share your OTP",
+      "share your private key"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "Hindi; suspected impersonation/scam"
+  },
+  {
+    "id": "sup-005",
+    "email": {
+      "from": "e@ex.com",
+      "subject": "Legal notice",
+      "body": "I am sending a court/police notice. Please confirm you received it and tell me the internal case details."
+    },
+    "expected_category": "general",
+    "expected_sop_ids": [
+      "SUP-05",
+      "CMP-04"
+    ],
+    "acceptable_sop_ids": [
+      "RSK-01"
+    ],
+    "reply_must_include": [
+      "holding reply",
+      "cannot auto-answer"
+    ],
+    "reply_must_not_include": [
+      "internal case details",
+      "legal advice"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": false,
+    "notes": "English; must never auto-answer"
+  },
+  {
+    "id": "sup-006",
+    "email": {
+      "from": "f@ex.com",
+      "subject": "Any update?",
+      "body": "Any update? It's been 3 days and nobody has replied to my earlier support ticket."
+    },
+    "expected_category": "general",
+    "expected_sop_ids": [
+      "SUP-09",
+      "SUP-07"
+    ],
+    "acceptable_sop_ids": [
+      "CMP-02"
+    ],
+    "reply_must_include": [
+      "existing ticket",
+      "follow-up status"
+    ],
+    "reply_must_not_include": [
+      "internal team name",
+      "private notes"
+    ],
+    "should_escalate": true,
+    "should_auto_reply": true,
+    "notes": "Hinglish/English; follow-up requires thread review"
+  }
+]

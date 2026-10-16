@@ -1,0 +1,2209 @@
+[
+  {
+    "id": "b77-001",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "why hasn't my top up gone through yet"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-01"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-03"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "pending_top_up"
+  },
+  {
+    "id": "b77-002",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Why hasn't my top-up been completed?"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-01"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-03"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "pending_top_up"
+  },
+  {
+    "id": "b77-003",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "My top up is pending."
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-01"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-03"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "pending_top_up"
+  },
+  {
+    "id": "b77-004",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Why did my top up not work?"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-02"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-10",
+      "PAY-12"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "top_up_failed"
+  },
+  {
+    "id": "b77-005",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "My top up failed."
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-02"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-10",
+      "PAY-12"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "top_up_failed"
+  },
+  {
+    "id": "b77-006",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I attempted to top up but the app denied it."
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-02"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-10",
+      "PAY-12"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "top_up_failed"
+  },
+  {
+    "id": "b77-007",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I topped up but the app reverted it"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-05"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-02"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "top_up_reverted"
+  },
+  {
+    "id": "b77-008",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Do you know if my top-up has been cancelled?"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-05"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-02"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "top_up_reverted"
+  },
+  {
+    "id": "b77-009",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Has my top up been reverted?"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-05"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-02"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "top_up_reverted"
+  },
+  {
+    "id": "b77-010",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "When will I see my new balance after making my bank transfer?"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-03"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-01"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "balance_not_updated_after_bank_transfer"
+  },
+  {
+    "id": "b77-011",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "After the transfer, the balance did not update."
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-03"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-01"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "balance_not_updated_after_bank_transfer"
+  },
+  {
+    "id": "b77-012",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I just completed a bank transfer and the balance didn't update"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-03"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-01"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "balance_not_updated_after_bank_transfer"
+  },
+  {
+    "id": "b77-013",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "How can I transfer money to my account?"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-11"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-03"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "transfer_into_account"
+  },
+  {
+    "id": "b77-014",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I would like use the bank transfer, but I don't understand the process, can you please explain, topping up?"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-11"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-03"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "transfer_into_account"
+  },
+  {
+    "id": "b77-015",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Can I do a bank transfer to put additional money in my account because I am out of money?"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-11"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-03"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "transfer_into_account"
+  },
+  {
+    "id": "b77-016",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "How can I top-up my limit?"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-06"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-11"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "top_up_limits"
+  },
+  {
+    "id": "b77-017",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Am I free to top-up as much as I want?"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-06"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-11"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "top_up_limits"
+  },
+  {
+    "id": "b77-018",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "what is the most i can top up?"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-06"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-11"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "top_up_limits"
+  },
+  {
+    "id": "b77-019",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I have been charged twice"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-08"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "transaction_charged_twice"
+  },
+  {
+    "id": "b77-020",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "It appears that I am being double charged for some items that I have purchased this past week.  Please review and correct."
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-08"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "transaction_charged_twice"
+  },
+  {
+    "id": "b77-021",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I have multiple charges on the same transaction."
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-08"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "transaction_charged_twice"
+  },
+  {
+    "id": "b77-022",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I requested a refund from a store but it hasn't arrived."
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-05"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "Refund_not_showing_up"
+  },
+  {
+    "id": "b77-023",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Why is my refund missing from my  statement?"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-05"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "Refund_not_showing_up"
+  },
+  {
+    "id": "b77-024",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "The refund has not appeared in my account"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-05"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "Refund_not_showing_up"
+  },
+  {
+    "id": "b77-025",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "When adding money, what are the currencies you take?"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-11"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "supported_cards_and_currencies"
+  },
+  {
+    "id": "b77-026",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "If I only have 1 other US card, can you take it?"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-11"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "supported_cards_and_currencies"
+  },
+  {
+    "id": "b77-027",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "What kind of currencies can I use to add money?"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-11"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "supported_cards_and_currencies"
+  },
+  {
+    "id": "b77-028",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "show me how to top up with my card"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-11"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "topping_up_by_card"
+  },
+  {
+    "id": "b77-029",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Can I give my friends access to my account so they can top it up for me?"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-11"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "topping_up_by_card"
+  },
+  {
+    "id": "b77-030",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Who can top up my accounts?"
+    },
+    "expected_category": "payments",
+    "expected_sop_ids": [
+      "PAY-11"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "topping_up_by_card"
+  },
+  {
+    "id": "b77-031",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Why does my transfer say \"pending\"?"
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-01"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-02"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "pending_transfer"
+  },
+  {
+    "id": "b77-032",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I'm trying to transfer money to another country. It's just pending and not sending. My account details are correct. Please help me."
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-01"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-02"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "pending_transfer"
+  },
+  {
+    "id": "b77-033",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "My transfer is still pending and I know the account numbers are correct.  Please help."
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-01"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-02"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "pending_transfer"
+  },
+  {
+    "id": "b77-034",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "My cash in the ATM is still pending"
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-01"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-02"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "pending_cash_withdrawal"
+  },
+  {
+    "id": "b77-035",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "How long does the cash withdrawal take to pend?"
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-01"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-02"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "pending_cash_withdrawal"
+  },
+  {
+    "id": "b77-036",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Why is it taking so long for my cash withdrawal to no longer show as pending?"
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-01"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-02"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "pending_cash_withdrawal"
+  },
+  {
+    "id": "b77-037",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I transferred my funds, why did it not go through?"
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-03"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-07",
+      "WDR-08"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "failed_transfer"
+  },
+  {
+    "id": "b77-038",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "can you tell me why my transfer failed?"
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-03"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-07",
+      "WDR-08"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "failed_transfer"
+  },
+  {
+    "id": "b77-039",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I can not seem to make a successful transfer, can you tell me what I'm doing wrong?"
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-03"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-07",
+      "WDR-08"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "failed_transfer"
+  },
+  {
+    "id": "b77-040",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I was attempting to purchase a golf club off eBay yesterday, but my credit card was declined. I tried multiple times, and again this morning. Can you check into my card please?"
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-03"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-05",
+      "WDR-07",
+      "WDR-08"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "declined_transfer"
+  },
+  {
+    "id": "b77-041",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I tried to buy something online yesterday but it kept saying declined. Tried again today but same thing happened. What's broken?"
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-03"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-05",
+      "WDR-07",
+      "WDR-08"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "declined_transfer"
+  },
+  {
+    "id": "b77-042",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "What would make a decline message show up during a transfer?"
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-03"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-05",
+      "WDR-07",
+      "WDR-08"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "declined_transfer"
+  },
+  {
+    "id": "b77-043",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "How can the recipient see my money transaction?"
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-02"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-01"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "transfer_not_received_by_recipient"
+  },
+  {
+    "id": "b77-044",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I just finished sending money, but it's not logging on the recipient side."
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-02"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-01"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "transfer_not_received_by_recipient"
+  },
+  {
+    "id": "b77-045",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "The day before yesterday, I performed a transfer which was within this country. It still hasn't gone through. Can you check on that? The account number is definitely correct, as I've checked and double checked."
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-02"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-01"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "transfer_not_received_by_recipient"
+  },
+  {
+    "id": "b77-046",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I need you to cancel a transfer that I made.  It is the wrong account number and the app won't let me stop the transaction.  Please stop it!"
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-11"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "cancel_transfer"
+  },
+  {
+    "id": "b77-047",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I need to cancel my recent transfer immediately, I made a mistake there, please help quickly before it goes through"
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-11"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "cancel_transfer"
+  },
+  {
+    "id": "b77-048",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I need help cancelling a transaction."
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-11"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "cancel_transfer"
+  },
+  {
+    "id": "b77-049",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "How long does a funds transfer take from one back to another?"
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-12"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-01"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "transfer_timing"
+  },
+  {
+    "id": "b77-050",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "How long until my transfer goes through?"
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-12"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-01"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "transfer_timing"
+  },
+  {
+    "id": "b77-051",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "How long does a transfer take from the point it's sent, to the point it arrives in my account?"
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-12"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-01"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "transfer_timing"
+  },
+  {
+    "id": "b77-052",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "How do I do a successful transfer to an account?"
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-07"
+    ],
+    "acceptable_sop_ids": [
+      "BNK-01"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "beneficiary_not_allowed"
+  },
+  {
+    "id": "b77-053",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I have a cryptocurrency exchange that won't go through. Please help me process it."
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-07"
+    ],
+    "acceptable_sop_ids": [
+      "BNK-01"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "beneficiary_not_allowed"
+  },
+  {
+    "id": "b77-054",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "My beneficiary has been denied, is this normal?"
+    },
+    "expected_category": "withdrawals",
+    "expected_sop_ids": [
+      "WDR-07"
+    ],
+    "acceptable_sop_ids": [
+      "BNK-01"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "beneficiary_not_allowed"
+  },
+  {
+    "id": "b77-055",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I transferred money and was charged and want to know why."
+    },
+    "expected_category": "fees",
+    "expected_sop_ids": [
+      "FEE-03"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-12"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "transfer_fee_charged"
+  },
+  {
+    "id": "b77-056",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "im not paying this transfer fee"
+    },
+    "expected_category": "fees",
+    "expected_sop_ids": [
+      "FEE-03"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-12"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "transfer_fee_charged"
+  },
+  {
+    "id": "b77-057",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I was charged a fee when making this transfer, and I don't think I should have been!"
+    },
+    "expected_category": "fees",
+    "expected_sop_ids": [
+      "FEE-03"
+    ],
+    "acceptable_sop_ids": [
+      "WDR-12"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "transfer_fee_charged"
+  },
+  {
+    "id": "b77-058",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Is a SWIFT transfer okay?"
+    },
+    "expected_category": "fees",
+    "expected_sop_ids": [
+      "FEE-10"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-11"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "top_up_by_bank_transfer_charge"
+  },
+  {
+    "id": "b77-059",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "If I make a top-up are there charges applied?"
+    },
+    "expected_category": "fees",
+    "expected_sop_ids": [
+      "FEE-10"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-11"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "top_up_by_bank_transfer_charge"
+  },
+  {
+    "id": "b77-060",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Is there a charge for topping up by transfer?"
+    },
+    "expected_category": "fees",
+    "expected_sop_ids": [
+      "FEE-10"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-11"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "top_up_by_bank_transfer_charge"
+  },
+  {
+    "id": "b77-061",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Are there any extra fees for adding money into the international card?"
+    },
+    "expected_category": "fees",
+    "expected_sop_ids": [
+      "FEE-10"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-11"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "top_up_by_card_charge"
+  },
+  {
+    "id": "b77-062",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "What are the fees for top ups?"
+    },
+    "expected_category": "fees",
+    "expected_sop_ids": [
+      "FEE-10"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-11"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "top_up_by_card_charge"
+  },
+  {
+    "id": "b77-063",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Is there a charge or discount if I use a European bank in a top up?"
+    },
+    "expected_category": "fees",
+    "expected_sop_ids": [
+      "FEE-10"
+    ],
+    "acceptable_sop_ids": [
+      "PAY-11"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "top_up_by_card_charge"
+  },
+  {
+    "id": "b77-064",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "There is an extra $1 charge"
+    },
+    "expected_category": "fees",
+    "expected_sop_ids": [
+      "FEE-07"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "extra_charge_on_statement"
+  },
+  {
+    "id": "b77-065",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I noticed an extra $1 charge on my statement, can you tell me why that is?"
+    },
+    "expected_category": "fees",
+    "expected_sop_ids": [
+      "FEE-07"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "extra_charge_on_statement"
+  },
+  {
+    "id": "b77-066",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "It's been two weeks, why has the transaction for $1.00 not been reversed?"
+    },
+    "expected_category": "fees",
+    "expected_sop_ids": [
+      "FEE-07"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "extra_charge_on_statement"
+  },
+  {
+    "id": "b77-067",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "What can I do to verify my identity?"
+    },
+    "expected_category": "kyc",
+    "expected_sop_ids": [
+      "KYC-03"
+    ],
+    "acceptable_sop_ids": [
+      "KYC-00",
+      "KYC-01"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "verify_my_identity"
+  },
+  {
+    "id": "b77-068",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Where do I verify my identity?"
+    },
+    "expected_category": "kyc",
+    "expected_sop_ids": [
+      "KYC-03"
+    ],
+    "acceptable_sop_ids": [
+      "KYC-00",
+      "KYC-01"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "verify_my_identity"
+  },
+  {
+    "id": "b77-069",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I got a message that I need to verify my identity; what do I do?"
+    },
+    "expected_category": "kyc",
+    "expected_sop_ids": [
+      "KYC-03"
+    ],
+    "acceptable_sop_ids": [
+      "KYC-00",
+      "KYC-01"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "verify_my_identity"
+  },
+  {
+    "id": "b77-070",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "What's with not verifying my Id?"
+    },
+    "expected_category": "kyc",
+    "expected_sop_ids": [
+      "KYC-00"
+    ],
+    "acceptable_sop_ids": [
+      "KYC-02",
+      "KYC-14",
+      "KYC-15"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "unable_to_verify_identity"
+  },
+  {
+    "id": "b77-071",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I cannot verify my identity"
+    },
+    "expected_category": "kyc",
+    "expected_sop_ids": [
+      "KYC-00"
+    ],
+    "acceptable_sop_ids": [
+      "KYC-02",
+      "KYC-14",
+      "KYC-15"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "unable_to_verify_identity"
+  },
+  {
+    "id": "b77-072",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Why doesn't the app believe I am who I say I am?"
+    },
+    "expected_category": "kyc",
+    "expected_sop_ids": [
+      "KYC-00"
+    ],
+    "acceptable_sop_ids": [
+      "KYC-02",
+      "KYC-14",
+      "KYC-15"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "unable_to_verify_identity"
+  },
+  {
+    "id": "b77-073",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Why am I required to verify my identity?"
+    },
+    "expected_category": "kyc",
+    "expected_sop_ids": [
+      "KYC-00"
+    ],
+    "acceptable_sop_ids": [
+      "ONB-11"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "why_verify_identity"
+  },
+  {
+    "id": "b77-074",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "what is the identity check?"
+    },
+    "expected_category": "kyc",
+    "expected_sop_ids": [
+      "KYC-00"
+    ],
+    "acceptable_sop_ids": [
+      "ONB-11"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "why_verify_identity"
+  },
+  {
+    "id": "b77-075",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "do I need to verify my identity every time I log into my account?"
+    },
+    "expected_category": "kyc",
+    "expected_sop_ids": [
+      "KYC-00"
+    ],
+    "acceptable_sop_ids": [
+      "ONB-11"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "why_verify_identity"
+  },
+  {
+    "id": "b77-076",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Where can I go to update my personal profile?"
+    },
+    "expected_category": "kyc",
+    "expected_sop_ids": [
+      "KYC-18"
+    ],
+    "acceptable_sop_ids": [
+      "KYC-17",
+      "SEC-04",
+      "SEC-05"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "edit_personal_details"
+  },
+  {
+    "id": "b77-077",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "how do i change name?"
+    },
+    "expected_category": "kyc",
+    "expected_sop_ids": [
+      "KYC-18"
+    ],
+    "acceptable_sop_ids": [
+      "KYC-17",
+      "SEC-04",
+      "SEC-05"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "edit_personal_details"
+  },
+  {
+    "id": "b77-078",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I want to change my personal details."
+    },
+    "expected_category": "kyc",
+    "expected_sop_ids": [
+      "KYC-18"
+    ],
+    "acceptable_sop_ids": [
+      "KYC-17",
+      "SEC-04",
+      "SEC-05"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "edit_personal_details"
+  },
+  {
+    "id": "b77-079",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I need my funds verified."
+    },
+    "expected_category": "risk",
+    "expected_sop_ids": [
+      "RSK-03"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "verify_source_of_funds"
+  },
+  {
+    "id": "b77-080",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Where can I see the source of my money?"
+    },
+    "expected_category": "risk",
+    "expected_sop_ids": [
+      "RSK-03"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "verify_source_of_funds"
+  },
+  {
+    "id": "b77-081",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "How can I see my source of funds?"
+    },
+    "expected_category": "risk",
+    "expected_sop_ids": [
+      "RSK-03"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "verify_source_of_funds"
+  },
+  {
+    "id": "b77-082",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "How old do I need to be to open an account?"
+    },
+    "expected_category": "onboarding",
+    "expected_sop_ids": [
+      "ONB-10"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "age_limit"
+  },
+  {
+    "id": "b77-083",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Can I open an account for a child?"
+    },
+    "expected_category": "onboarding",
+    "expected_sop_ids": [
+      "ONB-10"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "age_limit"
+  },
+  {
+    "id": "b77-084",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "will i be able to open an account for my daughter"
+    },
+    "expected_category": "onboarding",
+    "expected_sop_ids": [
+      "ONB-10"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "age_limit"
+  },
+  {
+    "id": "b77-085",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I'm not in the UK, can I still get a card?"
+    },
+    "expected_category": "onboarding",
+    "expected_sop_ids": [
+      "ONB-09"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "country_support"
+  },
+  {
+    "id": "b77-086",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Can I get one of your cards in the EU"
+    },
+    "expected_category": "onboarding",
+    "expected_sop_ids": [
+      "ONB-09"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "country_support"
+  },
+  {
+    "id": "b77-087",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Can I get a card even if I live outside the UK?"
+    },
+    "expected_category": "onboarding",
+    "expected_sop_ids": [
+      "ONB-09"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "country_support"
+  },
+  {
+    "id": "b77-088",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "What should I do if I forgot my passcode?"
+    },
+    "expected_category": "onboarding",
+    "expected_sop_ids": [
+      "ONB-04"
+    ],
+    "acceptable_sop_ids": [
+      "SEC-10"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "passcode_forgotten"
+  },
+  {
+    "id": "b77-089",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "My password isn't being accepted and I need to reset it."
+    },
+    "expected_category": "onboarding",
+    "expected_sop_ids": [
+      "ONB-04"
+    ],
+    "acceptable_sop_ids": [
+      "SEC-10"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "passcode_forgotten"
+  },
+  {
+    "id": "b77-090",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I can't find my password"
+    },
+    "expected_category": "onboarding",
+    "expected_sop_ids": [
+      "ONB-04"
+    ],
+    "acceptable_sop_ids": [
+      "SEC-10"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "passcode_forgotten"
+  },
+  {
+    "id": "b77-091",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Someone stole my phone."
+    },
+    "expected_category": "security",
+    "expected_sop_ids": [
+      "SEC-03"
+    ],
+    "acceptable_sop_ids": [
+      "SEC-09"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "lost_or_stolen_phone"
+  },
+  {
+    "id": "b77-092",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "lost phone, dont want others to access account"
+    },
+    "expected_category": "security",
+    "expected_sop_ids": [
+      "SEC-03"
+    ],
+    "acceptable_sop_ids": [
+      "SEC-09"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "lost_or_stolen_phone"
+  },
+  {
+    "id": "b77-093",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Can I still use the app if I switched phones?"
+    },
+    "expected_category": "security",
+    "expected_sop_ids": [
+      "SEC-03"
+    ],
+    "acceptable_sop_ids": [
+      "SEC-09"
+    ],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "lost_or_stolen_phone"
+  },
+  {
+    "id": "b77-094",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Please delete my account, this company is not working for me!"
+    },
+    "expected_category": "closure",
+    "expected_sop_ids": [
+      "CLS-01"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "terminate_account"
+  },
+  {
+    "id": "b77-095",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Can you remove my account please?"
+    },
+    "expected_category": "closure",
+    "expected_sop_ids": [
+      "CLS-01"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "terminate_account"
+  },
+  {
+    "id": "b77-096",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I would like to delete my account please."
+    },
+    "expected_category": "closure",
+    "expected_sop_ids": [
+      "CLS-01"
+    ],
+    "acceptable_sop_ids": [],
+    "out_of_scope": false,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "terminate_account"
+  },
+  {
+    "id": "b77-097",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Are there any extra hidden fees for exchanging currencies?"
+    },
+    "expected_category": null,
+    "expected_sop_ids": [],
+    "acceptable_sop_ids": [],
+    "out_of_scope": true,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "exchange_charge"
+  },
+  {
+    "id": "b77-098",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Why was my cash withdrawal declined?"
+    },
+    "expected_category": null,
+    "expected_sop_ids": [],
+    "acceptable_sop_ids": [],
+    "out_of_scope": true,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "declined_cash_withdrawal"
+  },
+  {
+    "id": "b77-099",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "How can I resolve a problem where my card won't go through at all?"
+    },
+    "expected_category": null,
+    "expected_sop_ids": [],
+    "acceptable_sop_ids": [],
+    "out_of_scope": true,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "card_not_working"
+  },
+  {
+    "id": "b77-100",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "how many transactions can i make with a disposable card"
+    },
+    "expected_category": null,
+    "expected_sop_ids": [],
+    "acceptable_sop_ids": [],
+    "out_of_scope": true,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "get_disposable_virtual_card"
+  },
+  {
+    "id": "b77-101",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Did you start charging for cash withdrawals? I thought it was free so far but noticed suddendly there is a fee. How much do I need to pay?"
+    },
+    "expected_category": null,
+    "expected_sop_ids": [],
+    "acceptable_sop_ids": [],
+    "out_of_scope": true,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "cash_withdrawal_charge"
+  },
+  {
+    "id": "b77-102",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "How would you use a disposable card?"
+    },
+    "expected_category": null,
+    "expected_sop_ids": [],
+    "acceptable_sop_ids": [],
+    "out_of_scope": true,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "get_disposable_virtual_card"
+  },
+  {
+    "id": "b77-103",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Can I link my new card?"
+    },
+    "expected_category": null,
+    "expected_sop_ids": [],
+    "acceptable_sop_ids": [],
+    "out_of_scope": true,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "card_linking"
+  },
+  {
+    "id": "b77-104",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Where can cards be delivered?"
+    },
+    "expected_category": null,
+    "expected_sop_ids": [],
+    "acceptable_sop_ids": [],
+    "out_of_scope": true,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "order_physical_card"
+  },
+  {
+    "id": "b77-105",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I've been waiting longer than expected for my card."
+    },
+    "expected_category": null,
+    "expected_sop_ids": [],
+    "acceptable_sop_ids": [],
+    "out_of_scope": true,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "card_arrival"
+  },
+  {
+    "id": "b77-106",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I did not get as much cash as I requested at the ATM."
+    },
+    "expected_category": null,
+    "expected_sop_ids": [],
+    "acceptable_sop_ids": [],
+    "out_of_scope": true,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "wrong_amount_of_cash_received"
+  },
+  {
+    "id": "b77-107",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "What options do I have for holding currencies?"
+    },
+    "expected_category": null,
+    "expected_sop_ids": [],
+    "acceptable_sop_ids": [],
+    "out_of_scope": true,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "fiat_currency_support"
+  },
+  {
+    "id": "b77-108",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Is there an option to top up a with cheque?"
+    },
+    "expected_category": null,
+    "expected_sop_ids": [],
+    "acceptable_sop_ids": [],
+    "out_of_scope": true,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "top_up_by_cash_or_cheque"
+  },
+  {
+    "id": "b77-109",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "There is a direct debit I do not recognise in my statement"
+    },
+    "expected_category": null,
+    "expected_sop_ids": [],
+    "acceptable_sop_ids": [],
+    "out_of_scope": true,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "direct_debit_payment_not_recognised"
+  },
+  {
+    "id": "b77-110",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "I am waiting for my card to arrive."
+    },
+    "expected_category": null,
+    "expected_sop_ids": [],
+    "acceptable_sop_ids": [],
+    "out_of_scope": true,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "card_delivery_estimate"
+  },
+  {
+    "id": "b77-111",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Can I use Apple Pay to top up?"
+    },
+    "expected_category": null,
+    "expected_sop_ids": [],
+    "acceptable_sop_ids": [],
+    "out_of_scope": true,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "apple_pay_or_google_pay"
+  },
+  {
+    "id": "b77-112",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Is it possible to get a Visa here?"
+    },
+    "expected_category": null,
+    "expected_sop_ids": [],
+    "acceptable_sop_ids": [],
+    "out_of_scope": true,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "visa_or_mastercard"
+  },
+  {
+    "id": "b77-113",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "The ATM is declining my card. I tried at two different ATMs. Can you tell me if there's anything wrong with my account?"
+    },
+    "expected_category": null,
+    "expected_sop_ids": [],
+    "acceptable_sop_ids": [],
+    "out_of_scope": true,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "declined_cash_withdrawal"
+  },
+  {
+    "id": "b77-114",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "How long will it take to arrive?"
+    },
+    "expected_category": null,
+    "expected_sop_ids": [],
+    "acceptable_sop_ids": [],
+    "out_of_scope": true,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "card_delivery_estimate"
+  },
+  {
+    "id": "b77-115",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "How can I get a new card ASAP to replace an old, soon to expire one?"
+    },
+    "expected_category": null,
+    "expected_sop_ids": [],
+    "acceptable_sop_ids": [],
+    "out_of_scope": true,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "card_about_to_expire"
+  },
+  {
+    "id": "b77-116",
+    "email": {
+      "from": "customer@example.com",
+      "subject": "",
+      "body": "Is there a top-up feature, if there isn't a lot of money left?"
+    },
+    "expected_category": null,
+    "expected_sop_ids": [],
+    "acceptable_sop_ids": [],
+    "out_of_scope": true,
+    "eval_scope": "retrieval",
+    "language": "english",
+    "source": "banking77",
+    "source_intent": "automatic_top_up"
+  }
+]

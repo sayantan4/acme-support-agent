@@ -1,0 +1,110 @@
+{
+  "agent_prompt": "agent-v1",
+  "judge_prompt": "judge-v1",
+  "summary": {
+    "cases": 1,
+    "passed": 0,
+    "pass_rate": 0.0,
+    "check_pass_rates": {
+      "sop": 1.0,
+      "tools_called": 1.0,
+      "tools_not_called": 1.0,
+      "escalation": 1.0,
+      "reply_decision": 0.0,
+      "no_internal_terms": 1.0,
+      "must_contain_any": null,
+      "not_a_repeat": 1.0
+    },
+    "missed_escalations": 0,
+    "unneeded_escalations": 0,
+    "judge_rubric_item_pass_rate": null,
+    "judge_grounded_rate": null,
+    "judge_unreadable": 0,
+    "seconds_p50": 20.96,
+    "seconds_p95": 20.96,
+    "tokens_per_case_avg": 18195,
+    "cached_share": 0.573
+  },
+  "cases": [
+    {
+      "id": "thread-thanks-after-deposit-answer",
+      "passed": false,
+      "checks": [
+        {
+          "name": "sop",
+          "passed": true,
+          "detail": "no SOP expected"
+        },
+        {
+          "name": "tools_called",
+          "passed": true,
+          "detail": "called ['get_deposits', 'check_deposit']"
+        },
+        {
+          "name": "tools_not_called",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "escalation",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "reply_decision",
+          "passed": false,
+          "detail": "replied when no reply was needed"
+        },
+        {
+          "name": "no_internal_terms",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "not_a_repeat",
+          "passed": true,
+          "detail": "similarity to a previous reply 0.23"
+        }
+      ],
+      "judge": null,
+      "agent": {
+        "sops_retrieved": [
+          "PAY-01"
+        ],
+        "sops_followed": [
+          "PAY-01",
+          "SUP-04"
+        ],
+        "tools_called": [
+          {
+            "name": "get_deposits",
+            "arguments": {
+              "method": "UPI",
+              "days": 7,
+              "status": "PENDING"
+            },
+            "ok": true
+          },
+          {
+            "name": "check_deposit",
+            "arguments": {
+              "deposit_id": 401
+            },
+            "ok": true
+          }
+        ],
+        "escalate": false,
+        "escalation_note": null,
+        "summary": "Customer Wrick confirmed receipt of our earlier update about their UPI deposit. The deposit in question is Rs 5,000, deposit 401, UTR 512345678901. It is still pending at both the deposit and payment-record level, with no ledger credit yet. The latest check shows it is 45 minutes old and was last polled recently, so it is still within the normal auto-updating window. No further action is needed unless it remains pending beyond 72 hours.",
+        "reply": "Hi Wrick,\n\nThanks for confirming.\n\nI checked your deposit again: it is still pending, and we are still waiting for confirmation from the bank. You do not need to pay again.\n\nThese deposits usually update automatically, and in rare cases it can take up to 72 hours from the payment time. If it is still not updated after that, we will take the next step for you.\n\nBest regards,\nAcme Invest Support"
+      },
+      "seconds": 20.96,
+      "tokens": {
+        "input": 17881,
+        "cached": 10240,
+        "output": 314,
+        "judge": 0
+      }
+    }
+  ]
+}

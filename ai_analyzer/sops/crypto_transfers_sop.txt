@@ -1,0 +1,627 @@
+SOP_ID: CRY
+TITLE: Crypto Transfers (on-chain deposits and withdrawals)
+CATEGORY: crypto
+VERSION: 1.0
+LAST_REVIEWED: 2026-09-27
+OWNER: Crypto Ops
+NOTE: Fictional sample SOP for the Acme Invest demo. Policy values live in data_dictionary.txt.
+
+======================================================================
+## CRY-00: Scope and quick triage
+======================================================================
+Covers crypto sent INTO Acme Invest from an external wallet/exchange (crypto deposits) and
+crypto sent OUT of Acme Invest (crypto withdrawals): networks, confirmations, memos/tags,
+addresses, whitelisting, network fees and holds.
+Not covered here: INR deposits (payment_sop), INR withdrawals (withdrawal_sop), buying and
+selling (trade_sop), fee disputes (fees_charges_sop), frozen accounts (fraud_risk_sop RSK-01),
+scam victims (fraud_risk_sop RSK-05).
+
+Quick triage (after identifying the user per support_guidelines_sop SUP-02; a tx hash quoted
+by the customer is the fastest lookup):
+  - "Sent crypto, not credited"                          -> CRY-01
+  - "Sent on the wrong network"                          -> CRY-02
+  - "Forgot memo / tag"                                  -> CRY-03
+  - "Sent to wrong / old address"                        -> CRY-04
+  - "Deposit option disabled / network maintenance"      -> CRY-05
+  - "Withdrawal stuck processing"                        -> CRY-06
+  - "Withdrawal success but not received"                -> CRY-07
+  - "Withdrew to the wrong address"                      -> CRY-08
+  - "Cannot use new address / whitelist / cooldown"      -> CRY-09
+  - "Minimum withdrawal / network fee"                   -> CRY-10
+  - "Withdrawal on hold"                                 -> CRY-11
+  - "Unknown / airdrop / unsupported tokens received"    -> CRY-12
+  - "Deposit failed / under review", "withdrawal failed" -> CRY-13
+
+Key rules:
+  - Blockchain transactions are irreversible. Never promise recovery of funds sent to a wrong
+    address or network; recovery (where possible) is best-effort, not guaranteed.
+  - Recovery policy (data_dictionary DD-09): unsupported network or missing memo/tag needs manual
+    recovery, fee Rs 2,500 equivalent, 7-15 working days, not guaranteed.
+  - Required confirmations, minimum withdrawal and withdrawal fee per network are in
+    supported_networks; always quote from there, never from memory.
+  - Never disclose hold reasons (CRY-11), other users' addresses, or internal wallet details.
+  - A customer asking to "urgently" whitelist or withdraw to a new address because someone told
+    them to may be a scam victim (support_guidelines_sop SUP-06, fraud_risk_sop RSK-05).
+
+======================================================================
+## CRY-01: Crypto deposit not credited
+======================================================================
+CUSTOMER MAY SAY:
+  - "I sent 100 USDT from another exchange, not showing in Acme"
+  - "BTC deposit pending for 2 hours"
+  - "Transaction is successful on blockchain but not credited"
+  - "Crypto bheja tha, wallet mein abhi tak nahi aaya"
+  - "Here is my tx hash, please check"
+INFO NEEDED FROM CUSTOMER:
+  - Asset, network, amount, transaction hash (tx hash / TxID), sending time
+TOOLS: get_crypto_deposits, find_user_by_reference, get_deposit_addresses, get_supported_networks, check_wallet_balance
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02; tx hash lookup is supported there).
+  2. Find the deposit:
+     Call get_crypto_deposits(tx_hash=<tx_hash>). Only this customer's deposits come back. None found:
+     Call find_user_by_reference(tx_hash=<tx_hash>).
+     (belongs_to_you false = the hash is on another account: share nothing about it.)
+     (or, if no hash: Call get_crypto_deposits() and use that asset's
+     deposits from the last 7 days.)
+     - No deposit found: we have not detected the transaction yet.
+       a) Ask for the tx hash if missing (from the sending platform's history).
+       b) Confirm the destination address and network belong to this user:
+          Call get_deposit_addresses().
+          -> Address matches but network differs -> CRY-02. Address not this user's -> CRY-04.
+       c) The customer should check the tx on a block explorer: if it is still pending/unconfirmed
+          on the sending side, wait (sending platform may not have broadcast it yet).
+       d) Tx confirmed on-chain to the correct address/network, and older than 2 hours (sample
+          value) with no deposit found -> escalate Crypto Ops (P2).
+       e) Not yet 2 hours -> ask the customer to wait 2 hours (sample value).
+  3. Branch on status:
+     - DETECTED / CONFIRMING: compare confirmations with required_confirmations.
+       Call get_supported_networks(asset=<asset>, network=<network>).
+       -> Normal: tell the customer the number of confirmations still needed; credit is automatic.
+          Typical waits (sample values): BTC 30-60 minutes, ERC20 5-15 minutes, TRC20/BEP20 under
+          5 minutes, subject to network congestion.
+       -> confirmations >= required_confirmations but status not CREDITED for more than 1 hour
+          (sample value) -> escalate Crypto Ops (P2).
+     - CREDITED: confirm the ledger credit (ledger_credited from get_crypto_deposits):
+       Call check_wallet_balance(asset=<asset>).
+       -> ledger_credited is true: tell the customer it is credited (time in IST). Amount smaller than
+          sent: the sending platform deducted its own fee; Acme does not charge for deposits (sample
+          value).
+       -> CREDITED but ledger_credited is false -> escalate Crypto Ops (P1).
+     - UNSUPPORTED_NETWORK -> CRY-02.  MISSING_MEMO -> CRY-03.
+     - MANUAL_REVIEW or FAILED -> CRY-13.
+  4. Also check deposits are enabled on that network (CRY-05). If deposits were disabled when the
+     customer sent, the deposit may be credited after maintenance ends.
+RESOLUTION:
+  Credit is automatic once required confirmations are reached. Only escalate when the chain shows
+  it confirmed and we have not credited within the thresholds above.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for sharing the transaction details. I can see your deposit of <amount> <asset> on the
+  <network> network. It currently has <x> of the <required> network confirmations needed, and it
+  will be added to your Acme Invest wallet automatically once the rest are complete, usually within
+  <time>. You do not need to do anything else.
+  (Credited variant: "Your deposit was added to your wallet on <date> at <time IST>.")
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Confirmed on-chain to the user's address/network, no detection after 2 hours (sample value) -> Crypto Ops, P2, include: tx_hash, asset, network, to_address
+  - Required confirmations reached, not credited after 1 hour (sample value) -> Crypto Ops, P2
+  - CREDITED without ledger entry -> Crypto Ops, P1
+DO NOT:
+  - Do not ask for the customer's private key or seed phrase (never needed).
+  - Do not share internal wallet/hot-wallet addresses.
+
+======================================================================
+## CRY-02: Deposit sent on the wrong / unsupported network
+======================================================================
+CUSTOMER MAY SAY:
+  - "I sent USDT on BEP20 but my Acme address was TRC20"
+  - "Selected wrong network while withdrawing from another exchange"
+  - "Wrong chain pe bhej diya, please recover"
+  - "Sent ETH on a different network, will I get it back?"
+INFO NEEDED FROM CUSTOMER:
+  - Asset, network actually used, amount, tx hash, destination address
+TOOLS: get_crypto_deposits, find_user_by_reference, get_supported_networks, get_deposit_addresses
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_crypto_deposits(tx_hash=<tx_hash>). Only this customer's deposits come back. None found:
+     Call find_user_by_reference(tx_hash=<tx_hash>).
+     (belongs_to_you false = the hash is on another account: share nothing about it.)
+  3. Call get_supported_networks(asset=<asset>).
+     Call get_deposit_addresses(asset=<asset>).
+  4. Branch:
+     - status UNSUPPORTED_NETWORK: we received the transaction on a network we do not support for
+       this asset. Recovery is manual: fee Rs 2,500 equivalent, 7-15 working days, NOT guaranteed
+       (DD-09). Ask the customer to confirm in writing that they accept the fee and that recovery
+       is not guaranteed. On confirmation -> escalate Crypto Ops (P3).
+     - The network used IS supported for the asset and the address matches that network's deposit
+       address: it is not a wrong-network case -> CRY-01.
+     - No deposit found and the to_address matches a user deposit address on a different network
+       (e.g. same address format on ERC20/BEP20/POLYGON): escalate Crypto Ops (P3) to check whether
+       the funds reached an address we control on that chain; recovery terms are the same as above.
+     - No deposit found and to_address is not ours -> CRY-04 (cannot recover).
+RESOLUTION:
+  Explain the recovery terms honestly, get the customer's written acceptance, then escalate.
+  Recovery outcome is decided by Crypto Ops.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for the details. I can see your <amount> <asset> was sent on the <network used> network,
+  which is not supported for <asset> deposits on Acme Invest. We can attempt a manual recovery, but
+  please note:
+  - A recovery fee equivalent to Rs 2,500 is deducted from the recovered amount.
+  - It takes 7-15 working days.
+  - Recovery is not guaranteed.
+  Please reply confirming you would like us to proceed on these terms, and we will start the process.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Customer accepts recovery terms -> Crypto Ops, P3, include: tx_hash, asset, network used, amount, to_address, customer acceptance
+  - Amount is large (sample: above Rs 5,00,000 equivalent) -> Crypto Ops, P2
+DO NOT:
+  - Do not promise recovery or a date. Do not waive or reduce the fee.
+
+======================================================================
+## CRY-03: Missing or wrong memo / tag
+======================================================================
+CUSTOMER MAY SAY:
+  - "I forgot to add the memo while sending XRP"
+  - "Entered wrong destination tag"
+  - "Tag daalna bhool gaya, coins nahi aaye"
+  - "Deposit shows but not credited, memo missing"
+INFO NEEDED FROM CUSTOMER:
+  - Asset, network, amount, tx hash, the memo/tag they used (if any)
+TOOLS: get_crypto_deposits, find_user_by_reference, get_deposit_addresses, find_deposit_address_owner
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_crypto_deposits(tx_hash=<tx_hash>). Only this customer's deposits come back. None found:
+     Call find_user_by_reference(tx_hash=<tx_hash>).
+     (belongs_to_you false = the hash is on another account: share nothing about it.)
+     Call get_deposit_addresses(asset=<asset>, network=<network>).
+  3. Branch:
+     - status MISSING_MEMO: the deposit reached our shared address without a memo/tag, so it could
+       not be matched to the account automatically. Recovery: fee Rs 2,500 equivalent, 7-15 working
+       days, not guaranteed (DD-09). Ask for written acceptance + proof of ownership (screenshot of the
+       sending platform's withdrawal record showing tx hash and amount). Then escalate Crypto Ops (P3).
+     - memo_tag present but belongs to another user (check with
+       Call find_deposit_address_owner(address=<to_address>, memo_tag=<memo_tag>)): the funds were
+       credited to another account. Do not reveal who. Escalate Crypto Ops (P2) with proof of ownership.
+     - memo_tag matches this user and status CREDITED -> CRY-01 (already credited).
+RESOLUTION:
+  Same recovery terms as wrong network. Remind the customer that memo/tag is mandatory for assets
+  that show one on the deposit screen.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I found your deposit of <amount> <asset>. It arrived without the memo/tag that identifies your
+  account, so it could not be added automatically. We can try to recover it manually:
+  - A recovery fee equivalent to Rs 2,500 applies.
+  - It takes 7-15 working days and is not guaranteed.
+  Please reply confirming you accept these terms and attach a screenshot of the withdrawal record
+  from the platform you sent from, showing the transaction hash and amount.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Customer accepts and sends proof -> Crypto Ops, P3, include: tx_hash, amount, memo used, proof
+  - Memo belonged to another user -> Crypto Ops, P2
+DO NOT:
+  - Do not reveal another user's identity or account. Do not guarantee recovery.
+
+======================================================================
+## CRY-04: Sent to an address that is not the user's Acme deposit address
+======================================================================
+CUSTOMER MAY SAY:
+  - "I sent BTC to an old address, is it lost?"
+  - "Copied wrong address while depositing"
+  - "Galat address pe bhej diya"
+  - "I sent to someone's address who said it is Acme wallet"
+INFO NEEDED FROM CUSTOMER:
+  - Asset, network, amount, tx hash, destination address used
+TOOLS: find_deposit_address_owner
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Check whether the destination is any Acme deposit address:
+     Call find_deposit_address_owner(address=<to_address>).
+     - Belongs to THIS user (possibly an older address, see created_at): old addresses remain valid
+       (sample rule) -> CRY-01.
+     - Belongs to ANOTHER Acme user: do not reveal anything about that user. Escalate Crypto Ops (P2)
+       with proof of ownership; recovery depends on that user and is not guaranteed.
+     - Not found: the address is not controlled by Acme Invest. The funds cannot be recovered by us.
+       Resolve with the "cannot recover" reply.
+  3. If the customer says someone gave them the address (a "support agent", investment scheme,
+     trader) -> scam victim path: fraud_risk_sop RSK-05.
+RESOLUTION:
+  Only transfers to the user's own Acme deposit address can be credited. Transfers to external
+  addresses cannot be reversed.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I am sorry to hear this. I checked the address you sent to, and it is not an Acme Invest deposit
+  address. Blockchain transfers cannot be reversed, and because we do not control that address we
+  are unable to recover the funds. If you know the owner of the address, only they can return the
+  funds. Please always copy your deposit address directly from the Deposit screen in the app.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Address belongs to another Acme user -> Crypto Ops, P2, include: tx_hash, to_address, proof
+  - Scam indicators -> fraud_risk_sop RSK-05
+DO NOT:
+  - Do not confirm or deny whether an address belongs to another Acme user.
+
+======================================================================
+## CRY-05: Deposits or withdrawals disabled / network under maintenance
+======================================================================
+CUSTOMER MAY SAY:
+  - "Deposit option greyed out for ETH"
+  - "Withdrawal suspended for USDT TRC20, why?"
+  - "Network under maintenance kab tak?"
+  - "I already sent during maintenance, what now?"
+INFO NEEDED FROM CUSTOMER:
+  - Asset and network
+TOOLS: get_supported_networks, get_crypto_deposits
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_supported_networks(asset=<asset>).
+     - Disabled with maintenance_note: share the plain-language gist (e.g. "network upgrade") and any
+       announced time. Suggest another enabled network for the same asset if one exists (the customer
+       must use the matching address for that network).
+     - Disabled with no note: escalate Crypto Ops (P3) for an ETA; tell the customer it is temporary.
+     - Enabled: the problem is elsewhere (app issue -> app_technical_sop; account hold -> CRY-11).
+  3. Customer already sent a deposit while deposits were disabled:
+     Call get_crypto_deposits(tx_hash=<tx_hash>).
+     Typically detected and credited after maintenance ends (sample rule) -> wait until 24 hours after
+     re-enable (sample value); if still missing -> CRY-01 escalation.
+RESOLUTION:
+  Explain the pause is temporary and funds are safe.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  <Deposits/withdrawals> of <asset> on the <network> network are temporarily paused for
+  <maintenance / a network upgrade>. Your funds are safe. <"You can use the <other network> network
+  instead, using the address shown for that network." / "We expect it to resume <time>, and we will
+  notify you in the app.">
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Disabled for more than 24 hours (sample value) without a note -> Crypto Ops, P3
+DO NOT:
+  - Do not give a specific resume time unless it is in maintenance_note or an announcement.
+
+======================================================================
+## CRY-06: Crypto withdrawal stuck in PROCESSING
+======================================================================
+CUSTOMER MAY SAY:
+  - "My USDT withdrawal is processing for 3 hours"
+  - "BTC withdrawal pending, no tx hash"
+  - "Withdrawal abhi tak processing mein hai"
+  - "When will my crypto withdrawal complete?"
+INFO NEEDED FROM CUSTOMER:
+  - Asset, amount, time of request
+TOOLS: get_withdrawals, get_supported_networks
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_withdrawals(asset=<asset>). Look at the latest 5 (crypto only,
+     asset is not INR).
+  3. Branch on status:
+     - REQUESTED / PENDING_APPROVAL: waiting for checks. Large withdrawals may need manual review
+       (sample: up to 24 hours). Older than 24 hours -> escalate Crypto Ops (P2).
+     - ON_HOLD -> CRY-11.
+     - PROCESSING with tx_hash present: the transaction has been broadcast to the blockchain. Give the
+       customer the tx hash and ask them to track it on a block explorer for that network. Waiting for
+       network confirmations on congested networks can take longer; the receiving platform credits
+       after its own confirmation count. If the explorer shows it confirmed -> CRY-07.
+     - PROCESSING without tx_hash:
+       -> created less than 2 hours ago (sample value): normal batching/signing; ask the customer to
+          wait 2 hours.
+       -> older than 2 hours (sample value): check withdrawals_enabled and maintenance_note with
+          Call get_supported_networks(asset=<asset>, network=<network>); if paused -> CRY-05
+          (processed after maintenance). Otherwise escalate Crypto Ops (P2).
+     - SUCCESS -> CRY-07.  FAILED / CANCELLED -> CRY-13.
+RESOLUTION:
+  Share tx hash and explorer guidance when available; otherwise give the wait window or escalate.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I checked your withdrawal of <amount> <asset> requested on <date, time IST>.
+  <"It has been sent to the blockchain. Transaction hash: <tx_hash>. You can track it on any block
+  explorer for the <network> network; once the network confirms it, the receiving wallet will show
+  the funds." / "It is being processed and should be sent within the next <x> hours. We will
+  notify you when it is sent." / "It is taking longer than usual, so I have escalated it to our
+  team. You will get an update within 48 hours.">
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - PROCESSING without tx_hash > 2 hours (sample value) on an enabled network -> Crypto Ops, P2, include: withdrawal_id, created_at, network
+  - PENDING_APPROVAL > 24 hours (sample value) -> Crypto Ops, P2
+DO NOT:
+  - Do not cancel the withdrawal on the customer's behalf once it is PROCESSING.
+
+======================================================================
+## CRY-07: Withdrawal SUCCESS but the receiving wallet / exchange says not received
+======================================================================
+CUSTOMER MAY SAY:
+  - "Acme shows completed but the other exchange hasn't received my USDT"
+  - "Withdrawal successful but coins not in my wallet"
+  - "Other exchange support says no deposit came"
+  - "Success dikha raha hai par wallet mein nahi aaya"
+INFO NEEDED FROM CUSTOMER:
+  - Asset, amount, withdrawal time
+TOOLS: check_withdrawal
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call check_withdrawal(withdrawal_id=<withdrawal_id>). Check that withdrawal.user_id is the
+     customer's and withdrawal.status is SUCCESS.
+  3. Share the tx_hash, destination address, network and memo/tag with the customer (these are their
+     own details) and check with them:
+     - Address/network/memo match what the receiving platform shows: the transfer is complete on-chain.
+       The receiving platform must credit it; ask the customer to give the tx hash to that platform.
+       Resolve.
+     - Receiving platform requires a memo/tag and memo_tag is empty or different: the funds reached
+       their address without a memo; only the receiving platform can recover it. Resolve with guidance.
+     - Network differs from what the receiving platform supports: the receiving platform must handle
+       it (their recovery process). Resolve with guidance.
+     - Customer says the explorer shows no transaction for tx_hash, or the tx failed on-chain:
+       escalate Crypto Ops (P1) - possible false SUCCESS.
+  4. Confirm the debit: use the ledger_entries returned by check_withdrawal.
+RESOLUTION:
+  Once a withdrawal is confirmed on-chain, Acme cannot reverse or re-send it; the customer works
+  with the receiving platform using the tx hash.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I checked your withdrawal of <amount> <asset>. It was completed on <date, time IST> and confirmed
+  on the <network> network. Details you can share with the receiving platform:
+  - Transaction hash: <tx_hash>
+  - Destination address: <address>  <memo/tag: <memo>>
+  You can also check it on a block explorer. Since the transfer is complete on the blockchain, the
+  receiving platform will need to credit it; please contact their support with the transaction hash.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - tx_hash not found or failed on-chain while status is SUCCESS -> Crypto Ops, P1, include: withdrawal_id, tx_hash
+DO NOT:
+  - Do not re-send or refund a confirmed withdrawal. Do not name the receiving platform in writing.
+
+======================================================================
+## CRY-08: Withdrawal sent to the wrong address
+======================================================================
+CUSTOMER MAY SAY:
+  - "I pasted the wrong address, please stop the withdrawal"
+  - "Sent crypto to wrong wallet, reverse it"
+  - "Address galat daal diya, cancel karo"
+  - "Withdrew to a contract address by mistake"
+INFO NEEDED FROM CUSTOMER:
+  - Withdrawal time/amount, the address they intended
+TOOLS: get_withdrawals, find_deposit_address_owner
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_withdrawals(). Look at the latest 5.
+  3. Branch:
+     - REQUESTED / PENDING_APPROVAL (not yet sent): the customer may cancel it in the app if the option
+       is shown. If they cannot, escalate Crypto Ops (P1) immediately with the withdrawal_id to try to
+       stop it; do not promise success.
+     - PROCESSING with tx_hash, or SUCCESS: already on-chain and irreversible. Resolve with the
+       irreversible reply.
+     - Destination is another Acme deposit address:
+       Call find_deposit_address_owner(address=<destination_address>).
+       -> internal transfer to another user; do not reveal who. Escalate Crypto Ops (P2); recovery
+          depends on that user and is not guaranteed.
+     - Customer was instructed by a third party to send there -> fraud_risk_sop RSK-05.
+RESOLUTION:
+  On-chain withdrawals cannot be reversed. Only the owner of the receiving address can return funds.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I am sorry this happened. Your withdrawal of <amount> <asset> was sent to <address> on
+  <date, time IST> and has been confirmed on the blockchain. Blockchain transfers cannot be reversed,
+  so we are not able to recall it. If you know the owner of that address, only they can send it back.
+  To help prevent this in future, you can save trusted addresses in your address book in the app.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Not yet broadcast and customer cannot cancel -> Crypto Ops, P1, include: withdrawal_id
+  - Destination is an Acme address -> Crypto Ops, P2
+DO NOT:
+  - Do not promise recovery or say "we will try to reverse".
+
+======================================================================
+## CRY-09: New address cooldown / whitelist issues
+======================================================================
+CUSTOMER MAY SAY:
+  - "I added a new address but cannot withdraw to it"
+  - "Why do I have to wait 24 hours for a new address?"
+  - "Address whitelist pending"
+  - "Naya address add kiya, withdraw button disabled hai"
+  - "Please remove the cooldown urgently"
+INFO NEEDED FROM CUSTOMER:
+  - Asset, network, when the address was added
+TOOLS: get_address_whitelist, get_auth_events
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_address_whitelist().
+  3. Branch on status:
+     - PENDING_COOLDOWN: new addresses have a 24-hour cooldown (DD-09). Tell the customer the exact
+       time it becomes usable (active_from in IST). The cooldown cannot be removed or shortened.
+     - ACTIVE: whitelisting is fine; check network matches the withdrawal network and whether a
+       security cooldown applies:
+       Call get_auth_events(event_types=["PASSWORD_RESET", "PHONE_CHANGED",
+       "EMAIL_CHANGED", "TWO_FA_RESET"], days=1). Use only events from the last 24 hours.
+       -> Any found: 24-hour withdrawal cooldown after security changes (DD-09 states this for INR;
+          applied to crypto too as a sample rule). Tell them when it ends.
+       -> None: app issue -> app_technical_sop.
+     - REMOVED: the customer (or security action) removed it; re-add it (new 24-hour cooldown applies).
+     - Address not listed at all: the customer must add it in the app; support cannot add addresses.
+  4. The customer did NOT add the address -> account_security_sop SEC-01 (P1).
+  5. Urgency plus pressure from a third party -> support_guidelines_sop SUP-06 / fraud_risk_sop RSK-05.
+RESOLUTION:
+  Explain the cooldown is a security protection and give the time it ends.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  For your security, any new withdrawal address can be used 24 hours after it is added. The
+  <asset> address you added on <date, time IST> will be ready to use from <date, time IST>. This
+  waiting period cannot be shortened, as it protects your funds if someone else ever gains access
+  to your account.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Address added that the customer does not recognise -> account_security_sop SEC-01, Risk & Compliance, P1
+  - ACTIVE past active_from and still blocked with no security event -> Tech On-call, P3
+DO NOT:
+  - Do not add, remove or activate addresses on request by email. Do not shorten the cooldown.
+
+======================================================================
+## CRY-10: Minimum withdrawal and network fee questions
+======================================================================
+CUSTOMER MAY SAY:
+  - "Why is the withdrawal fee so high for ERC20?"
+  - "What is the minimum USDT I can withdraw?"
+  - "I received less than I withdrew"
+  - "Network fee kitna lagta hai?"
+INFO NEEDED FROM CUSTOMER:
+  - Asset and network
+TOOLS: get_supported_networks, check_withdrawal
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02) if they refer to a specific withdrawal.
+  2. Call get_supported_networks(asset=<asset>).
+     -> Quote each network's minimum and fee. Different networks have different fees; the fee covers
+        the blockchain network cost and is a fixed amount per withdrawal in the asset (sample rule).
+  3. For "received less": Call check_withdrawal(withdrawal_id=<withdrawal_id>). Use withdrawal.amount,
+     fee and network.
+     -> Amount received = amount - fee (sample rule: fee deducted from the withdrawn amount). The
+        receiving platform may also charge a deposit fee. Resolve.
+     -> Received amount lower than amount - fee -> ask for the receiving platform's record; if the
+        on-chain amount (block explorer) is lower than amount - fee -> escalate Crypto Ops (P2).
+  4. Fee dispute or refund request -> fees_charges_sop.
+RESOLUTION:
+  Quote values from supported_networks; explain that lower-fee networks are available where supported,
+  and the receiving platform must support the same network.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  For <asset> withdrawals, the minimum and network fee depend on the network you choose:
+  - <network 1>: minimum <min>, fee <fee>
+  - <network 2>: minimum <min>, fee <fee>
+  The fee covers the blockchain network cost and is deducted from the amount you withdraw. Please make
+  sure the receiving wallet supports the network you select.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - On-chain amount lower than amount minus fee -> Crypto Ops, P2, include: withdrawal_id, tx_hash
+DO NOT:
+  - Do not recommend a network based on price or speculate on network fees going down.
+
+======================================================================
+## CRY-11: Crypto withdrawal ON_HOLD
+======================================================================
+CUSTOMER MAY SAY:
+  - "My BTC withdrawal is on hold, why?"
+  - "Withdrawal held for verification since 2 days"
+  - "Hold kyun lagaya? release karo"
+  - "Why is my crypto blocked from withdrawing?"
+INFO NEEDED FROM CUSTOMER:
+  - Asset, amount, time of request
+TOOLS: get_withdrawals, get_risk_holds
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_withdrawals(status="ON_HOLD").
+     Call get_risk_holds().
+  3. Follow fraud_risk_sop RSK-01 for all holds. Never disclose hold_reason, reason_code or source.
+     - users.status = FROZEN or ACCOUNT_FREEZE hold -> fraud_risk_sop RSK-01.
+     - WITHDRAWAL_HOLD only: routine review; the review team may contact the customer. If the hold
+       is older than 48 hours (sample value) with no update -> escalate Risk & Compliance (P2).
+     - No active risk hold but withdrawal ON_HOLD -> escalate Crypto Ops (P2) (possible stale state).
+     - source LAW_ENFORCEMENT: do not confirm or hint; use the routine-review reply only.
+RESOLUTION:
+  Use the neutral routine-review wording; the customer's funds remain in their account while held.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for reaching out. Your withdrawal of <amount> <asset> is currently under a routine review,
+  and your funds remain safe in your account. Our team will contact you if anything is needed from
+  you. We will update you within 48 hours.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Follow fraud_risk_sop RSK-01 escalation rules; hold > 48 hours without update -> Risk & Compliance, P2
+DO NOT:
+  - Do not reveal hold reasons, rules, thresholds or that any agency is involved.
+  - Do not promise a release date.
+
+======================================================================
+## CRY-12: Received unsupported tokens, airdrops or spam tokens
+======================================================================
+CUSTOMER MAY SAY:
+  - "I got some random token in my wallet, what is it?"
+  - "Sent a token that Acme doesn't list to my ETH address"
+  - "Airdrop not credited on Acme"
+  - "Unknown token aaya with a website link to claim reward"
+INFO NEEDED FROM CUSTOMER:
+  - Token name/contract (if known), network, tx hash
+TOOLS: get_supported_networks, get_crypto_deposits
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_supported_networks(asset=<asset>).
+     Call get_crypto_deposits(tx_hash=<tx_hash>).
+  3. Branch:
+     - Customer sent an unlisted token to their Acme deposit address: it will not be credited
+       automatically. Recovery is at Crypto Ops' discretion under the same terms as DD-09 (fee Rs 2,500
+       equivalent, 7-15 working days, not guaranteed); tokens that cannot be safely handled cannot be
+       recovered. Get written acceptance, then escalate Crypto Ops (P3).
+     - Customer expected an airdrop for a coin they hold on Acme: airdrops are credited only if Acme
+       announces support for that airdrop (sample rule). No announcement -> not supported. Resolve.
+     - Unknown token showing in an external wallet or a message with a "claim" link: likely spam or a
+       phishing attempt. Advise not to interact with it or visit links. Resolve; if they already
+       connected a wallet or shared details -> fraud_risk_sop RSK-05.
+RESOLUTION:
+  Only listed assets on supported networks are credited. Everything else is best-effort recovery
+  or not supported.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  <Unlisted: "The token you sent is not supported on Acme Invest, so it could not be added to your
+  wallet. We can review whether a manual recovery is possible (fee equivalent to Rs 2,500, 7-15
+  working days, not guaranteed). Please reply if you would like us to try.">
+  <Spam: "Unknown tokens with links to 'claim' rewards are a common scam. Please do not open the link,
+  connect your wallet or share any codes. Acme Invest will never ask you to do this.">
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Customer accepts recovery terms -> Crypto Ops, P3, include: tx_hash, token contract, network, amount
+DO NOT:
+  - Do not comment on the value of an unlisted token or whether it will be listed.
+
+======================================================================
+## CRY-13: Deposit in MANUAL_REVIEW / FAILED, or withdrawal FAILED / CANCELLED
+======================================================================
+CUSTOMER MAY SAY:
+  - "Deposit shows under review"
+  - "My crypto withdrawal failed, where is my money?"
+  - "Withdrawal cancelled automatically"
+  - "Failed dikha raha hai, coins wapas aayenge?"
+INFO NEEDED FROM CUSTOMER:
+  - Asset, amount, tx hash or time
+TOOLS: get_crypto_deposits, find_user_by_reference, get_risk_holds, check_withdrawal
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Deposit branch:
+     Call get_crypto_deposits(tx_hash=<tx_hash>). Only this customer's deposits come back. None found:
+     Call find_user_by_reference(tx_hash=<tx_hash>).
+     (belongs_to_you false = the hash is on another account: share nothing about it.)
+     - MANUAL_REVIEW: under compliance/ops review (e.g. source-of-funds checks). Timeline: up to
+       72 hours (sample value). Check for a DEPOSIT_HOLD with
+       Call get_risk_holds(hold_type="DEPOSIT_HOLD");
+       follow fraud_risk_sop RSK-01 wording.
+       Older than 72 hours -> escalate Crypto Ops (P2).
+     - FAILED: the chain transaction failed or was reverted (the customer's explorer will show it).
+       If the explorer shows success to the user's address -> escalate Crypto Ops (P2).
+  3. Withdrawal branch:
+     Call check_withdrawal(withdrawal_id=<withdrawal_id>). Use withdrawal.status and its
+     ledger_entries (reversed is true when a REVERSAL entry exists).
+     - FAILED / CANCELLED with a REVERSAL (or no debit) entry: the amount (including fee, sample rule)
+       is back in available balance. Resolve; the customer may retry (check CRY-05, CRY-09, CRY-10
+       for common causes: network paused, address not active, below minimum).
+     - FAILED / CANCELLED with a debit and no REVERSAL after 1 hour (sample value) -> escalate Crypto Ops (P1).
+RESOLUTION:
+  Confirm where the funds are now and what the customer can do next.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I checked your <deposit/withdrawal> of <amount> <asset>. <"It is under a routine review and we will
+  update you within 72 hours." / "The withdrawal could not be completed, and the full amount has been
+  returned to your Acme Invest wallet. You can try again from the app.">
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Failed withdrawal debited without reversal -> Crypto Ops, P1, include: withdrawal_id, entry_ids
+  - MANUAL_REVIEW > 72 hours (sample value) -> Crypto Ops, P2
+DO NOT:
+  - Do not disclose review reasons.

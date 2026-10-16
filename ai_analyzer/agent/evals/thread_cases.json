@@ -1,0 +1,146 @@
+[
+  {
+    "id": "real-thanks-after-deposit-answer",
+    "source": "real",
+    "note": "Thread 1a0fc7fa770faf3d. U1 = msg 9, L1 = msg 10, U2 = msgs 11 + 12 ('I got it', 'Thanks'). v1 sent msg 13: a full re-answer plus 'we will keep monitoring'. Expected: a short closing reply.",
+    "user_id": 101,
+    "summary_till_now": "Customer Rahul Mehta (signs as Wrick) wrote that deposits have not been processed for 7 days, money is blocked, and called us thieves. We found a UPI deposit of Rs 5,000 made on 2 Oct 2026 at 11:19 IST that is still pending bank confirmation, with no wallet credit. We replied: still pending, wait up to 72 hours from the payment time, no need to pay again, reply if not updated after that.",
+    "previous_replies": [
+      "Hi Wrick,\nSorry for the worry about your deposit of Rs 5,000 made on 2 Oct 2026 at 11:19 IST.\n\nI checked it and the payment is still pending. We are waiting for the bank to confirm it, and it has not been added to your wallet yet. This can happen for a short time after a UPI payment.\n\nPlease wait for up to 72 hours from the payment time. You do not need to pay again. If it is still not updated after that, reply to this email and we will check it again.\n\nBest regards,\nAcme Invest Support"
+    ],
+    "messages": [
+      {
+        "from": "Rahul Mehta <rahul.mehta@example.com>",
+        "subject": "Re: Deposit got stucked",
+        "date": "Fri, 2 Oct 2026 17:37:42 +0530",
+        "body": "I got it\r\n\r\nOn Fri, 2 Oct, 2026, 17:33 Rahul Mehta, <rahul.mehta@example.com> wrote:\r\n\r\n> Hi , it's Wrick . I am trying since last 7 days. My deposits are not\r\n> getting processed..My money is blocked... You guys are theif\r\n>"
+      },
+      {
+        "from": "Rahul Mehta <rahul.mehta@example.com>",
+        "subject": "Re: Deposit got stucked",
+        "date": "Fri, 2 Oct 2026 17:38:08 +0530",
+        "body": "Thanks\r\n\r\nOn Fri, 2 Oct, 2026, 17:37 Rahul Mehta, <rahul.mehta@example.com> wrote:\r\n\r\n> I got it\r\n>\r\n> On Fri, 2 Oct, 2026, 17:33 Rahul Mehta, <rahul.mehta@example.com> wrote:\r\n>\r\n>> Hi , it's Wrick . I am trying since last 7 days. My deposits are not\r\n>> getting processed..My money is blocked... You guys are theif\r\n>>\r\n>"
+      }
+    ],
+    "expect": {
+      "sop_ids": [],
+      "tools_called": [],
+      "tools_not_called": [
+        "get_deposits",
+        "check_deposit"
+      ],
+      "escalate": false,
+      "reply": true,
+      "max_words": 40,
+      "reply_must": [
+        "is only a short closing message, like: glad we could help, have a nice day"
+      ],
+      "reply_must_not": [
+        "re-explains or re-checks the deposit status",
+        "promises to keep monitoring, or to send an update later"
+      ]
+    }
+  },
+  {
+    "id": "real-thanks-again-after-closing-reply",
+    "source": "real messages + our expected closing reply (not in the table yet)",
+    "note": "Thread 1a0fc7fa770faf3d, if U2 = msg 11 ('I got it') had got the closing reply. U3 = msg 12 ('Thanks'), nothing new: no further reply.",
+    "user_id": 101,
+    "summary_till_now": "Customer Rahul Mehta (signs as Wrick) wrote that deposits have not been processed for 7 days, money is blocked, and called us thieves. We found a UPI deposit of Rs 5,000 made on 2 Oct 2026 at 11:19 IST that is still pending bank confirmation, with no wallet credit. We replied: still pending, wait up to 72 hours from the payment time, no need to pay again, reply if not updated after that. The customer said they got it; we sent a short closing reply.",
+    "previous_replies": [
+      "Hi Wrick,\nSorry for the worry about your deposit of Rs 5,000 made on 2 Oct 2026 at 11:19 IST.\n\nI checked it and the payment is still pending. We are waiting for the bank to confirm it, and it has not been added to your wallet yet. This can happen for a short time after a UPI payment.\n\nPlease wait for up to 72 hours from the payment time. You do not need to pay again. If it is still not updated after that, reply to this email and we will check it again.\n\nBest regards,\nAcme Invest Support",
+      "Glad I could help. Have a nice day!\n\nAcme Invest Support"
+    ],
+    "last_reply_kind": "closing",
+    "messages": [
+      {
+        "from": "Rahul Mehta <rahul.mehta@example.com>",
+        "subject": "Re: Deposit got stucked",
+        "date": "Fri, 2 Oct 2026 17:38:08 +0530",
+        "body": "Thanks\r\n\r\nOn Fri, 2 Oct, 2026, 17:37 Rahul Mehta, <rahul.mehta@example.com> wrote:\r\n\r\n> I got it\r\n>\r\n> On Fri, 2 Oct, 2026, 17:33 Rahul Mehta, <rahul.mehta@example.com> wrote:\r\n>\r\n>> Hi , it's Wrick . I am trying since last 7 days. My deposits are not\r\n>> getting processed..My money is blocked... You guys are theif\r\n>>\r\n>"
+      }
+    ],
+    "expect": {
+      "sop_ids": [],
+      "tools_called": [],
+      "tools_not_called": [
+        "get_deposits",
+        "check_deposit"
+      ],
+      "escalate": false,
+      "reply": false,
+      "reply_must": [],
+      "reply_must_not": []
+    }
+  },
+  {
+    "id": "real-thank-you-after-deposit-check",
+    "source": "real",
+    "note": "Thread 1a0fd62f896eaa68. U1 = msg 20, L1 = msg 21, U2 = msg 22 ('Thank you for your response.'). v1 sent msg 23: the same deposit answer again. Expected: a short closing reply.",
+    "user_id": 101,
+    "summary_till_now": "Customer Rahul Mehta wrote that deposits are not working. We found a UPI deposit of Rs 5,000 from 02 Oct 2026 at 17:09 IST still waiting for confirmation, and an earlier IMPS deposit that succeeded. We replied: wait a little longer; if not credited after 72 hours from the payment time, reply with the payment reference.",
+    "previous_replies": [
+      "Hi Rahul,\n\nSorry for the trouble with your deposit.\n\nI checked your recent deposits and found a UPI deposit of Rs 5,000 from 02 Oct 2026 at 17:09 IST that is still waiting for confirmation. Your earlier IMPS deposit was completed successfully.\n\nPlease wait a little longer for the pending deposit to update. If it is still not credited after 72 hours from the payment time, reply with that payment reference and we’ll check it again.\n\nBest regards,\nAcme Invest Support"
+    ],
+    "messages": [
+      {
+        "from": "Rahul Mehta <rahul.mehta@example.com>",
+        "subject": "Re: Deposit not working",
+        "date": "Fri, 2 Oct 2026 21:52:18 +0530",
+        "body": "Thank you for your response.\r\n\r\nOn Fri, 2 Oct, 2026, 21:50 , <support@example.com> wrote:\r\n\r\n> Hi Rahul,\r\n>\r\n> Sorry for the trouble with your deposit.\r\n>\r\n> I checked your recent deposits and found a UPI deposit of Rs 5,000\r\n> from 02 Oct 2026 at 17:09 IST that is still waiting for confirmation.\r\n> Your earlier IMPS deposit was completed successfully.\r\n>\r\n> Please wait a little longer for the pending deposit to update. If it\r\n> is still not credited after 72 hours from the payment time, reply with\r\n> that payment reference and we’ll check it again.\r\n>\r\n> Best regards,\r\n> Acme Invest Support\r\n>"
+      }
+    ],
+    "expect": {
+      "sop_ids": [],
+      "tools_called": [],
+      "tools_not_called": [
+        "get_deposits",
+        "check_deposit"
+      ],
+      "escalate": false,
+      "reply": true,
+      "max_words": 40,
+      "reply_must": [
+        "is only a short closing message, like: glad we could help, have a nice day"
+      ],
+      "reply_must_not": [
+        "re-explains or re-checks the deposit status",
+        "promises to keep monitoring, or to send an update later"
+      ]
+    }
+  },
+  {
+    "id": "real-legal-followup-after-holding-reply",
+    "source": "real",
+    "note": "Thread 1a0fc94f9da16a48. U1 = msg 16 (police threat), L1 = msg 17 (SUP-05 holding reply), U2 = msg 18 (lawyer). What v1 sent: msg 19, the same holding reply again. The case is owned by a human now: escalate, no new AI reply.",
+    "user_id": 101,
+    "summary_till_now": "Customer Rahul Mehta wrote that a BTC order has been stuck for 2 days, called us thieves, demanded money back or cancellation, asked for the refund process and threatened to complain to the police. Because of the police threat (SUP-05 / CMP-04) we sent only the holding reply and escalated; a senior team member owns the case.",
+    "previous_replies": [
+      "Thank you for writing to us. Your message has been passed to a senior member of our team, who will get back to you within 24 hours.\n\nBest regards,\nAcme Invest Support"
+    ],
+    "messages": [
+      {
+        "from": "Rahul Mehta <rahul.mehta@example.com>",
+        "subject": "Re: Trading issue",
+        "date": "Fri, 2 Oct 2026 18:00:05 +0530",
+        "body": "Last warning, i am calling my lawyer enough of sugar coating words\r\n\r\nOn Fri, 2 Oct, 2026, 17:57 , <support@example.com> wrote:\r\n\r\n> Thank you for writing to us. Your message has been passed to a senior\r\n> member of our team, who will get back to you within 24 hours.\r\n>\r\n> Best regards,\r\n> Acme Invest Support\r\n>"
+      }
+    ],
+    "expect": {
+      "sop_ids": [
+        "CMP-04",
+        "SUP-05"
+      ],
+      "tools_called": [],
+      "tools_not_called": [
+        "get_orders",
+        "check_order",
+        "check_wallet_balance"
+      ],
+      "escalate": true,
+      "reply": false,
+      "reply_must": [],
+      "reply_must_not": []
+    }
+  }
+]

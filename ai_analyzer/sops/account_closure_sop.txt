@@ -1,0 +1,530 @@
+SOP_ID: CLS
+TITLE: Account Closure, Dormant Accounts, Closed Accounts and Data Deletion
+CATEGORY: closure
+VERSION: 1.0
+LAST_REVIEWED: 2026-09-27
+OWNER: Support Operations
+NOTE: Fictional sample SOP for the Acme Invest demo. Policy values live in data_dictionary.txt
+      (DD-09). Values marked "(sample value)" are not in DD-09 and are placeholders.
+
+======================================================================
+## CLS-00: Scope and quick triage
+======================================================================
+Covers requests to close an account, closures that are blocked, dormant accounts and their
+reactivation, customers writing about an already CLOSED account, data deletion requests,
+cancelling a closure request, and closure for a deceased customer.
+
+Closure policy (sample values unless DD-09 is cited):
+  - Only the account holder can request closure, from the registered email or in the app
+    (Settings > Account > Close account, sample flow).
+  - Preconditions: zero balance in ALL assets (INR and every crypto, available and locked),
+    no open orders, no ACTIVE SIPs, no pending deposits/withdrawals, and no ACTIVE risk hold.
+  - Dust: crypto balances worth less than Rs 100 (sample value; equal to the minimum order
+    value in DD-09) that cannot be sold or withdrawn may be written off with the
+    customer's written consent in the closure request (sample policy).
+  - Processing: closure completes within 7 working days after all preconditions are met
+    (sample value).
+  - A CLOSED account cannot be reopened (sample policy). The customer may sign up again;
+    KYC Ops releases the PAN from the closed account on request (onboarding_sop ONB-07,
+    kyc_sop KYC-12).
+  - Retention: KYC and transaction records are retained for 5 years (sample value) after
+    closure as required by law; other personal data is deleted (CLS-06).
+  - DORMANT = no login for 24 months (DD-02).
+
+account_closure_requests.status:
+  REQUESTED           received, preconditions being checked
+  BLOCKED_BY_BALANCE  balance or open orders/SIPs/pending transactions remain -> CLS-02
+  BLOCKED_BY_HOLD     an active risk hold exists -> CLS-03 (never reveal)
+  IN_PROGRESS         preconditions met, closure being processed
+  COMPLETED           account CLOSED (users.status = CLOSED)
+  WITHDRAWN           customer cancelled the request -> CLS-07
+
+Quick triage:
+  1. Identify the user (support_guidelines_sop SUP-02). Closure requests are accepted only
+     from the registered email (SUP-01); otherwise ask them to use the app or write from
+     the registered email.
+  2. Route by users.status and request:
+     - ACTIVE, "close my account"                        -> CLS-01
+     - Existing request BLOCKED_BY_BALANCE               -> CLS-02
+     - Existing request BLOCKED_BY_HOLD / status FROZEN  -> CLS-03
+     - DORMANT                                           -> CLS-04
+     - CLOSED                                            -> CLS-05
+     - "Delete my data"                                  -> CLS-06
+     - "Cancel my closure request"                       -> CLS-07
+     - Account holder has died                           -> CLS-08
+     - "Where is my closure request?"                    -> CLS-09
+  3. If the customer wants to close because of a complaint (hack, lost money, bad
+     experience), handle that issue first under its SOP (e.g. account_security_sop SEC-01,
+     complaints_escalation_sop), then offer closure.
+
+======================================================================
+## CLS-01: Close my account
+======================================================================
+CUSTOMER MAY SAY:
+  - "Please close my Acme Invest account permanently"
+  - "I don't want to use crypto anymore, delete my account"
+  - "Mera account band kar do"
+  - "How do I deactivate my account?"
+  - "I want to close this account and keep my other one"
+INFO NEEDED FROM CUSTOMER:
+  - Request from the registered email (or registered phone + last 4 digits of bank account
+    per support_guidelines_sop SUP-01); reason for closing (optional)
+  - Confirmation that they have withdrawn all funds, and consent to write off dust if any
+TOOLS: get_user, get_closure_requests, check_wallet_balance, get_orders, get_sip_plans, get_deposits, get_withdrawals, get_crypto_deposits, get_risk_holds
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+     Call get_user(). Check status and kyc_status.
+     - FROZEN -> CLS-03. DORMANT -> CLS-04 (reactivate first to withdraw). CLOSED -> CLS-05.
+  2. Existing requests:
+     Call get_closure_requests().
+     - If an open request exists (REQUESTED / BLOCKED_* / IN_PROGRESS) -> CLS-09 (status).
+  3. Balances:
+     Call check_wallet_balance(). Look at assets with available > 0 or
+     locked > 0.
+     - Any such asset -> blocked by balance (step 7, then CLS-02).
+  4. Open orders, active SIPs and pending money movement:
+     Call get_orders(statuses=["NEW", "OPEN", "PARTIALLY_FILLED"]).
+     Call get_sip_plans(status="ACTIVE").
+     Call get_deposits(statuses=["INITIATED", "PENDING", "ON_HOLD", "REFUND_INITIATED"]).
+     Call get_withdrawals(statuses=["REQUESTED", "PENDING_APPROVAL", "PROCESSING", "ON_HOLD"]).
+     Call get_crypto_deposits(statuses=["DETECTED", "CONFIRMING", "MANUAL_REVIEW"]).
+  5. Holds:
+     Call get_risk_holds(active_only=true).
+     - Any hold -> CLS-03 (do not tell the customer why).
+  6. Branches:
+     - All clear (no balances, orders, SIPs, pending items, holds): raise the closure
+       request with status REQUESTED (via the ticket to Support Operations, or ask the
+       customer to confirm in-app). Tell them it completes within 7 working days
+       (sample value). Resolve.
+     - Only dust remains (every asset worth under Rs 100, sample value): ask for written
+       consent to write off, then raise the request. Ask customer.
+     - Balances/orders/SIPs/pending items -> CLS-02 guidance.
+  7. Remind the customer to download statements and tax reports first
+     (tax_statements_sop); after closure they can only be requested from support (CLS-05).
+RESOLUTION:
+  Once preconditions are met, Support Operations processes the closure; users.status becomes
+  CLOSED and account_closure_requests.status COMPLETED.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  We are sorry to see you go, and thank you for being with Acme Invest.
+  <All clear:> I have checked your account: there are no balances, open orders or pending
+  transactions. We have started the closure, and it will be completed within 7 working days.
+  We will confirm by email once it is done.
+  <Not clear:> Before we can close your account, please: <list, e.g. withdraw your INR
+  balance, sell or withdraw your crypto, cancel your open orders and SIPs>. Reply to this
+  email once done, and we will close the account.
+  Before closure, please download your account statements and tax reports from the app;
+  you may need them for your income-tax filing.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Preconditions met but request not moved to IN_PROGRESS within 2 working days (sample
+    value) -> Support Operations, P4, include: user_id, request_id.
+  - Customer wants to close due to fraud/hack -> account_security_sop SEC-01 first (P1).
+DO NOT:
+  - Do not close an account with any balance, open order, pending transaction or hold.
+  - Do not accept closure requests from someone other than the account holder.
+  - Do not try to talk the customer out of closing more than once.
+
+======================================================================
+## CLS-02: Closure blocked by balance, open orders or pending transactions
+======================================================================
+CUSTOMER MAY SAY:
+  - "Closure request shows blocked, what is pending?"
+  - "I have Rs 3 left in my account, how do I withdraw that for closing?"
+  - "Tiny amount of SHIB is left, it can't be sold, now what?"
+  - "Aapne bola balance hai, par mera sab withdraw ho gaya"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone; consent to write off dust (if applicable)
+TOOLS: get_closure_requests, check_wallet_balance, get_orders, get_sip_plans, get_deposits, get_withdrawals, get_crypto_deposits, get_supported_networks, get_instrument
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+     Call get_closure_requests(). Use the latest (first) request.
+  2. Re-run CLS-01 steps 3-4 to list what is left:
+     Call check_wallet_balance().
+     Call get_orders(statuses=["NEW", "OPEN", "PARTIALLY_FILLED"]).
+     Call get_sip_plans(status="ACTIVE").
+     Call get_deposits(statuses=["INITIATED", "PENDING", "ON_HOLD", "REFUND_INITIATED"]).
+     Call get_withdrawals(statuses=["REQUESTED", "PENDING_APPROVAL", "PROCESSING", "ON_HOLD"]).
+     Call get_crypto_deposits(statuses=["DETECTED", "CONFIRMING", "MANUAL_REVIEW"]).
+     - INR available > 0 and >= Rs 100: withdraw to the verified bank account (min Rs 100,
+       fee Rs 10, DD-09; withdrawal_sop). Ask customer.
+     - INR available < Rs 100 (cannot be withdrawn, DD-09 minimum): dust -> consent to
+       write off. Ask customer.
+     - Crypto available: sell to INR (min order value Rs 100, DD-09) or withdraw to own
+       wallet (check min_withdrawal):
+       Call get_supported_networks(asset=<asset>).
+       -> If the amount is below both the min order value and min_withdrawal: dust ->
+          consent to write off. Ask customer.
+       -> If the instrument is HALTED or DELISTED (Call get_instrument(symbol=<symbol>),
+          check status): trade_sop /
+          crypto_transfers_sop for options; closure waits. Wait.
+     - locked > 0: open orders or pending withdrawals hold the funds. Cancel open orders
+       in-app; pending withdrawals complete within their SLA (24 hours INR, DD-09). Wait.
+     - ACTIVE SIPs: cancel in-app (trade_sop). Ask customer.
+     - Pending deposits/refunds: wait for them to complete per payment_sop (refund to
+       source 5-7 working days, DD-09). Wait.
+  3. When everything is cleared, the request moves forward automatically on the next check
+     (sample: daily) or the customer replies to confirm. If still BLOCKED_BY_BALANCE with
+     zero balances for 2 working days (sample value) -> escalate Support Operations, P4.
+RESOLUTION:
+  Customer clears balances/orders/SIPs; dust is written off with consent; closure proceeds.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for your patience. Your account closure is on hold because a few items are still
+  open:
+  - <item 1, e.g. "0.0004 ETH in your wallet">
+  - <item 2, e.g. "one open limit order for BTC">
+  <How to clear each.> <If dust:> Some of the remaining amounts are too small to sell or
+  withdraw. If you are happy for these to be written off, please reply "I agree to write
+  off the small balances", and we will continue with the closure.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Balances show zero but request stays BLOCKED_BY_BALANCE beyond 2 working days ->
+    Support Operations, P4, include: request_id, balance query result.
+  - Ledger and wallet_balances disagree -> Payments Ops, P2, include: user_id, asset,
+    both values.
+DO NOT:
+  - Do not write off any balance without the customer's written consent.
+  - Do not write off balances worth Rs 100 or more (sample value).
+
+======================================================================
+## CLS-03: Closure blocked by an active hold (never reveal the reason)
+======================================================================
+CUSTOMER MAY SAY:
+  - "Why can't you close my account? I have withdrawn everything"
+  - "My account is frozen, I just want to close it and take my money"
+  - "Closure pending for weeks, what is the hold?"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone only
+TOOLS: get_user, get_risk_holds, get_closure_requests
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+     Call get_user(). Note status.
+     Call get_risk_holds(active_only=true).
+     Call get_closure_requests(). Use the latest (first) request.
+  2. Branches:
+     - Any ACTIVE hold (or the user's status = FROZEN): closure cannot proceed until Risk &
+       Compliance releases it. Follow fraud_risk_sop RSK-01. Do not share hold_type,
+       reason_code or source.
+       -> If source = LAW_ENFORCEMENT: do not confirm any external request exists; use the
+          same generic reply.
+       -> Escalate Risk & Compliance, P3 (P2 if the customer has funds they cannot access),
+          noting that a closure is requested.
+     - No ACTIVE hold but request BLOCKED_BY_HOLD: stale status -> escalate Support
+       Operations, P4 to re-check; tell the customer we are reviewing it.
+RESOLUTION:
+  Closure waits for the review to complete; Risk & Compliance decides. Support shares only
+  that the account is under review.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thank you for your request to close your account. Your account is currently under a
+  routine review, and we are unable to close it until that review is complete. I have
+  informed the relevant team of your closure request, and we will update you as soon as
+  there is progress.
+  We are sorry that we cannot share more details at this stage.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - ACTIVE hold with a closure request -> Risk & Compliance, P3 (P2 if funds blocked),
+    include: user_id, request_id, hold_id (internal only).
+  - Customer threatens legal/regulatory action -> complaints_escalation_sop CMP-04.
+DO NOT:
+  - Never disclose the hold type, reason, source, or that any agency is involved.
+  - Do not suggest the hold will lift by a date.
+  - Do not close the account to "get around" the hold.
+
+======================================================================
+## CLS-04: Dormant account - reactivation
+======================================================================
+CUSTOMER MAY SAY:
+  - "Haven't used my Acme account for 2-3 years, now it says dormant"
+  - "Account inactive, how do I reactivate?"
+  - "I have old BTC in my account, is it still there?"
+  - "Purana account chalu karna hai, login nahi ho raha"
+  - "My number changed since I last used the account"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone (or phone + last 4 of bank account); whether they still have
+    the registered number and email
+TOOLS: get_user, check_wallet_balance, get_risk_holds, get_kyc_applications, get_bank_accounts
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+     Call get_user(). Note status, kyc_status and last_login_at.
+     - If status is not DORMANT: route per its status (ACTIVE -> onboarding_sop ONB-04 for
+       login; BLOCKED -> ONB-05; FROZEN -> fraud_risk_sop RSK-01; CLOSED -> CLS-05).
+  2. Balances are kept safe while dormant; confirm existence at summary level only to a
+     verified sender:
+     Call check_wallet_balance(). Look at assets with available > 0 or
+     locked > 0.
+  3. Holds:
+     Call get_risk_holds(active_only=true).
+     - Any -> fraud_risk_sop RSK-01 before reactivation.
+  4. Reactivation path (sample flow):
+     a. Customer logs in with OTP to the registered number. If they no longer have the
+        number -> account_security_sop SEC-04 (change number via registered email +
+        selfie) or SEC-03.
+     b. App shows "Reactivate account" -> fresh selfie verification.
+     c. KYC check: if kyc_status = RE_KYC_REQUIRED (or VERIFIED more than 2 years ago,
+        sample value), the app asks for re-KYC -> kyc_sop KYC-16.
+        Call get_kyc_applications(). Use the latest (first) application's
+        status and reviewed_at.
+     d. Bank account: check it is still VERIFIED; if the bank account was closed, add a new
+        one (bank_account_sop).
+        Call get_bank_accounts(status="VERIFIED").
+     e. Reactivation review completes within 48 hours (sample value); the user's status
+        returns to ACTIVE.
+  5. Branches:
+     - Reactivation submitted < 48 hours ago: Wait.
+     - Submitted >= 48 hours ago and still DORMANT: escalate KYC Ops, P3.
+     - Customer only wants to withdraw and close: they still need to reactivate first,
+       then CLS-01.
+RESOLUTION:
+  Customer reactivates in-app (OTP + selfie, re-KYC if required, bank re-check). Holdings
+  are unchanged by dormancy.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Welcome back! Your account was marked inactive because it had not been used for a long
+  time. Your holdings stay safe while an account is inactive.
+  To reactivate it:
+  - Log in with your registered mobile number and follow the "Reactivate account" steps
+  - Take a quick selfie, and complete the updated verification if the app asks for it
+  - Check that your bank account is still active in the Bank accounts section
+  Reactivation is usually reviewed within 48 hours. If you no longer use your registered
+  mobile number, please reply and we will guide you through updating it securely.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Reactivation pending beyond 48 hours -> KYC Ops, P3, include: user_id, submission time.
+  - Balance appears different from what the customer expects -> Payments Ops / Crypto Ops,
+    P2, include: user_id, asset, ledger summary.
+DO NOT:
+  - Do not reactivate manually or skip the selfie / re-KYC.
+  - Do not share exact balances with an unverified sender.
+
+======================================================================
+## CLS-05: Customer writes about a CLOSED account
+======================================================================
+CUSTOMER MAY SAY:
+  - "I closed my account last year, can I reopen it?"
+  - "Found some crypto left in my old closed account"
+  - "Need my old transaction statement for tax, my account is closed"
+  - "Got a refund after my account was closed, where did it go?"
+  - "Signing up again but it says PAN already used"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email of the closed account (or phone + last 4 of bank account); what they
+    need (reopen, leftover balance, statements, refund)
+TOOLS: get_user, get_closure_requests, get_ledger_entries, check_wallet_balance, get_refunds, get_tax_records
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+     Call get_user(). Note status.
+     Call get_closure_requests(). Use the latest (first) request.
+  2. Branch by what the customer needs:
+     a. Reopen: closed accounts cannot be reopened (sample policy). The customer can sign
+        up again with KYC; because the PAN is linked to the closed account, KYC Ops
+        releases it on request -> escalate KYC Ops, P3 (see kyc_sop KYC-12,
+        onboarding_sop ONB-07). If the account was closed while a hold existed or by
+        Acme (not by the customer) -> Risk & Compliance decides, P3; reply generically.
+     b. Leftover balance / credit after closure:
+        Call get_ledger_entries(from_time=<completed_at>) (the closure
+        request's completed_at).
+        Call check_wallet_balance(). Look at assets with available > 0 or
+        locked > 0.
+        -> Any credit after closure (refund, reward, airdrop, late deposit): money belongs
+           to the customer; escalate Payments Ops (INR) or Crypto Ops (crypto), P2, to
+           return it to the verified bank account / customer's address.
+        -> No balance: explain the account was closed with zero balance. Resolve.
+     c. Refund landed after closure:
+        Call get_refunds().
+        -> PROCESSED with refund_utr: share the UTR so they can trace it at their bank.
+           Resolve. FAILED: escalate Payments Ops, P2.
+     d. Old statements / tax documents: records are retained 5 years (sample value).
+        Call get_tax_records().
+        -> Within retention: raise a statement request to be sent to the registered email
+           (tax_statements_sop); P3, 5 working days. Beyond retention: not available.
+  3. If the sender is not verified: do not confirm the account existed; ask for
+     verification (support_guidelines_sop SUP-01).
+RESOLUTION:
+  Reopen is not possible (new signup with PAN release instead); leftover funds are returned
+  via Ops; statements are sent to the registered email within the retention period.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for getting in touch about your closed account.
+  <Reopen:> A closed account cannot be reopened, but you are welcome to sign up again. As
+  your PAN is linked to the old account, our team will release it so you can complete
+  verification on the new one. Please reply once you have signed up, with the new mobile
+  number you used.
+  <Leftover funds:> I found <amount/asset> credited after your account was closed. Our team
+  will return it to your verified bank account (or wallet) and update you within 48 hours.
+  <Statements:> We will email your statement for <period> to your registered email within
+  5 working days.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Credits after closure -> Payments Ops (INR) or Crypto Ops (crypto), P2, include:
+    user_id, ledger entry_ids, amounts.
+  - PAN release for re-signup -> KYC Ops, P3, include: closed user_id, new user_id.
+  - Statement request -> per tax_statements_sop, P3.
+DO NOT:
+  - Do not reopen a closed account or change its status.
+  - Do not send statements to an address other than the registered email.
+
+======================================================================
+## CLS-06: Data deletion - "delete my data"
+======================================================================
+CUSTOMER MAY SAY:
+  - "Delete all my personal data from your servers"
+  - "I want my Aadhaar and PAN details removed"
+  - "Under data protection law I request erasure of my data"
+  - "Stop sending me marketing messages and delete my number"
+INFO NEEDED FROM CUSTOMER:
+  - Request from the registered email; whether they also want the account closed
+TOOLS: none
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02). Only the account holder can ask.
+  2. Branches:
+     - Only wants marketing to stop: guide to Settings > Notifications to turn off marketing
+       (sample flow); transactional and security messages continue while the account is
+       open. Resolve.
+     - Wants data deleted and account is ACTIVE/DORMANT: data deletion requires closure
+       first -> CLS-01 (same preconditions). After closure, the deletion runs.
+     - Account CLOSED: raise the deletion request. Sample policy:
+       -> Retained for 5 years (sample value) after closure, as required by law: KYC
+          records (PAN, Aadhaar details, selfie), transaction, ledger and tax records,
+          and communications linked to transactions.
+       -> Deleted within 30 days (sample value): marketing preferences, device data,
+          app analytics, non-transaction support history, profile extras.
+       -> Escalate Support Operations, P4 (Legal if the customer disputes retention).
+     - ACTIVE risk hold or FROZEN: deletion cannot start -> CLS-03 handling (do not
+       reveal why), Risk & Compliance.
+  3. If the message cites a specific law, regulator or threatens complaint ->
+     complaints_escalation_sop CMP-04 (holding reply only).
+RESOLUTION:
+  Close first, then delete non-mandatory data; mandatory records kept for the legal period
+  and then deleted.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thank you for your request. We respect your privacy and will remove your data as far as
+  the law allows.
+  <If account open:> To delete your data, we first need to close your account. <Closure
+  steps / what is pending.>
+  <If closed:> We have started the deletion. Your profile, device and marketing data will be
+  deleted within 30 days. By law we must keep your identity verification and transaction
+  records for 5 years after closure; they are stored securely, used only for legal and
+  regulatory purposes, and deleted after that period.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Deletion request on a CLOSED account -> Support Operations, P4, include: user_id,
+    closure completed_at, request date.
+  - Customer disputes the retention or cites a law -> Legal, P3 (via CMP-04 if a threat).
+DO NOT:
+  - Do not promise deletion of KYC or transaction records before the retention period.
+  - Do not delete anything yourself.
+
+======================================================================
+## CLS-07: Withdraw (cancel) a closure request
+======================================================================
+CUSTOMER MAY SAY:
+  - "I requested closure yesterday, please cancel it, I want to continue"
+  - "Changed my mind, don't close my account"
+  - "Closure request by mistake"
+INFO NEEDED FROM CUSTOMER:
+  - Request from the registered email
+TOOLS: get_closure_requests
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+     Call get_closure_requests(). Use the latest (first) request.
+  2. Branches:
+     - REQUESTED, BLOCKED_BY_BALANCE: can be withdrawn. Ask Support Operations to set
+       WITHDRAWN (or the customer cancels in-app, sample flow). Resolve.
+     - BLOCKED_BY_HOLD: can be withdrawn, but the review continues (fraud_risk_sop RSK-01).
+       Resolve (withdraw) and keep the hold messaging generic.
+     - IN_PROGRESS: may still be stoppable -> escalate Support Operations, P3 urgently.
+     - COMPLETED: cannot be undone -> CLS-05 (sign up again).
+     - WITHDRAWN already: confirm the account stays open. Resolve.
+     - No request found: nothing to cancel; confirm the account is active. Resolve.
+RESOLUTION:
+  Request marked WITHDRAWN; account continues as before.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  No problem. <Withdrawn:> We have cancelled your closure request, and your account will stay
+  open. You can continue using it as usual.
+  <Completed:> Your account was already closed on <date>, so the closure cannot be reversed.
+  You are welcome to sign up again, and we will help you complete verification.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - IN_PROGRESS request to cancel -> Support Operations, P3, include: request_id.
+DO NOT:
+  - Do not change users.status yourself.
+
+======================================================================
+## CLS-08: Closure for a deceased customer
+======================================================================
+CUSTOMER MAY SAY:
+  - "My father passed away, how do we close his account and get his crypto?"
+  - "I am the nominee of the account holder who died"
+  - "Account holder expired last month, need to transfer holdings to legal heir"
+INFO NEEDED FROM CUSTOMER:
+  - None through the AI reply. Legal handles documents (death certificate, heirship
+    proof) through its own process.
+TOOLS: find_user
+DEBUGGING STEPS:
+  1. This message must not be auto-answered beyond the holding reply
+     (support_guidelines_sop SUP-05). Route to complaints_escalation_sop CMP-07.
+  2. If you can identify the account from the details given, note the user_id in the
+     internal note only:
+     Call find_user(email=<email>, phone=<phone>). Lookup only, no details shared.
+  3. Do not share balances, holdings or any account detail with the sender, even if they
+     write from the deceased customer's email.
+RESOLUTION:
+  Legal handles transmission to nominee/legal heirs and the closure per CMP-07.
+CUSTOMER REPLY TEMPLATE:
+  Thank you for writing to us. Your message has been passed to a senior member of our
+  team, who will get back to you within 24 hours.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Always -> Legal via complaints_escalation_sop CMP-07, P2, include: sender details,
+    user_id if identified, the message.
+DO NOT:
+  - Do not confirm that an account exists or share any detail.
+  - Do not ask for death certificates or documents by email in the AI reply.
+  - Do not start a normal closure (CLS-01) for a deceased customer.
+
+======================================================================
+## CLS-09: Status of my closure request
+======================================================================
+CUSTOMER MAY SAY:
+  - "Requested closure 10 days ago, account still active"
+  - "Is my account closed or not?"
+  - "Closure ka kya status hai?"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone
+TOOLS: get_closure_requests
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+     Call get_closure_requests(). Use the latest (first) request.
+  2. Branches:
+     - REQUESTED < 2 working days: preconditions being checked. Wait.
+     - REQUESTED >= 2 working days (sample value): escalate Support Operations, P4.
+     - BLOCKED_BY_BALANCE -> CLS-02. BLOCKED_BY_HOLD -> CLS-03.
+     - IN_PROGRESS < 7 working days (sample value): give the expected date. Wait.
+     - IN_PROGRESS >= 7 working days: escalate Support Operations, P3.
+     - COMPLETED: confirm the closure date (completed_at in IST). Resolve.
+     - WITHDRAWN: tell them it was cancelled; ask if they want to request again. Ask customer.
+RESOLUTION:
+  Share the stage and date; escalate if overdue.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for following up. Your closure request from <date> is <plain-language stage, e.g.
+  "being processed" / "waiting for the small balance to be cleared" / "completed on
+  <date>">. <Next step and time frame.>
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Overdue per the branches above -> Support Operations, P3/P4, include: request_id,
+    status, created_at.
+DO NOT:
+  - Do not reveal hold details for BLOCKED_BY_HOLD.

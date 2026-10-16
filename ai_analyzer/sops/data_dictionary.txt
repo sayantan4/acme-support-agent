@@ -1,0 +1,318 @@
+DOC_ID: DD-001
+TITLE: Data Dictionary and Platform Policies (Acme Invest)
+CATEGORY: reference
+VERSION: 1.0
+LAST_REVIEWED: 2026-09-27
+OWNER: Support Operations
+NOTE: Acme Invest is a fictional Indian crypto investing app used for this demo. All tables,
+      limits, fees and SLAs below are sample values. Replace them with real policy before use.
+
+======================================================================
+## DD-01: How to use this document
+======================================================================
+Every SOP refers to the tables and statuses defined here. Queries in SOPs are READ-ONLY
+examples written in SQL. Named parameters look like :phone, :user_id, :deposit_id.
+Timestamps are stored in UTC; convert to IST (UTC+5:30) before telling a customer a time.
+Amounts in INR are stored in rupees with 2 decimals. Crypto amounts use the asset's precision.
+
+Never show table names, internal status codes, reviewer names, risk reasons or vendor names
+to a customer. Translate them into plain language using the reply templates in each SOP.
+
+======================================================================
+## DD-02: Identity tables
+======================================================================
+TABLE users
+  user_id            BIGINT, primary key
+  phone              TEXT, E.164 format, e.g. +919812345678 (unique)
+  email              TEXT (unique, lowercase)
+  full_name          TEXT, as entered at signup (KYC name may differ)
+  status             ACTIVE | BLOCKED | FROZEN | DORMANT | CLOSED
+                     BLOCKED = too many failed logins (temporary, auto-unblocks after 24h)
+                     FROZEN  = frozen by Risk/Compliance, see risk_holds
+                     DORMANT = no login for 24 months
+  kyc_status         NOT_STARTED | IN_PROGRESS | UNDER_REVIEW | VERIFIED | REJECTED | RE_KYC_REQUIRED
+  referral_code      TEXT, the user's own code
+  referred_by        BIGINT, user_id of the referrer (nullable)
+  created_at, last_login_at
+
+TABLE user_devices
+  user_id, device_id, platform (ANDROID | IOS | WEB), app_version, is_trusted, first_seen_at, last_seen_at
+
+TABLE auth_events
+  event_id, user_id, event_type, channel, ip_address, device_id, failure_reason, created_at
+  event_type: LOGIN_SUCCESS | LOGIN_FAILED | OTP_SENT | OTP_VERIFIED | OTP_FAILED |
+              PASSWORD_RESET | TWO_FA_ENABLED | TWO_FA_RESET | PHONE_CHANGED | EMAIL_CHANGED |
+              SESSION_REVOKED
+  failure_reason examples: WRONG_PASSWORD, WRONG_OTP, OTP_EXPIRED, ACCOUNT_BLOCKED, DEVICE_NOT_TRUSTED
+
+TABLE otp_logs
+  otp_id, user_id (nullable before signup), destination (phone or email), channel (SMS | EMAIL | WHATSAPP),
+  provider, status (SENT | DELIVERED | FAILED | EXPIRED | VERIFIED), provider_error, created_at
+
+======================================================================
+## DD-03: KYC tables
+======================================================================
+TABLE kyc_applications
+  kyc_id, user_id, status (IN_PROGRESS | SUBMITTED | UNDER_REVIEW | VERIFIED | REJECTED | RE_KYC_REQUIRED),
+  submitted_at, reviewed_at, rejection_reason_code, review_queue (AUTO | MANUAL), attempt_number
+
+  rejection_reason_code values:
+    PAN_INVALID            PAN number not found at the income-tax database
+    PAN_NAME_MISMATCH      name on PAN does not match name on Aadhaar
+    PAN_AADHAAR_NOT_LINKED PAN is not linked with Aadhaar (inoperative PAN)
+    AADHAAR_OTP_FAILED     Aadhaar OTP verification failed or timed out
+    SELFIE_MISMATCH        selfie does not match the photo on the ID
+    LIVENESS_FAILED        liveness check failed (photo of a photo, poor light, face covered)
+    DOC_UNREADABLE         uploaded document is blurry, cropped or has glare
+    UNDERAGE               date of birth shows the user is under 18
+    DUPLICATE_PAN          PAN already used by another Acme account
+    SANCTIONS_HIT          name matched a sanctions/watch list (Compliance only, never disclose)
+
+TABLE kyc_documents
+  doc_id, kyc_id, doc_type (PAN | AADHAAR | SELFIE | PASSPORT | ADDRESS_PROOF),
+  vendor_ref, verification_status (PENDING | PASSED | FAILED), failure_reason,
+  name_on_doc, dob_on_doc, uploaded_at
+
+TABLE kyc_vendor_logs
+  log_id, kyc_id, check_type (PAN_VERIFY | AADHAAR_OTP | FACE_MATCH | LIVENESS | SANCTIONS),
+  response_code, response_message, latency_ms, created_at
+  response_code 5xx or TIMEOUT means the vendor was down; the user did nothing wrong.
+
+======================================================================
+## DD-04: Bank and INR money movement tables
+======================================================================
+TABLE bank_accounts
+  bank_account_id, user_id, account_number_masked (e.g. XXXXXX4321), ifsc, bank_name,
+  account_holder_name (as returned by the bank), status (PENDING_VERIFICATION | VERIFIED | FAILED | REMOVED),
+  verification_method (PENNY_DROP | REVERSE_PENNY_DROP), name_match_score (0-100), is_primary, created_at
+
+TABLE deposits
+  deposit_id, user_id, amount, method (UPI | IMPS | NEFT | RTGS), status, utr, gateway,
+  gateway_txn_id, bank_account_id, failure_reason, created_at, updated_at
+  status: INITIATED | PENDING | SUCCESS | FAILED | ON_HOLD | REFUND_INITIATED | REFUNDED
+  failure_reason examples: USER_CANCELLED, BANK_DECLINED, TIMEOUT, THIRD_PARTY_ACCOUNT,
+                           AMOUNT_ABOVE_LIMIT, UNVERIFIED_BANK_ACCOUNT
+
+TABLE payment_gateway_txns
+  gateway_txn_id, gateway, deposit_id, gateway_status (CREATED | PENDING | CAPTURED | FAILED | REVERSED),
+  bank_reference (UTR/RRN), webhook_received_at, last_polled_at
+
+TABLE refunds
+  refund_id, source_type (DEPOSIT | WITHDRAWAL), source_id, user_id, amount,
+  status (INITIATED | PROCESSED | FAILED), refund_utr, created_at, processed_at
+
+TABLE withdrawals
+  withdrawal_id, user_id, asset (INR or a crypto symbol), amount, fee, status,
+  bank_account_id (INR), destination_address, network, memo_tag (crypto),
+  payout_utr (INR), tx_hash (crypto), hold_reason, created_at, updated_at
+  status: REQUESTED | PENDING_APPROVAL | PROCESSING | SUCCESS | FAILED | CANCELLED | ON_HOLD
+
+TABLE wallet_balances
+  user_id, asset, available, locked, updated_at
+  locked = reserved by open orders or pending withdrawals
+
+TABLE ledger_entries   (source of truth for every balance change)
+  entry_id, user_id, asset, amount (+ credit / - debit), entry_type, reference_type, reference_id, created_at
+  entry_type: DEPOSIT | WITHDRAWAL | TRADE_BUY | TRADE_SELL | FEE | TDS | REWARD | REFUND |
+              ADJUSTMENT | REVERSAL
+  reference_type -> reference_id:
+              DEPOSIT -> deposits.deposit_id           CRYPTO_DEPOSIT -> crypto_deposits.crypto_deposit_id
+              WITHDRAWAL -> withdrawals.withdrawal_id  TRADE -> trades.trade_id
+              REWARD -> rewards_ledger.reward_id       REFUND -> refunds.refund_id
+              ADJUSTMENT -> tickets.ticket_id (manual corrections by Ops, always with a ticket)
+  How money is posted: see DD-10.
+
+======================================================================
+## DD-05: Crypto transfer tables
+======================================================================
+TABLE crypto_deposits
+  crypto_deposit_id, user_id, asset, network (e.g. ERC20, TRC20, BEP20, BTC, SOL, POLYGON),
+  amount, tx_hash, from_address, to_address, memo_tag, confirmations, required_confirmations,
+  status (DETECTED | CONFIRMING | CREDITED | FAILED | UNSUPPORTED_NETWORK | MISSING_MEMO | MANUAL_REVIEW),
+  created_at, credited_at
+
+TABLE deposit_addresses
+  user_id, asset, network, address, memo_tag, created_at
+
+TABLE supported_networks
+  asset, network, deposits_enabled, withdrawals_enabled, required_confirmations,
+  min_withdrawal, withdrawal_fee, maintenance_note
+
+TABLE address_whitelist
+  user_id, asset, network, address, label, status (PENDING_COOLDOWN | ACTIVE | REMOVED), added_at, active_from
+
+======================================================================
+## DD-06: Trading tables
+======================================================================
+TABLE instruments
+  symbol (e.g. BTC-INR, ETH-INR, SOL-USDT), status (TRADING | HALTED | DELISTED | POST_ONLY),
+  min_order_value, tick_size, lot_size, max_order_value
+
+TABLE orders
+  order_id, user_id, symbol, side (BUY | SELL), order_type (MARKET | LIMIT | STOP_LIMIT),
+  quantity, price, trigger_price, filled_quantity, avg_fill_price, status, reject_reason,
+  source (APP | WEB | API | SIP), created_at, updated_at
+  status: NEW | OPEN | PARTIALLY_FILLED | FILLED | CANCELLED | REJECTED | EXPIRED
+  reject_reason: INSUFFICIENT_BALANCE | BELOW_MIN_ORDER_VALUE | ABOVE_MAX_ORDER_VALUE |
+                 PRICE_OUT_OF_BAND | INSTRUMENT_HALTED | KYC_NOT_VERIFIED | ACCOUNT_RESTRICTED |
+                 SELF_TRADE_PREVENTION | SYSTEM_ERROR
+
+TABLE trades
+  trade_id, order_id, user_id, symbol, side, price, quantity, fee, gst, tds, executed_at
+
+TABLE sip_plans
+  sip_id, user_id, symbol, amount, frequency (DAILY | WEEKLY | MONTHLY), status (ACTIVE | PAUSED | CANCELLED),
+  next_run_at, created_at
+TABLE sip_runs
+  run_id, sip_id, order_id, status (SUCCESS | FAILED | SKIPPED), failure_reason, run_at
+  failure_reason: INSUFFICIENT_BALANCE | INSTRUMENT_HALTED | BELOW_MIN_ORDER_VALUE | SYSTEM_ERROR
+
+TABLE price_incidents
+  incident_id, symbol, started_at, ended_at, description, compensation_policy
+
+======================================================================
+## DD-07: Rewards tables
+======================================================================
+TABLE campaigns
+  campaign_id, name, reward_type, rules_summary, start_at, end_at, status (ACTIVE | ENDED | PAUSED)
+
+TABLE referrals
+  referral_id, referrer_user_id, referee_user_id, referral_code_used,
+  status (SIGNED_UP | KYC_DONE | QUALIFIED | REWARDED | REJECTED), rejection_reason, created_at, qualified_at
+  rejection_reason: SAME_DEVICE | SAME_BANK_ACCOUNT | SELF_REFERRAL | CODE_APPLIED_LATE |
+                    QUALIFYING_TRADE_NOT_MET | CAMPAIGN_ENDED | FRAUD_SUSPECTED
+
+TABLE rewards_ledger
+  reward_id, user_id, campaign_id, reward_type (REFERRAL | CASHBACK | SIGNUP_BONUS | COUPON | STREAK),
+  asset, amount, status (PENDING | ELIGIBLE | CREDITED | EXPIRED | REVOKED | ON_HOLD),
+  eligibility_reason, credited_at, expires_at
+
+TABLE coupons
+  coupon_code, campaign_id, user_id (nullable = public code), max_redemptions, redemptions,
+  status (ACTIVE | EXPIRED | EXHAUSTED), valid_until
+
+======================================================================
+## DD-08: Risk, tax, tickets and account tables
+======================================================================
+TABLE risk_holds
+  hold_id, user_id, hold_type (ACCOUNT_FREEZE | WITHDRAWAL_HOLD | DEPOSIT_HOLD | REWARD_HOLD | TRADE_RESTRICTION),
+  reason_code, source (RISK_ENGINE | COMPLIANCE | LAW_ENFORCEMENT | MANUAL), status (ACTIVE | RELEASED),
+  created_at, released_at
+  Never disclose reason_code or source to the customer. LAW_ENFORCEMENT holds: do not even
+  confirm that a request from an agency exists.
+
+TABLE tax_records
+  user_id, financial_year (e.g. FY2025-26), tds_deducted_total, form16a_status (NOT_AVAILABLE | GENERATED),
+  pnl_statement_generated_at
+
+TABLE account_closure_requests
+  request_id, user_id, status (REQUESTED | BLOCKED_BY_BALANCE | BLOCKED_BY_HOLD | IN_PROGRESS | COMPLETED | WITHDRAWN),
+  reason, created_at, completed_at
+
+TABLE tickets
+  ticket_id, user_id, channel (EMAIL | CHAT | PHONE | SOCIAL), category, subcategory,
+  status (OPEN | PENDING_CUSTOMER | PENDING_INTERNAL | RESOLVED | CLOSED), priority (P1 | P2 | P3 | P4),
+  assigned_team, created_at, first_response_at, resolved_at
+
+TABLE notifications_log
+  user_id, channel (PUSH | SMS | EMAIL), template, status (SENT | FAILED), created_at
+
+======================================================================
+## DD-09: Platform policies (sample values)
+======================================================================
+Deposits (INR)
+  - Methods: UPI (up to Rs 1,00,000 per transaction), IMPS/NEFT/RTGS via bank transfer.
+  - Minimum deposit: Rs 100.
+  - Deposits must come from a VERIFIED bank account in the user's own name. Third-party
+    deposits are refunded to source.
+  - UPI deposits normally reflect within 5 minutes; IMPS within 30 minutes; NEFT within
+    2 banking hours; RTGS within 1 banking hour.
+  - A deposit PENDING for more than 30 minutes is auto-reconciled by the system every
+    15 minutes for 72 hours.
+  - Refund to source: 5-7 working days after refund initiation.
+
+Withdrawals (INR)
+  - Minimum Rs 100. Fee Rs 10 per withdrawal. Only to a VERIFIED bank account in the user's name.
+  - Normal SLA: within 24 hours. Withdrawals above Rs 5,00,000 go to PENDING_APPROVAL (manual review, up to 48 hours).
+  - 24-hour withdrawal cooldown after a password reset, phone change, email change or 2FA reset.
+
+Crypto transfers
+  - Required confirmations and fees are in supported_networks.
+  - New withdrawal addresses have a 24-hour cooldown (address_whitelist.PENDING_COOLDOWN).
+  - Deposits on an unsupported network or without a required memo/tag need manual recovery:
+    recovery fee Rs 2,500 equivalent, 7-15 working days, not guaranteed.
+
+KYC
+  - Automatic review: minutes. Manual review: up to 48 hours.
+  - Maximum 3 KYC attempts; after the 3rd rejection the case goes to KYC Ops.
+  - Users must be 18+ and Indian residents with a PAN linked to Aadhaar.
+
+Trading and tax
+  - Trading fee: 0.2% of order value (maker and taker), plus 18% GST on the fee.
+  - TDS: 1% on the sale value of crypto (Section 194S), deducted at the time of sale.
+  - Minimum order value: Rs 100 for INR pairs.
+
+Rewards
+  - Referral: referrer gets Rs 100 in BTC after the referee completes KYC AND a first trade
+    of at least Rs 500 within 30 days of signup. Referral code must be applied at signup.
+  - Rewards are credited within 72 hours of qualification and expire 90 days after credit
+    if not used (where the campaign says so).
+
+Security
+  - Account unblocks automatically 24 hours after 5 failed login attempts.
+  - Phone or email change needs a fresh selfie verification.
+
+Support SLAs (first response / resolution target)
+  - P1 (money missing, unauthorized access): 1 hour / 24 hours
+  - P2 (money delayed, cannot trade or withdraw): 4 hours / 48 hours
+  - P3 (KYC, rewards, statements): 24 hours / 5 working days
+  - P4 (how-to questions, feedback): 48 hours / 7 working days
+
+Internal teams (for escalation)
+  - Payments Ops, KYC Ops, Trading Ops, Crypto Ops (on-chain), Risk & Compliance,
+    Rewards Team, Tech On-call, Grievance Officer, Legal, Comms (media and public statements).
+  - Support Lead: senior support agent for sensitive or repeated cases (SUP-05, SUP-07).
+  - Support Operations: owns support processes, statements and SOPs; handles cases that
+    need no specialist team.
+
+======================================================================
+## DD-10: How money is posted to the ledger
+======================================================================
+Every balance change is one or more rows in ledger_entries. Use these rules to explain a
+customer's balance, or to spot a missing or wrong entry.
+
+INR deposit (SUCCESS)
+  +amount DEPOSIT (reference_type DEPOSIT). No deposit fee.
+  A refunded deposit is never credited to the wallet, so it has no ledger rows; see refunds.
+
+Trade (per fill, i.e. per trades row)
+  BUY  : -price*quantity TRADE_BUY in the quote asset (e.g. INR), +quantity in the base asset,
+         -(fee + gst) FEE in the quote asset.
+  SELL : -quantity TRADE_SELL in the base asset, +price*quantity in the quote asset,
+         -(fee + gst) FEE, and -tds TDS (1% of sale value) in the quote asset.
+  All rows use reference_type TRADE and reference_id = trade_id. An order with 3 fills has
+  3 sets of rows, so a partially filled order shows several FEE rows.
+  Worked example (sell Rs 50,000 of BTC): +50,000.00, FEE -118.00 (100 fee + 18 GST),
+  TDS -500.00 -> net Rs 49,382.00 credited.
+
+INR withdrawal
+  At request: amount + fee moves from available to locked (no ledger row yet).
+  At PROCESSING: -amount WITHDRAWAL and -fee FEE (reference_type WITHDRAWAL), locked released.
+  If the payout FAILS: +amount +fee REVERSAL (reference_type WITHDRAWAL): the full amount,
+  including the fee, returns to available.
+  CANCELLED before PROCESSING: nothing was posted; locked is released.
+
+Crypto withdrawal
+  Same as INR, in the crypto asset; the network fee (supported_networks.withdrawal_fee) is
+  the FEE row. A FAILED on-chain send is reversed the same way.
+
+Crypto deposit (CREDITED)
+  +amount DEPOSIT (reference_type CRYPTO_DEPOSIT).
+
+Rewards
+  +amount REWARD (reference_type REWARD) when rewards_ledger.status becomes CREDITED.
+  A revoked reward that was already credited is taken back with an ADJUSTMENT row.
+
+Checking a balance
+  available + locked for an asset = sum(ledger_entries.amount) for that user and asset.
+  If they differ, do not guess: escalate to Payments Ops (INR) or Crypto Ops (crypto), P1.

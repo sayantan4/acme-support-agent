@@ -1,0 +1,164 @@
+# Everything in one stack:  docker compose up -d --build
+#   app        http://localhost:8000 (OAuth: /oauth/start)   auth :8001   toolsvc :8002
+#   dashboards http://localhost:3000 (Grafana; admin/admin to edit)   Prometheus :9090
+#   database   postgresql://acme:acme@localhost:5433 (gmail_webhooks, auth, ai_analyzer)
+# Settings come from .env; the lines under `environment` override the ones that differ in containers.
+
+x-app: &app
+  image: gmail-inbox-webhooks
+  env_file: .env
+  environment:
+    # One Postgres server, one database per service (created by docker/postgres-init.sql)
+    DATABASE_URL: postgresql+psycopg://acme:acme@postgres:5432/gmail_webhooks
+    AUTH_DATABASE_URL: postgresql+psycopg://acme:acme@postgres:5432/auth
+    ANALYZER_DATABASE_URL: postgresql+psycopg://acme:acme@postgres:5432/ai_analyzer
+    REDIS_URL: redis://redis:6379/0
+    AUTH_URL: http://auth:8001
+    MAIN_APP_URL: http://web:8000
+    TOOLSVC_URL: http://toolsvc:8002
+    TOOLSVC_MAIN_APP_URL: http://web:8000
+    AUTH_HOST: 0.0.0.0
+    TOOLSVC_HOST: 0.0.0.0
+    # The internal APIs only answer localhost and this network (stack-internal + the host via published ports)
+    TRUSTED_NETWORKS: 172.28.0.0/16
+    AUTH_TRUSTED_NETWORKS: 172.28.0.0/16
+    TOOLSVC_TRUSTED_NETWORKS: 172.28.0.0/16
+    GOOGLE_CLIENT_SECRETS_FILE: /config/client_secret.json
+    GOOGLE_APPLICATION_CREDENTIALS: /gcloud/application_default_credentials.json
+    AGENT_RUNS_FILE: /data/agent_runs.log
+  volumes:
+    - data:/data
+    - ./client_secret.json:/config/client_secret.json:ro
+    # gcloud ADC (`gcloud auth application-default login`), used by the pull worker for Pub/Sub
+    - ${GCLOUD_CONFIG_DIR:-${HOME}/.config/gcloud}:/gcloud:ro
+  restart: unless-stopped
+  depends_on:
+    redis:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: acme
+      POSTGRES_PASSWORD: acme   # local stack only; not published outside the compose network
+      POSTGRES_DB: gmail_webhooks
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/postgres-init.sql:ro
+    ports:
+      - "127.0.0.1:5433:5432"   # for psql / GUI tools from the Mac (5432 is left to a local Postgres)
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "acme", "-d", "gmail_webhooks"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # Main app: OAuth (/oauth/start) + internal API for C1, C3 and ToolSvc
+  web:
+    <<: *app
+    build: .
+    command: ["gunicorn", "-w", "1", "--threads", "8", "-b", "0.0.0.0:8000", "app.main:create_app()"]
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  auth:
+    <<: *app
+    command: ["sh", "-c", "python -m auth seed && exec python -m auth serve"]
+    ports:
+      - "127.0.0.1:8001:8001"
+
+  toolsvc:
+    <<: *app
+    command: ["python", "-m", "toolsvc"]
+    ports:
+      - "127.0.0.1:8002:8002"
+
+  pull:
+    <<: *app
+    command: ["python", "-m", "app.cli", "pull"]
+
+  summary-scheduler:
+    <<: *app
+    command: ["python", "-m", "app.cli", "summary-scheduler"]
+
+  summarizer:   # C1
+    <<: *app
+    command: ["python", "-m", "ai_analyzer", "summarizer"]
+
+  summary-writer:   # C2
+    <<: *app
+    command: ["python", "-m", "app.cli", "summary-writer"]
+
+  replier:   # C3
+    <<: *app
+    command: ["python", "-m", "ai_analyzer", "replier"]
+
+  # renew-watches daily + sync-all every 20 min
+  maintenance:
+    <<: *app
+    command: ["sh", "docker/maintenance.sh"]
+
+  # Monitoring: Prometheus scrapes C1's /metrics; Grafana shows the two dashboards in monitoring/.
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus"]
+    volumes:
+      - ./monitoring/prometheus.docker.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.3.0   # ships the PostgreSQL datasource built in (13 downloads it)
+    environment:
+      MONITORING_DIR: /monitoring
+      GF_PATHS_PROVISIONING: /monitoring/grafana/provisioning
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /monitoring/grafana/dashboards/ai_agent.json
+      PROMETHEUS_URL: http://prometheus:9090
+      PG_HOST: postgres:5432
+      PG_USER: acme
+      PG_PASSWORD: acme
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ./monitoring:/monitoring:ro
+      - grafana:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
+    restart: unless-stopped
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  data:
+  redis:
+  postgres:
+  prometheus:
+  grafana:

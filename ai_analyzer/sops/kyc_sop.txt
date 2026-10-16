@@ -1,0 +1,865 @@
+SOP_ID: KYC
+TITLE: KYC - PAN, Aadhaar, Selfie/Liveness, Rejections and Re-KYC
+CATEGORY: kyc
+VERSION: 1.0
+LAST_REVIEWED: 2026-09-27
+OWNER: KYC Ops
+NOTE: Fictional sample SOP for the Acme Invest demo. Policy values live in data_dictionary.txt
+      (DD-09). Values marked "(sample value)" are not in DD-09 and are placeholders.
+
+======================================================================
+## KYC-00: Scope, the KYC flow and quick triage
+======================================================================
+Covers identity verification from "Start KYC" to VERIFIED, every rejection reason, vendor
+outages, attempt limits, re-KYC, and changes to name or address after verification.
+
+The KYC flow (in-app, in this order):
+  1. PAN: customer enters PAN; we verify it with the income-tax database (check_type
+     PAN_VERIFY) and read the name and date of birth on PAN.
+  2. Aadhaar: customer enters Aadhaar and an OTP sent by the Aadhaar system to the mobile
+     linked with Aadhaar (check_type AADHAAR_OTP). We receive name, DOB, photo and address.
+     We also check that PAN is linked to Aadhaar.
+  3. Selfie + liveness: customer takes a live selfie; we check it is a live person
+     (LIVENESS) and that it matches the Aadhaar/ID photo (FACE_MATCH).
+  4. Screening: name is screened against watch lists (SANCTIONS). Never discussed.
+  5. Decision: review_queue AUTO decides in minutes; MANUAL review takes up to 48 hours
+     (DD-09).
+Status mapping:
+  kyc_applications.status: IN_PROGRESS (not yet submitted) -> SUBMITTED -> UNDER_REVIEW ->
+  VERIFIED | REJECTED. RE_KYC_REQUIRED = was verified, needs fresh verification.
+  users.kyc_status mirrors the latest application (NOT_STARTED if none).
+Policies (DD-09): 18+, Indian resident, PAN linked to Aadhaar; max 3 attempts, after the 3rd
+rejection the case goes to KYC Ops; automatic review minutes, manual review up to 48 hours.
+KYC issues are P3 by default (DD-09), unless the customer cannot withdraw existing money
+(P2) or a sanctions case (Risk & Compliance).
+
+Accepted documents (sample policy):
+  - PAN card (mandatory) - physical or e-PAN.
+  - Aadhaar via OTP (preferred). If Aadhaar OTP is not possible: Aadhaar image upload
+    (front and back) or passport as the ID/address document (doc_type PASSPORT).
+  - ADDRESS_PROOF only when the current address differs from Aadhaar (KYC-18).
+  - Not accepted: voter ID alone, driving licence alone, photocopies of photocopies, masked
+    screenshots from other apps (sample policy).
+
+TOOLS: get_kyc_applications, get_kyc_vendor_logs
+Quick triage:
+  1. Identify the user (support_guidelines_sop SUP-02). Check the user's status (BLOCKED ->
+     onboarding_sop ONB-05; FROZEN -> fraud_risk_sop RSK-01; DORMANT/CLOSED ->
+     account_closure_sop CLS-04/CLS-05).
+  2. Get the KYC history:
+     Call get_kyc_applications().
+  3. Route:
+     - No applications / IN_PROGRESS and customer is stuck on a step -> KYC-01 or KYC-14
+     - SUBMITTED / UNDER_REVIEW < 48h                                -> KYC-01
+     - UNDER_REVIEW >= 48h                                           -> KYC-02
+     - REJECTED: route by rejection_reason_code
+         PAN_INVALID -> KYC-04        PAN_NAME_MISMATCH -> KYC-05
+         PAN_AADHAAR_NOT_LINKED -> KYC-06   AADHAAR_OTP_FAILED -> KYC-07
+         SELFIE_MISMATCH -> KYC-08    LIVENESS_FAILED -> KYC-09
+         DOC_UNREADABLE -> KYC-10     UNDERAGE -> KYC-11
+         DUPLICATE_PAN -> KYC-12      SANCTIONS_HIT -> KYC-13 (never disclose)
+         attempt_number = 3 and REJECTED -> also KYC-15
+     - RE_KYC_REQUIRED                                               -> KYC-16
+     - VERIFIED, wants name/address change                           -> KYC-17 / KYC-18
+     - Documents question                                            -> KYC-03
+  4. For any rejection, also check the vendor logs for 5xx/TIMEOUT:
+     Call get_kyc_vendor_logs(kyc_id=<kyc_id>).
+     If the vendor failed, it is KYC-14 regardless of the code shown.
+
+======================================================================
+## KYC-01: How long does KYC take / KYC status check (within SLA)
+======================================================================
+CUSTOMER MAY SAY:
+  - "How long will KYC verification take?"
+  - "Submitted KYC 2 hours ago, still under review"
+  - "KYC kab tak verify hoga? Want to invest today"
+  - "Status shows in review, is anything pending from my side?"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email
+TOOLS: get_kyc_applications
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_kyc_applications(). Use the latest (first) application.
+     - If no application or status IN_PROGRESS: the customer has not submitted. Check which
+       step is pending from that application's documents (doc_type, verification_status,
+       failure_reason, uploaded_at).
+       -> Tell them the next step (PAN / Aadhaar / selfie) to complete in the app. Ask customer.
+     - If SUBMITTED or UNDER_REVIEW with review_queue AUTO and submitted < 1 hour ago:
+       normal. Ask them to wait up to 1 hour (sample value). Wait.
+     - If UNDER_REVIEW with review_queue MANUAL and submitted < 48 hours ago: normal manual
+       review. Give the latest expected time (submitted_at + 48h, in IST). Wait.
+     - If AUTO and older than 1 hour, or MANUAL and older than 48 hours -> KYC-02.
+     - If VERIFIED: tell them it is done; they may need to restart the app. Resolve.
+     - If REJECTED: route per KYC-00 triage.
+  3. Check that nothing is pending from the customer's side: look at the documents returned
+     by get_kyc_applications for this kyc_id with verification_status FAILED.
+     - If any FAILED doc while status is still UNDER_REVIEW: a reviewer may request a
+       re-upload; the app will notify. Wait up to 48 hours; if no request comes -> KYC-02.
+RESOLUTION:
+  Give the stage and a concrete expected time. Nothing can be expedited for normal cases.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for completing your verification. Your documents were received on <date, time
+  IST> and are being reviewed. Most verifications finish within minutes; some need a manual
+  check, which can take up to 48 hours. You should hear from us by <date, time IST>.
+  You do not need to do anything right now. We will notify you in the app as soon as it is
+  done.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Only per KYC-02 (SLA breached).
+DO NOT:
+  - Do not promise faster verification or a specific reviewer.
+  - Do not mention "auto" or "manual queue" terms; say "a manual check".
+
+======================================================================
+## KYC-02: KYC stuck UNDER_REVIEW beyond 48 hours
+======================================================================
+CUSTOMER MAY SAY:
+  - "KYC under review for 4 days, this is ridiculous"
+  - "It's been more than 48 hours, still pending verification"
+  - "Kitne din lagenge? 3 din ho gaye KYC pending hai"
+  - "My friend got verified in 5 minutes, why is mine stuck?"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email
+TOOLS: get_kyc_applications, get_kyc_vendor_logs, get_tickets
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_kyc_applications(). Use the latest (first) application.
+     - If submitted_at is less than 48 hours ago (MANUAL) -> KYC-01 (still within SLA). Wait.
+  3. Check whether a vendor check is hanging:
+     Call get_kyc_vendor_logs(kyc_id=<kyc_id>).
+     - If a check has 5xx/TIMEOUT and no later success for that check_type: the
+       application is waiting on a vendor retry -> KYC-14 handling; escalate KYC Ops, P3
+       to re-trigger the check.
+     - If a SANCTIONS check exists with any non-success response or the case sits in manual
+       review with no other explanation: do not speculate; escalate to KYC Ops (P3), who
+       will involve Risk & Compliance if needed. Reply with the standard delay template only.
+     - If all checks passed and it is still UNDER_REVIEW: stuck in the manual queue.
+       -> Escalate KYC Ops, P3 (P2 if the customer already has funds they cannot withdraw).
+  4. Check for an existing ticket to avoid duplicates (support_guidelines_sop SUP-09):
+     Call get_tickets(category="kyc", open_only=true).
+     - If one exists and its SLA (P3: 5 working days) is breached: raise priority by one
+       level and escalate again.
+RESOLUTION:
+  Apologise for the delay, escalate to KYC Ops, and give the P3 time frame.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I am sorry your verification is taking longer than the usual 48 hours. I have checked your
+  application: your documents are complete and nothing further is needed from you at this
+  point. I have asked our verification team to prioritise it, and you should receive an
+  update within 2 working days (sample value).
+  If we need anything else from you, we will ask in the app.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - UNDER_REVIEW for 48+ hours -> KYC Ops, P3 (P2 if funds are stuck), include: user_id,
+    kyc_id, submitted_at, review_queue, attempt_number, vendor log summary.
+  - Customer has written 3+ times -> raise one priority level (support_guidelines_sop SUP-07).
+DO NOT:
+  - Do not mention screening, watch lists or the reason a case went to manual review.
+  - Do not ask the customer to re-submit while an application is under review (it creates
+    a new attempt).
+
+======================================================================
+## KYC-03: Which documents are accepted
+======================================================================
+CUSTOMER MAY SAY:
+  - "Which documents do I need for KYC?"
+  - "I don't have my physical PAN card, will e-PAN work?"
+  - "My Aadhaar is not linked to my mobile, what other document can I use?"
+  - "Can I use voter ID or driving licence instead of Aadhaar?"
+INFO NEEDED FROM CUSTOMER:
+  - None to answer; registered phone/email if they have a stuck application
+TOOLS: get_kyc_applications
+DEBUGGING STEPS:
+  1. General question: no lookup needed. Answer from KYC-00 accepted documents list.
+  2. If the customer has an application, identify the user (support_guidelines_sop SUP-02)
+     and check which step is pending:
+     Call get_kyc_applications(). Look at each application's documents
+     (doc_type, verification_status, failure_reason), newest first.
+     - If Aadhaar OTP cannot be received (mobile not linked to Aadhaar): tell them to use
+       the "Upload Aadhaar" or "Use passport" option in the app, or update their mobile at
+       an Aadhaar centre. Resolve.
+     - If they lack a PAN: PAN is mandatory; they must obtain one first. Resolve.
+RESOLUTION:
+  PAN + Aadhaar (OTP preferred) + live selfie; passport as an alternative ID/address.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for asking. To verify your account you need:
+  - Your PAN (the physical card or e-PAN both work)
+  - Your Aadhaar, verified with an OTP sent to the mobile number linked to Aadhaar
+    (if that is not possible, you can upload a clear photo of your Aadhaar or use your
+    passport instead)
+  - A live selfie taken in the app
+  Your PAN must be linked to your Aadhaar. The whole process takes about 5 minutes.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Not normally needed.
+DO NOT:
+  - Do not accept documents by email attachment; all uploads go through the app.
+  - If a customer attaches PAN/Aadhaar images to an email, do not forward them; tell them
+    we cannot accept documents over email and to use the app.
+
+======================================================================
+## KYC-04: Rejected - PAN_INVALID (PAN not found)
+======================================================================
+CUSTOMER MAY SAY:
+  - "KYC rejected saying PAN is invalid, but my PAN is correct"
+  - "PAN not found error during verification"
+  - "I recently got a new PAN, it says invalid"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email; confirmation the PAN was typed correctly (never ask for the
+    full PAN over email - ask them to re-check it in the app)
+TOOLS: get_kyc_applications, get_kyc_vendor_logs
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02) and get the latest application
+     (KYC-00 step 2): Call get_kyc_applications().
+     Confirm rejection_reason_code = PAN_INVALID.
+  2. Check the vendor response for the PAN check:
+     Call get_kyc_vendor_logs(kyc_id=<kyc_id>, check_types=["PAN_VERIFY"]).
+     - If 5xx/TIMEOUT: the tax database lookup failed, not the PAN -> KYC-14.
+     - Else continue.
+  3. Likely customer-side causes:
+     - Typo (O vs 0, I vs 1): ask them to re-enter carefully in the app. Ask customer.
+     - Newly issued PAN: the tax database can take up to 15 days (sample value) to show a
+       new PAN. Ask them to retry after that. Wait.
+     - Deactivated or surrendered PAN (e.g. a duplicate PAN they held): they must use their
+       active PAN. Ask customer.
+  4. Check attempts left: 3 - attempt_number. If 0 -> KYC-15.
+RESOLUTION:
+  Customer re-checks and re-submits PAN in the app, or waits for a new PAN to activate.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for your patience. Your verification could not be completed because the PAN
+  entered could not be found in the income-tax records.
+  Please check the PAN carefully (for example, the letter O and the number 0 look similar)
+  and submit again in the app. If your PAN was issued recently, it can take up to 15 days
+  to become available for verification, so please try again after that.
+  You have <n> verification attempts remaining.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Customer insists the PAN is valid and active (they can verify it on the income-tax
+    portal) and the check failed twice -> KYC Ops, P3, include: kyc_id, vendor responses.
+DO NOT:
+  - Do not ask for the full PAN or a PAN photo over email.
+  - Do not reset attempts yourself.
+
+======================================================================
+## KYC-05: Rejected - PAN_NAME_MISMATCH (name on PAN differs from Aadhaar)
+======================================================================
+CUSTOMER MAY SAY:
+  - "KYC failed saying name mismatch, but it is the same name"
+  - "My PAN has my full name and Aadhaar has initials, what to do?"
+  - "After marriage my Aadhaar has new surname but PAN has old one"
+  - "Name mismatch aa raha hai, spelling thoda different hai"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email; which document has the "correct" name
+TOOLS: get_kyc_applications
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02) and get the latest application:
+     Call get_kyc_applications().
+  2. Compare the names: in that application's documents, look at the PAN, AADHAAR and
+     PASSPORT rows (name_on_doc, verification_status, failure_reason).
+     - If the difference is minor (initials vs expanded name, a middle name missing, an
+       extra space, order of first/last name) and review_queue was AUTO: a manual review
+       can often accept it. -> Escalate KYC Ops, P3 for manual name review. Wait (48 hours).
+     - If the surname differs (marriage/name change) or spelling differs materially: the
+       customer must update one document so both match (KYC-17 has the steps), then retry.
+       Ask customer.
+     - If the names are completely different: possible wrong document or someone else's
+       document -> do not suggest workarounds; ask them to use their own PAN and Aadhaar.
+       If repeated with different identities, escalate Risk & Compliance (P3).
+  3. Note for later: the bank account holder name must also match the KYC name closely
+     (bank_account_sop).
+RESOLUTION:
+  Minor differences -> manual review; material differences -> customer corrects PAN or
+  Aadhaar with the issuing authority and re-submits.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for writing in. Your verification did not go through because the name on your PAN
+  does not match the name on your Aadhaar.
+  <Minor difference:> The difference looks small, so I have asked our verification team to
+  review it manually. You will hear from us within 48 hours.
+  <Material difference:> Please update your name on either PAN or Aadhaar so that both
+  match, and then submit your verification again in the app. Updates are made with the
+  issuing authority and can take a few weeks.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Minor mismatch (initials, order, middle name) -> KYC Ops, P3, include: kyc_id, both
+    names (internal note only), attempt_number.
+DO NOT:
+  - Do not tell the customer which name we "prefer" or suggest editing one document only
+    for Acme.
+  - Do not quote the exact names from the documents back in full; describe the difference.
+
+======================================================================
+## KYC-06: Rejected - PAN_AADHAAR_NOT_LINKED (inoperative PAN)
+======================================================================
+CUSTOMER MAY SAY:
+  - "It says my PAN is not linked with Aadhaar, but I linked it last week"
+  - "PAN inoperative error during KYC"
+  - "How do I link PAN and Aadhaar?"
+  - "Linked PAN-Aadhaar yesterday, still rejected"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email; date they linked PAN and Aadhaar (if they did)
+TOOLS: get_kyc_applications, get_kyc_vendor_logs
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02) and get the latest application:
+     Call get_kyc_applications().
+  2. Call get_kyc_vendor_logs(kyc_id=<kyc_id>, check_types=["PAN_VERIFY"], limit=3).
+     - If 5xx/TIMEOUT -> KYC-14.
+  3. Branches:
+     - Customer has not linked: explain they must link PAN with Aadhaar on the income-tax
+       portal (a government fee may apply), then retry. Ask customer.
+     - Customer linked recently: the status can take up to 7 days (sample value) to update.
+       Ask them to retry after that. Wait.
+     - Customer linked more than 7 days ago and the income-tax portal shows "linked": ->
+       Escalate KYC Ops, P3 to re-run the check.
+  4. Check attempts left. Advise not to retry before the link shows on the portal, to
+     avoid using up attempts.
+RESOLUTION:
+  Customer links PAN and Aadhaar, waits for it to reflect, then re-submits.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Your verification could not be completed because your PAN is not yet linked with your
+  Aadhaar, which is required by law for financial accounts.
+  Please link them on the income-tax e-filing portal. After linking, it can take up to 7
+  days to reflect. Once the portal shows your PAN and Aadhaar as linked, please submit your
+  verification again in the app. Please wait until then so you do not use up an attempt;
+  you have <n> attempts remaining.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Linked for 7+ days (customer confirms portal shows linked) and still failing ->
+    KYC Ops, P3, include: kyc_id, link date per customer, vendor responses.
+DO NOT:
+  - Do not give tax or legal advice beyond pointing to the official portal.
+
+======================================================================
+## KYC-07: Rejected - AADHAAR_OTP_FAILED
+======================================================================
+CUSTOMER MAY SAY:
+  - "Aadhaar OTP not coming during KYC"
+  - "My Aadhaar is linked to my old number, can't get OTP"
+  - "Entered Aadhaar OTP, it said failed/timed out"
+  - "Aadhaar wala OTP expire ho gaya"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email; whether their current mobile is linked to Aadhaar
+TOOLS: get_kyc_applications, get_kyc_vendor_logs, get_kyc_vendor_health
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02) and get the latest application:
+     Call get_kyc_applications().
+  2. Call get_kyc_vendor_logs(kyc_id=<kyc_id>, check_types=["AADHAAR_OTP"]).
+     For failures across users in the same hour: Call get_kyc_vendor_health(minutes=60).
+     - If 5xx/TIMEOUT (or many AADHAAR_OTP failures across users in the same hour): the
+       Aadhaar system or our vendor was down -> KYC-14.
+     - If an "OTP not generated / mobile not linked" type response: the Aadhaar has no
+       mobile linked, or it is an old number. -> Customer updates mobile at an Aadhaar
+       centre, or uses the upload/passport alternative (KYC-03). Ask customer.
+     - If "invalid OTP" / "OTP expired": customer entered it wrong or late. The Aadhaar OTP
+       is valid for 10 minutes (sample value). Ask them to retry and enter it immediately.
+       Ask customer.
+     - Note: this OTP is sent by the Aadhaar system, not by Acme, so onboarding_sop ONB-01
+       checks (get_otp_logs) do not apply.
+RESOLUTION:
+  Retry with the correct linked mobile, or use an alternative document.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Sorry for the trouble with the Aadhaar step. The OTP for this step is sent by the Aadhaar
+  system to the mobile number linked with your Aadhaar, which may be different from the
+  number you use with Acme Invest.
+  <Cause-specific line.> Please try again in the app and enter the OTP within 10 minutes.
+  If your Aadhaar is not linked to a mobile you can access, you can choose "Upload
+  Aadhaar" or "Use passport" instead.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Repeated failures with a correctly linked mobile and no vendor error -> KYC Ops, P3,
+    include: kyc_id, vendor responses and timestamps.
+DO NOT:
+  - Do not ask for the Aadhaar OTP or full Aadhaar number.
+
+======================================================================
+## KYC-08: Rejected - SELFIE_MISMATCH (selfie does not match ID photo)
+======================================================================
+CUSTOMER MAY SAY:
+  - "KYC rejected saying face does not match, but it is my photo"
+  - "My Aadhaar photo is 10 years old, that's why mismatch?"
+  - "I have a beard now, selfie failed"
+  - "Selfie match nahi ho raha"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email
+TOOLS: get_kyc_applications, get_kyc_vendor_logs
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02) and get the latest application:
+     Call get_kyc_applications().
+  2. Call get_kyc_vendor_logs(kyc_id=<kyc_id>, check_types=["FACE_MATCH", "LIVENESS"]).
+     Also look at the SELFIE document of that application (verification_status,
+     failure_reason).
+     - If FACE_MATCH has 5xx/TIMEOUT -> KYC-14.
+     - If the mismatch is the first rejection: ask the customer to retake the selfie with
+       the guidance below. Ask customer.
+     - If this is the second SELFIE_MISMATCH, or the customer says the ID photo is very old
+       or their appearance changed significantly: escalate KYC Ops (P3) for a manual face
+       review instead of burning the last attempt. Wait (48 hours).
+     - If the selfie clearly belongs to someone else (reviewer note / customer admits a
+       family member took it): the account holder must complete it themselves. If an
+       adult is verifying for someone else -> Risk & Compliance (P3).
+RESOLUTION:
+  Retake with better conditions; manual review for old ID photos.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Your verification did not go through because we could not match your selfie with the
+  photo on your ID. This often happens with an old ID photo, poor light or a covered face.
+  For your next try, please:
+  - Sit facing a window or a bright light, with no light behind you
+  - Remove glasses, cap or mask, and keep your whole face in the frame
+  - Hold the phone at eye level and keep still
+  <If escalated:> Because your ID photo is older, I have asked our team to review it
+  manually; you will hear back within 48 hours.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Second SELFIE_MISMATCH, or known old-photo case -> KYC Ops, P3, include: kyc_id,
+    attempt_number, vendor responses.
+DO NOT:
+  - Do not accept a selfie over email.
+  - Do not disclose match scores.
+
+======================================================================
+## KYC-09: Rejected - LIVENESS_FAILED
+======================================================================
+CUSTOMER MAY SAY:
+  - "Liveness check failed, I did everything it asked"
+  - "Blink detection not working on my phone"
+  - "It says take a live photo, I did"
+  - "Camera ka issue hai kya? Selfie baar baar fail"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email, phone model/platform (optional)
+TOOLS: get_kyc_applications, get_kyc_vendor_logs, get_user_devices
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02) and get the latest application:
+     Call get_kyc_applications().
+  2. Call get_kyc_vendor_logs(kyc_id=<kyc_id>, check_types=["LIVENESS"]).
+     - If 5xx/TIMEOUT -> KYC-14.
+     - If a failure mentions spoof / photo of a photo / screen detected: tell them to take
+       the selfie live, not of a printed photo or another screen. If there are signs of
+       deliberate spoofing across attempts -> Risk & Compliance, P3.
+     - If failures mention low light, face not detected, multiple faces: guidance below.
+  3. Check the device/app version (old versions can have camera issues):
+     Call get_user_devices(). Use the first (most recently seen) device.
+     - If the app is outdated: ask them to update before retrying. Ask customer.
+     - If a camera error persists on the latest version -> app_technical_sop.
+RESOLUTION:
+  Retake in good light, alone, with an updated app.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Sorry the selfie step did not work. Our check needs to confirm that a real person is
+  taking the selfie at that moment, and it can fail in low light or if the face is partly
+  hidden.
+  Please update the app, then try again: be alone in the frame, face a bright light,
+  remove glasses or mask, and follow the on-screen prompts (such as blinking or turning
+  your head) slowly. Please take the selfie directly, not a photo of a printed picture or
+  another screen.
+  You have <n> attempts remaining.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Genuine repeated failures on the latest app version -> KYC Ops, P3 (and
+    app_technical_sop if a camera bug is suspected), include: kyc_id, platform, app_version.
+  - Evidence of deliberate spoofing -> Risk & Compliance, P3.
+DO NOT:
+  - Do not accept selfies or videos by email.
+  - Do not accuse the customer of fraud.
+
+======================================================================
+## KYC-10: Rejected - DOC_UNREADABLE (blurry, cropped or glare)
+======================================================================
+CUSTOMER MAY SAY:
+  - "KYC rejected saying document not clear"
+  - "Uploaded PAN photo, it says unreadable"
+  - "Image is clear on my phone, why rejected?"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email
+TOOLS: get_kyc_applications
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02) and get the latest application:
+     Call get_kyc_applications().
+  2. Look at that application's documents with verification_status FAILED (doc_type,
+     failure_reason, uploaded_at).
+     - Identify which document failed (PAN, AADHAAR, PASSPORT, ADDRESS_PROOF) and tell the
+       customer that specific document. Ask customer to re-upload.
+     - If the same document failed as unreadable twice: suggest using the e-PAN/e-Aadhaar
+       PDF download option or Aadhaar OTP instead of a photo. Ask customer.
+     - If the failure mentions masked/edited/screenshot: explain originals are needed. If
+       signs of tampering -> Risk & Compliance, P3.
+RESOLUTION:
+  Re-upload a clear photo of the original document.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for your patience. We could not read your <document> clearly, so verification
+  did not go through.
+  Please upload it again in the app:
+  - Place the original document on a plain, dark surface
+  - Make sure all four corners are visible and nothing is cut off
+  - Avoid flash and reflections; keep the text sharp and in focus
+  You have <n> attempts remaining.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Clear document rejected twice (customer shares it through the app on retry) ->
+    KYC Ops, P3, include: kyc_id, doc_id, failure_reason.
+DO NOT:
+  - Do not ask the customer to email the document.
+
+======================================================================
+## KYC-11: Rejected - UNDERAGE
+======================================================================
+CUSTOMER MAY SAY:
+  - "KYC rejected saying I am under 18, I am 19"
+  - "My date of birth on Aadhaar is wrong"
+  - "I turned 18 last week, still rejected"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email
+TOOLS: get_kyc_applications
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02) and get the latest application:
+     Call get_kyc_applications().
+  2. Look at dob_on_doc on that application's PAN, AADHAAR and PASSPORT documents.
+     - If DOB on the documents shows under 18 today: policy (DD-09) requires 18+. The
+       customer may apply again on or after their 18th birthday. Resolve
+       (see onboarding_sop ONB-10).
+     - If DOB shows 18+ today (e.g. they turned 18 after the rejection): ask them to
+       submit again; if attempts are exhausted, escalate KYC Ops (P3) to allow a new attempt.
+     - If PAN and Aadhaar DOBs differ and one shows 18+: the customer must correct the
+       wrong document with the issuing authority, then retry. Ask customer.
+RESOLUTION:
+  Under 18: decline until 18. DOB error: correct the document first.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for writing to us. Your verification could not be completed because the date of
+  birth on your documents shows that you are under 18, and accounts are available only to
+  people aged 18 and above.
+  <If a document has a wrong DOB:> If the date of birth on your document is incorrect,
+  please get it corrected with the issuing authority and then submit again in the app.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Customer is now 18+ but has no attempts left -> KYC Ops, P3, include: kyc_id, DOB check.
+DO NOT:
+  - Do not state the DOB from the documents in the reply.
+  - Do not allow a parent's documents to be used.
+
+======================================================================
+## KYC-12: Rejected - DUPLICATE_PAN (PAN already used on another account)
+======================================================================
+CUSTOMER MAY SAY:
+  - "KYC rejected saying PAN already registered"
+  - "I never created another account, how is my PAN used?"
+  - "I have an old account on my previous number"
+  - "Someone else has used my PAN on your app"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email of this account; whether they had a previous Acme account
+TOOLS: get_kyc_applications
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02) and confirm the code DUPLICATE_PAN:
+     Call get_kyc_applications().
+  2. The existing account holding the PAN is identified internally by KYC Ops (there is no
+     PAN column exposed to support). Ask the customer whether they had a previous account.
+     - If yes (they know the old phone/email): follow onboarding_sop ONB-07 (duplicate
+       accounts) to keep one account.
+     - If no, and they say they never signed up before: possible identity misuse. ->
+       Escalate Risk & Compliance, P2, and KYC Ops. Tell the customer we are reviewing it.
+       Do not reveal any details of the other account.
+RESOLUTION:
+  One account per PAN. Customer uses the existing account, or the old one is closed and
+  the PAN released (ONB-07). Suspected misuse goes to Risk & Compliance.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for reaching out. Your PAN is already linked to another Acme Invest account, and
+  each PAN can be used for only one account.
+  If you had an account with us earlier (for example on an older mobile number or email),
+  please reply with that number or email from your registered email and we will help you
+  continue with one account.
+  If you have never opened an account with us before, please reply to let us know; our
+  team will review this carefully and update you within 5 working days.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Customer denies any previous account -> Risk & Compliance, P2, and KYC Ops, include:
+    user_id, kyc_id, customer statement.
+  - Customer wants the PAN moved to the new account -> KYC Ops, P3 (via ONB-07).
+DO NOT:
+  - Do not reveal the phone, email, name or status of the other account.
+
+======================================================================
+## KYC-13: Rejected or pending - SANCTIONS_HIT (never disclose)
+======================================================================
+CUSTOMER MAY SAY:
+  - "Why was my KYC rejected? No reason given"
+  - "It says unable to verify, what does that mean?"
+  - "Everything is correct, why are you not verifying me?"
+INFO NEEDED FROM CUSTOMER:
+  - Nothing further. Do not ask for more documents unless KYC Ops or Risk & Compliance
+    asks.
+TOOLS: get_kyc_applications, get_kyc_vendor_logs
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02) and get the latest application:
+     Call get_kyc_applications().
+     If rejection_reason_code = SANCTIONS_HIT, or the SANCTIONS check shows a match:
+     Call get_kyc_vendor_logs(kyc_id=<kyc_id>, check_types=["SANCTIONS"]).
+     -> Stop debugging. Do not interpret, retry or share anything.
+  2. Always escalate to Risk & Compliance. Do not suggest a re-attempt.
+  3. Use only the generic reply below. Do not say "watch list", "screening", "compliance
+     match" or anything that hints at the reason.
+RESOLUTION:
+  Handled only by Risk & Compliance. Support sends a generic "unable to verify" reply.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thank you for completing your verification. We are unable to verify your account at this
+  time. Our team is reviewing your application and will contact you if anything further is
+  needed.
+  We are sorry we cannot share more details.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Always -> Risk & Compliance, P2, include: user_id, kyc_id, date. Do not add opinions.
+  - Customer threatens legal action or regulator complaint -> complaints_escalation_sop
+    CMP-04 (no AI reply beyond the holding message).
+DO NOT:
+  - Never disclose or hint at sanctions/watch-list screening, even if the customer guesses.
+  - Do not advise retrying, using another document, or opening another account.
+  - Do not mention the case in any other reply (for example on a deposit question).
+
+======================================================================
+## KYC-14: KYC vendor outage (5xx / TIMEOUT) - customer did nothing wrong
+======================================================================
+CUSTOMER MAY SAY:
+  - "KYC page keeps loading and then says try again later"
+  - "PAN verification failed, but PAN is correct, tried 3 times"
+  - "Technical error during Aadhaar step"
+  - "Selfie step says something went wrong"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email, approximate time of the attempt
+TOOLS: get_kyc_applications, get_kyc_vendor_logs, get_kyc_vendor_health
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02) and get the latest application:
+     Call get_kyc_applications().
+  2. Call get_kyc_vendor_logs(kyc_id=<kyc_id>).
+     - If response_code is 5xx or TIMEOUT: vendor/government system failure. The customer
+       did nothing wrong.
+     - Else: not an outage; route by rejection_reason_code (KYC-00).
+  3. Check if it is widespread:
+     Call get_kyc_vendor_health(minutes=60). Look at failures_by_check.
+     - If many failures: ongoing outage -> escalate Tech On-call (P2) if not already known;
+       ask customer to retry after 2-4 hours (sample value). Wait.
+     - If isolated: ask customer to retry now. Ask customer.
+  4. If the application was REJECTED because of the outage (attempt_number increased):
+     -> Escalate KYC Ops, P3 to not count that attempt / re-run the check.
+RESOLUTION:
+  Explain it was a temporary technical issue, give a retry window, and make sure the
+  attempt is not counted against the customer.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Sorry about this. The verification step failed because of a temporary technical issue on
+  our side, not because of anything you did or any problem with your documents.
+  Please try again after <time, e.g. 4:00 PM IST today>. <If attempt consumed:> This
+  attempt will not be counted against your verification limit.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Widespread failures in the last hour -> Tech On-call, P2, include: check_type, counts,
+    time window.
+  - Attempt consumed by an outage -> KYC Ops, P3, include: kyc_id, vendor log ids.
+DO NOT:
+  - Do not name the KYC vendor or the government system's error text.
+
+======================================================================
+## KYC-15: All 3 KYC attempts exhausted
+======================================================================
+CUSTOMER MAY SAY:
+  - "It says maximum attempts reached, cannot retry KYC"
+  - "KYC rejected 3 times, now what?"
+  - "Teen baar reject hua, ab option hi nahi aa raha"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email
+TOOLS: get_kyc_applications, get_kyc_vendor_logs, get_tickets
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+     Call get_kyc_applications(). Review every attempt by attempt_number.
+  2. Policy (DD-09): after the 3rd rejection the case goes to KYC Ops.
+     - If any rejection is SANCTIONS_HIT -> KYC-13 only.
+     - If any attempt failed due to vendor 5xx/TIMEOUT (Call get_kyc_vendor_logs(kyc_id=<kyc_id>)
+       for each attempt) -> note it; KYC Ops may restore it.
+     - If all three are the same fixable reason (e.g. PAN_AADHAAR_NOT_LINKED): ask the
+       customer to fix the root cause first (e.g. link PAN-Aadhaar) and tell them KYC Ops
+       will re-open once fixed. Escalate KYC Ops, P3.
+     - Otherwise: escalate KYC Ops, P3 for manual review of all attempts.
+  3. Check there is no duplicate open ticket (support_guidelines_sop SUP-09):
+     Call get_tickets(category="kyc").
+RESOLUTION:
+  KYC Ops reviews all attempts and either verifies manually, allows one more attempt, or
+  confirms rejection.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I understand this has been frustrating. Since your verification has not gone through after
+  three attempts, the app will not allow further tries on its own. I have passed your case
+  to our verification team for a manual review of all your attempts.
+  <If fix needed:> Meanwhile, please <fix, e.g. link your PAN with Aadhaar> so that the
+  team can proceed.
+  You will receive an update within 5 working days.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Always -> KYC Ops, P3, include: user_id, all kyc_ids with rejection codes, vendor
+    errors, what the customer says they have fixed.
+DO NOT:
+  - Do not promise that the account will be verified.
+  - Do not suggest creating a new account (DUPLICATE_PAN rules still apply).
+
+======================================================================
+## KYC-16: RE_KYC_REQUIRED - why and what to do
+======================================================================
+CUSTOMER MAY SAY:
+  - "App is asking me to do KYC again, I already did it"
+  - "Why is re-KYC needed? I was verified last year"
+  - "Can't buy, it says update your KYC"
+  - "Dobara KYC kyun karna padega?"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email
+TOOLS: get_user, get_kyc_applications, get_risk_holds
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+     Call get_user(). Note kyc_status, status and last_login_at.
+     Call get_kyc_applications(). Look at the latest two applications.
+  2. Common reasons (explain the relevant one generically; sample policy):
+     - Periodic refresh: verification older than 2 years (sample value) is refreshed.
+     - Reactivation of a DORMANT account (account_closure_sop CLS-04).
+     - The customer changed name or a key detail (KYC-17 / KYC-18).
+     - A document expired (for example passport-based KYC).
+     - A regulatory or internal review requires fresh details. If the user's status is FROZEN
+       or there is an ACTIVE risk hold (Call get_risk_holds(active_only=true)),
+       do not discuss reasons -> fraud_risk_sop RSK-01.
+  3. What is allowed while RE_KYC_REQUIRED (sample policy): selling existing holdings and
+     withdrawing to the verified bank account are allowed; new deposits, buys and SIPs are
+     paused.
+  4. Branches:
+     - Re-KYC not yet started: guide them to Profile > Complete verification. Ask customer.
+     - Re-KYC submitted: treat like KYC-01/KYC-02 by timing.
+     - Re-KYC rejected: route by rejection_reason_code.
+RESOLUTION:
+  Customer completes the in-app re-verification; usually minutes, up to 48 hours.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for asking. From time to time we need to refresh our customers' verification
+  details, for example when they are more than two years old or when account details
+  change. This helps keep your account secure and meet regulatory requirements.
+  Please open the app and go to Profile > Complete verification; it takes about 5 minutes.
+  Until it is done, you can still sell your holdings and withdraw to your bank account, but
+  new deposits and purchases are paused.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Customer was asked to re-KYC twice within a short time without a reason visible to
+    support -> KYC Ops, P3, include: kyc_ids and dates.
+DO NOT:
+  - Do not disclose risk or compliance reasons for re-KYC.
+  - Do not mark KYC as verified or skip re-KYC.
+
+======================================================================
+## KYC-17: Name change after marriage or spelling correction
+======================================================================
+CUSTOMER MAY SAY:
+  - "I got married and changed my surname, how do I update my name?"
+  - "My name is spelled wrong in my Acme profile"
+  - "Updated my PAN with new name, bank also updated, now please update in Acme"
+  - "Name galat aa raha hai tax statement mein"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email; which documents already show the new name (PAN, Aadhaar, bank)
+TOOLS: get_user, get_kyc_applications, get_bank_accounts
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Check current names:
+     Call get_user(). Note full_name.
+     Call get_kyc_applications(). Look at name_on_doc on the documents of
+     the VERIFIED application.
+     Call get_bank_accounts(status="VERIFIED"). Note bank_name and
+     account_holder_name.
+  3. Branches:
+     - Only full_name from get_user (the signup display name) is wrong but KYC name is correct:
+       the legal name used for statements is the KYC name. Tell them statements use the
+       verified name; display name can be edited in Profile (sample flow). Resolve.
+     - KYC name must change (marriage, legal change, spelling fix on PAN):
+       -> PAN and Aadhaar must BOTH already show the new name. If not, ask them to update
+          with the issuing authorities first. Ask customer.
+       -> Once both are updated: customer uses Profile > Update name (sample flow), which
+          sets kyc_status to RE_KYC_REQUIRED and runs a fresh KYC (KYC-16). Resolve.
+       -> After re-KYC, the bank account holder name must match the new name; if the bank
+          still shows the old name, withdrawals may fail name matching -> bank_account_sop.
+     - Statements/tax documents already issued in the old name are not reissued (sample
+       policy); future ones use the new name.
+RESOLUTION:
+  Update documents first, then in-app name update with re-KYC. Support does not edit names.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Congratulations, and thanks for letting us know. To update your name on Acme Invest, your
+  PAN and Aadhaar both need to show the new name first. Once they do:
+  - Open the app and go to Profile > Update name
+  - Complete the short re-verification (PAN, Aadhaar and selfie)
+  Please also make sure your linked bank account shows the same name, so that withdrawals
+  are not affected. The re-verification usually completes within minutes, and at most in
+  48 hours.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Documents updated and re-KYC rejected for PAN_NAME_MISMATCH due to old data at the
+    source -> KYC Ops, P3, include: kyc_id, dates of document updates (per customer).
+DO NOT:
+  - Do not change full_name or KYC name directly on request by email.
+  - Do not accept a marriage certificate or gazette notice by email.
+
+======================================================================
+## KYC-18: Change of address
+======================================================================
+CUSTOMER MAY SAY:
+  - "I shifted to Pune, how do I update my address?"
+  - "Address in my profile is old, please change"
+  - "Need to update communication address for tax documents"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email; whether Aadhaar already shows the new address
+TOOLS: get_kyc_applications
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_kyc_applications(). Look at the AADHAAR, ADDRESS_PROOF and
+     PASSPORT documents across applications (verification_status, uploaded_at), newest first.
+  3. Branches (sample policy):
+     - Aadhaar updated with the new address: customer uses Profile > Update address >
+       "Fetch from Aadhaar" (Aadhaar OTP). Resolve.
+     - Aadhaar not updated: upload an ADDRESS_PROOF (utility bill or bank statement under
+       3 months old, rent agreement, passport) via Profile > Update address. Reviewed by
+       KYC Ops within 48 hours. Wait.
+     - Moving abroad -> onboarding_sop ONB-09 (residency).
+     - ADDRESS_PROOF FAILED: treat like KYC-10 (unreadable) or ask for a different accepted
+       document. Ask customer.
+RESOLUTION:
+  In-app address update via Aadhaar or proof upload. Support does not edit addresses.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for letting us know about your new address. You can update it in the app:
+  - Go to Profile > Update address
+  - If your Aadhaar already has the new address, choose "Fetch from Aadhaar"
+  - Otherwise, upload a recent address proof (for example a utility bill or bank statement
+    from the last 3 months, or a registered rent agreement)
+  Uploaded proofs are reviewed within 48 hours.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Address proof pending review beyond 48 hours -> KYC Ops, P3, include: kyc_id, doc_id,
+    uploaded_at.
+DO NOT:
+  - Do not update addresses from an email or accept proofs as attachments.
+  - Do not confirm or read out the address on file.

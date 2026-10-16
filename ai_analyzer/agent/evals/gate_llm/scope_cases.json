@@ -1,0 +1,727 @@
+[
+  {
+    "id": "greeting-new-thread",
+    "category": "small_talk",
+    "note": "first greeting: one friendly steer",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "Hi, how are you?"
+      }
+    ],
+    "expect": {
+      "decision": "no_issue",
+      "no_issue_kind": "greeting",
+      "reply": true
+    }
+  },
+  {
+    "id": "greeting-good-morning",
+    "category": "small_talk",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "Good morning!"
+      }
+    ],
+    "expect": {
+      "decision": "no_issue",
+      "no_issue_kind": "greeting",
+      "reply": true
+    }
+  },
+  {
+    "id": "greeting-hinglish",
+    "category": "small_talk",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "Hello bhai, kaise ho?"
+      }
+    ],
+    "expect": {
+      "decision": "no_issue",
+      "no_issue_kind": "greeting",
+      "reply": true
+    }
+  },
+  {
+    "id": "greeting-repeated",
+    "category": "small_talk",
+    "note": "second greeting in a row: silence",
+    "summary_till_now": "",
+    "previous_replies": [
+      "Hi! I'm doing well, thank you. How can I help with your Acme Invest account today?\n\nBest regards,\nAcme Invest Support"
+    ],
+    "last_reply_kind": "small_talk",
+    "messages": [
+      {
+        "body": "How are you?"
+      }
+    ],
+    "expect": {
+      "decision": "no_issue",
+      "no_issue_kind": "greeting",
+      "reply": false
+    }
+  },
+  {
+    "id": "greeting-third-time",
+    "category": "small_talk",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [
+      "Hi! I'm doing well, thank you. How can I help with your Acme Invest account today?\n\nBest regards,\nAcme Invest Support"
+    ],
+    "last_reply_kind": "small_talk",
+    "messages": [
+      {
+        "body": "hi again, how are u"
+      }
+    ],
+    "expect": {
+      "decision": "no_issue",
+      "no_issue_kind": "greeting",
+      "reply": false
+    }
+  },
+  {
+    "id": "are-you-a-bot",
+    "category": "small_talk",
+    "note": "small talk about the assistant itself",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "Are you a bot or a real person?"
+      }
+    ],
+    "expect": {
+      "decision": "no_issue",
+      "no_issue_kind": "greeting",
+      "reply": true
+    }
+  },
+  {
+    "id": "thanks-after-answer",
+    "category": "thanks",
+    "note": "",
+    "summary_till_now": "Customer asked why order 805 was rejected. We explained the limit price was too far from the market price and nothing was debited. The question is answered.",
+    "previous_replies": [
+      "Hi Rahul,\nYour BTC-INR buy order was rejected because the limit price was too far from the market price. No money was debited.\n\nBest regards,\nAcme Invest Support"
+    ],
+    "last_reply_kind": "answer",
+    "messages": [
+      {
+        "body": "Thanks!"
+      }
+    ],
+    "expect": {
+      "decision": "no_issue",
+      "no_issue_kind": "thanks_solved",
+      "reply": true
+    }
+  },
+  {
+    "id": "got-it-after-answer",
+    "category": "thanks",
+    "note": "",
+    "summary_till_now": "Customer asked why order 805 was rejected. We explained the limit price was too far from the market price and nothing was debited. The question is answered.",
+    "previous_replies": [
+      "Hi Rahul,\nYour BTC-INR buy order was rejected because the limit price was too far from the market price. No money was debited.\n\nBest regards,\nAcme Invest Support"
+    ],
+    "last_reply_kind": "answer",
+    "messages": [
+      {
+        "body": "Got it, thank you so much"
+      }
+    ],
+    "expect": {
+      "decision": "no_issue",
+      "no_issue_kind": "thanks_solved",
+      "reply": true
+    }
+  },
+  {
+    "id": "thanks-again-after-closing",
+    "category": "thanks",
+    "note": "second thanks after our closing: silence",
+    "summary_till_now": "Customer asked why order 805 was rejected. We explained the limit price was too far from the market price and nothing was debited. The question is answered. Customer thanked us; closing reply sent.",
+    "previous_replies": [
+      "Hi Rahul,\nYour BTC-INR buy order was rejected because the limit price was too far from the market price. No money was debited.\n\nBest regards,\nAcme Invest Support",
+      "Glad I could help. Have a nice day!\n\nBest regards,\nAcme Invest Support"
+    ],
+    "last_reply_kind": "closing",
+    "messages": [
+      {
+        "body": "Thanks"
+      }
+    ],
+    "expect": {
+      "decision": "no_issue",
+      "no_issue_kind": "thanks_solved",
+      "reply": false
+    }
+  },
+  {
+    "id": "ok-wait-escalated",
+    "category": "thanks",
+    "note": "real msg 33: case escalated, must not say 'glad I could help'",
+    "summary_till_now": "Customer's Rs 5,000 UPI deposit has been pending for more than 72 hours. We escalated it to Payments Ops for manual review and told the customer not to pay again.",
+    "previous_replies": [
+      "Hi Rahul,\nYour Rs 5,000 UPI deposit is still pending after more than 72 hours, so I've escalated it for a manual review. Please don't try the same payment again.\n\nBest regards,\nAcme Invest Support"
+    ],
+    "last_reply_kind": "answer",
+    "messages": [
+      {
+        "body": "Ok, I will wait."
+      }
+    ],
+    "expect": {
+      "decision": "no_issue",
+      "no_issue_kind": "thanks_open",
+      "reply": true
+    }
+  },
+  {
+    "id": "thanks-pending-deposit",
+    "category": "thanks",
+    "note": "",
+    "summary_till_now": "Customer asked why a UPI deposit of Rs 5,000 is not in the wallet. It is pending bank confirmation; we replied to wait up to 72 hours and not to pay again.",
+    "previous_replies": [
+      "Hi Rahul,\nYour Rs 5,000 UPI deposit is still waiting for bank confirmation. Please wait up to 72 hours from the payment time; you do not need to pay again.\n\nBest regards,\nAcme Invest Support"
+    ],
+    "last_reply_kind": "answer",
+    "messages": [
+      {
+        "body": "ok thanks, will check tomorrow"
+      }
+    ],
+    "expect": {
+      "decision": "no_issue",
+      "no_issue_kind": "thanks_open",
+      "reply": true
+    }
+  },
+  {
+    "id": "ok-after-holding-reply",
+    "category": "thanks",
+    "note": "a human owns the case: no automatic reply",
+    "summary_till_now": "Customer threatened legal action over a delayed withdrawal; we sent the holding reply and a senior team member owns the case.",
+    "previous_replies": [
+      "Thank you for writing to us. Your message has been passed to a senior member of our team, who will get back to you within 24 hours.\n\nBest regards,\nAcme Invest Support"
+    ],
+    "last_reply_kind": "holding",
+    "messages": [
+      {
+        "body": "ok"
+      }
+    ],
+    "expect": {
+      "decision": "no_issue",
+      "reply": false
+    }
+  },
+  {
+    "id": "empty-body",
+    "category": "noise",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": ""
+      }
+    ],
+    "expect": {
+      "decision": "no_issue",
+      "no_issue_kind": "noise",
+      "reply": false
+    }
+  },
+  {
+    "id": "signature-only",
+    "category": "noise",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "--\nSent from my iPhone"
+      }
+    ],
+    "expect": {
+      "decision": "no_issue",
+      "no_issue_kind": "noise",
+      "reply": false
+    }
+  },
+  {
+    "id": "test-message",
+    "category": "noise",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "test"
+      }
+    ],
+    "expect": {
+      "decision": "no_issue",
+      "no_issue_kind": "noise",
+      "reply": false
+    }
+  },
+  {
+    "id": "credit-card-declined",
+    "category": "out_of_scope",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "Why was my credit card declined at the mall yesterday?"
+      }
+    ],
+    "expect": {
+      "decision": "out_of_scope",
+      "reply": true
+    }
+  },
+  {
+    "id": "personal-loan",
+    "category": "out_of_scope",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "Do you give personal loans? I need 2 lakh urgently."
+      }
+    ],
+    "expect": {
+      "decision": "out_of_scope",
+      "reply": true
+    }
+  },
+  {
+    "id": "loan-against-crypto",
+    "category": "out_of_scope",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "Can I take a loan against my bitcoin holdings?"
+      }
+    ],
+    "expect": {
+      "decision": "out_of_scope",
+      "reply": true
+    }
+  },
+  {
+    "id": "forex-usd",
+    "category": "out_of_scope",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "What is your USD to INR exchange rate for sending money abroad?"
+      }
+    ],
+    "expect": {
+      "decision": "out_of_scope",
+      "reply": true
+    }
+  },
+  {
+    "id": "insurance",
+    "category": "out_of_scope",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "I want to buy term insurance, which plan do you suggest?"
+      }
+    ],
+    "expect": {
+      "decision": "out_of_scope",
+      "reply": true
+    }
+  },
+  {
+    "id": "fixed-deposit",
+    "category": "out_of_scope",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "What is your FD interest rate for 1 year?"
+      }
+    ],
+    "expect": {
+      "decision": "out_of_scope",
+      "reply": true
+    }
+  },
+  {
+    "id": "mutual-funds",
+    "category": "out_of_scope",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "How do I start a SIP in mutual funds on your app?"
+      }
+    ],
+    "expect": {
+      "decision": "out_of_scope",
+      "reply": true
+    }
+  },
+  {
+    "id": "stocks",
+    "category": "out_of_scope",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "Can I buy Reliance shares on Acme?"
+      }
+    ],
+    "expect": {
+      "decision": "out_of_scope",
+      "reply": true
+    }
+  },
+  {
+    "id": "other-bank-atm",
+    "category": "out_of_scope",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "SBI ATM swallowed my debit card, what should I do?"
+      }
+    ],
+    "expect": {
+      "decision": "out_of_scope",
+      "reply": true
+    }
+  },
+  {
+    "id": "hinglish-loan",
+    "category": "out_of_scope",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "Bhai loan milega kya? EMI pe chahiye"
+      }
+    ],
+    "expect": {
+      "decision": "out_of_scope",
+      "reply": true
+    }
+  },
+  {
+    "id": "oos-again-same-topic",
+    "category": "out_of_scope",
+    "note": "same out-of-scope answer as our last reply: don't send it twice",
+    "summary_till_now": "",
+    "previous_replies": [
+      "Hi, thanks for writing to us. Acme Invest doesn't offer loans, so we can't help with that here; please contact the provider of that service. We're happy to help with your Acme Invest account: deposits and withdrawals, crypto trading, KYC, fees, rewards, tax statements and account security.\n\nBest regards,\nAcme Invest Support"
+    ],
+    "last_reply_kind": "out_of_scope",
+    "messages": [
+      {
+        "body": "So no loans at all?"
+      }
+    ],
+    "expect": {
+      "decision": "out_of_scope",
+      "reply": false
+    }
+  },
+  {
+    "id": "deposit-and-loan",
+    "category": "mixed",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "My UPI deposit of Rs 3,000 is stuck since morning. Also can I get a loan?"
+      }
+    ],
+    "expect": {
+      "decision": "mixed"
+    }
+  },
+  {
+    "id": "withdrawal-and-card",
+    "category": "mixed",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "Withdrawal to my HDFC account failed. And do you have a debit card?"
+      }
+    ],
+    "expect": {
+      "decision": "mixed"
+    }
+  },
+  {
+    "id": "kyc-and-mutual-fund",
+    "category": "mixed",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "KYC rejected again, why? Also want to invest in mutual funds."
+      }
+    ],
+    "expect": {
+      "decision": "mixed"
+    }
+  },
+  {
+    "id": "greeting-plus-issue",
+    "category": "in_scope_tricky",
+    "note": "a greeting with an issue is about the issue",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "Hi, how are you? My deposit failed but money got debited."
+      }
+    ],
+    "expect": {
+      "decision": "in_scope"
+    }
+  },
+  {
+    "id": "ok-answers-our-question",
+    "category": "in_scope_tricky",
+    "note": "'ok' answers our question",
+    "summary_till_now": "Customer asked about a failed IMPS withdrawal of Rs 1,500; we offered to raise a ticket.",
+    "previous_replies": [
+      "Hi Rahul,\nI can see a failed IMPS withdrawal of Rs 1,500. Would you like me to raise a ticket with our payments team to trace it?\n\nBest regards,\nAcme Invest Support"
+    ],
+    "last_reply_kind": "answer",
+    "messages": [
+      {
+        "body": "Ok, yes please"
+      }
+    ],
+    "expect": {
+      "decision": "in_scope"
+    }
+  },
+  {
+    "id": "thanks-but-still-missing",
+    "category": "in_scope_tricky",
+    "note": "",
+    "summary_till_now": "Customer asked why a UPI deposit of Rs 5,000 is not in the wallet. It is pending bank confirmation; we replied to wait up to 72 hours and not to pay again.",
+    "previous_replies": [
+      "Hi Rahul,\nYour Rs 5,000 UPI deposit is still waiting for bank confirmation. Please wait up to 72 hours from the payment time; you do not need to pay again.\n\nBest regards,\nAcme Invest Support"
+    ],
+    "last_reply_kind": "answer",
+    "messages": [
+      {
+        "body": "Thanks, but the money is still not in my wallet."
+      }
+    ],
+    "expect": {
+      "decision": "in_scope"
+    }
+  },
+  {
+    "id": "sarcastic-thanks",
+    "category": "in_scope_tricky",
+    "note": "",
+    "summary_till_now": "Customer asked why a UPI deposit of Rs 5,000 is not in the wallet. It is pending bank confirmation; we replied to wait up to 72 hours and not to pay again.",
+    "previous_replies": [
+      "Hi Rahul,\nYour Rs 5,000 UPI deposit is still waiting for bank confirmation. Please wait up to 72 hours from the payment time; you do not need to pay again.\n\nBest regards,\nAcme Invest Support"
+    ],
+    "last_reply_kind": "answer",
+    "messages": [
+      {
+        "body": "Thanks for nothing. Still no money after 4 days."
+      }
+    ],
+    "expect": {
+      "decision": "in_scope"
+    }
+  },
+  {
+    "id": "chase-question-marks",
+    "category": "in_scope_tricky",
+    "note": "a chase on an open case",
+    "summary_till_now": "Customer's Rs 5,000 UPI deposit has been pending for more than 72 hours. We escalated it to Payments Ops for manual review and told the customer not to pay again.",
+    "previous_replies": [
+      "Hi Rahul,\nYour Rs 5,000 UPI deposit is still pending after more than 72 hours, so I've escalated it for a manual review. Please don't try the same payment again.\n\nBest regards,\nAcme Invest Support"
+    ],
+    "last_reply_kind": "answer",
+    "messages": [
+      {
+        "body": "??"
+      }
+    ],
+    "expect": {
+      "decision": "in_scope"
+    }
+  },
+  {
+    "id": "any-update",
+    "category": "in_scope_tricky",
+    "note": "",
+    "summary_till_now": "Customer's Rs 5,000 UPI deposit has been pending for more than 72 hours. We escalated it to Payments Ops for manual review and told the customer not to pay again.",
+    "previous_replies": [
+      "Hi Rahul,\nYour Rs 5,000 UPI deposit is still pending after more than 72 hours, so I've escalated it for a manual review. Please don't try the same payment again.\n\nBest regards,\nAcme Invest Support"
+    ],
+    "last_reply_kind": "answer",
+    "messages": [
+      {
+        "body": "Any update?"
+      }
+    ],
+    "expect": {
+      "decision": "in_scope"
+    }
+  },
+  {
+    "id": "bank-mentioned-deposit",
+    "category": "in_scope_tricky",
+    "note": "mentions another bank, but it is an Acme deposit",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "ICICI says the money left my account but Acme wallet shows nothing."
+      }
+    ],
+    "expect": {
+      "decision": "in_scope"
+    }
+  },
+  {
+    "id": "card-word-but-kyc",
+    "category": "in_scope_tricky",
+    "note": "contains 'card' but is about KYC",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "Which ID card do I need for KYC, PAN or Aadhaar?"
+      }
+    ],
+    "expect": {
+      "decision": "in_scope"
+    }
+  },
+  {
+    "id": "crypto-price-question",
+    "category": "in_scope_tricky",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "Why is BTC price on Acme higher than on other apps?"
+      }
+    ],
+    "expect": {
+      "decision": "in_scope"
+    }
+  },
+  {
+    "id": "hinglish-deposit",
+    "category": "in_scope_tricky",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "Paise kat gaye par wallet mein nahi aaye, kya karu?"
+      }
+    ],
+    "expect": {
+      "decision": "in_scope"
+    }
+  },
+  {
+    "id": "close-account",
+    "category": "in_scope_tricky",
+    "note": "",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "I want to close my account and take my money out."
+      }
+    ],
+    "expect": {
+      "decision": "in_scope"
+    }
+  },
+  {
+    "id": "police-threat",
+    "category": "in_scope_tricky",
+    "note": "legal threat about the account: in scope (the agent escalates)",
+    "summary_till_now": "",
+    "previous_replies": [],
+    "last_reply_kind": null,
+    "messages": [
+      {
+        "body": "If my money is not returned I will go to the police."
+      }
+    ],
+    "expect": {
+      "decision": "in_scope"
+    }
+  }
+]

@@ -1,0 +1,1138 @@
+[
+  {
+    "type": "function",
+    "name": "find_user",
+    "description": "Check an email and/or phone the customer mentions (matches either) against Acme accounts. Use it for a 'duplicate account' or 'my other account' question. Returns whether it matches the customer's own account, and for any OTHER account only its status, kyc_status and dates: never its id, name or contact details, and never confirm another account's details to the customer.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "description": "Email address, any case",
+          "type": "string"
+        },
+        "phone": {
+          "description": "Phone number in any format; matched on its last 10 digits",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_user",
+    "description": "Get one user's profile: status (ACTIVE | BLOCKED | FROZEN | DORMANT | CLOSED), kyc_status, signup and last login time, referral code. Call after the user is identified and verified.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "find_user_by_reference",
+    "description": "Check whether a transaction reference the customer gave belongs to their account: a UTR (deposit or payout), a blockchain tx hash (crypto deposit or withdrawal) or an order id. Returns where it was found and belongs_to_you. If it belongs to another account, share nothing about it (SUP-01).",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "description": "Acme order id",
+          "type": "integer"
+        },
+        "tx_hash": {
+          "description": "Blockchain transaction hash",
+          "type": "string"
+        },
+        "utr": {
+          "description": "Bank UTR / RRN",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_user_devices",
+    "description": "List a user's devices (platform, app version, trusted or not, first and last seen). Use for login problems, app issues and to spot a new device in an unauthorized-access case.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "platform": {
+          "description": "Only this platform",
+          "enum": [
+            "ANDROID",
+            "IOS",
+            "WEB"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_auth_events",
+    "description": "List a user's login and security events (logins, failed logins with reason, OTPs, password and 2FA resets, phone/email changes), newest first. Use for login trouble, blocked accounts, cooldowns after a security change, and unauthorized access.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "days": {
+          "description": "How many days back to look (default 30)",
+          "type": "integer"
+        },
+        "event_types": {
+          "description": "Only these event types",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "from_time": {
+          "description": "Only events at or after this time, ISO 8601 (instead of days)",
+          "type": "string"
+        },
+        "to_time": {
+          "description": "Only events at or before this time, ISO 8601",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_otp_logs",
+    "description": "List OTPs sent to a phone/email or user (channel, provider, delivery status, provider error), newest first. Use when the customer is not receiving OTPs at signup or login.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "channel": {
+          "description": "Only this channel",
+          "enum": [
+            "SMS",
+            "EMAIL",
+            "WHATSAPP"
+          ],
+          "type": "string"
+        },
+        "destination": {
+          "description": "Phone (matched on last 10 digits) or email the OTP was sent to",
+          "type": "string"
+        },
+        "hours": {
+          "description": "How many hours back to look (default 24)",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_otp_delivery_health",
+    "description": "Check OTP delivery across ALL users for a recent window: how many OTPs failed and to how many numbers. Many failures for many numbers means a provider outage, not the customer's problem.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "channel": {
+          "description": "Channel to check (default SMS)",
+          "enum": [
+            "SMS",
+            "EMAIL",
+            "WHATSAPP"
+          ],
+          "type": "string"
+        },
+        "minutes": {
+          "description": "Window in minutes (default 30)",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_bank_accounts",
+    "description": "List a user's bank accounts (masked number, IFSC, bank, holder name returned by the bank, status, verification method, name_match_score 0-100, primary or not).",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "days": {
+          "description": "Only accounts added in the last N days",
+          "type": "integer"
+        },
+        "status": {
+          "description": "Only this status",
+          "enum": [
+            "PENDING_VERIFICATION",
+            "VERIFIED",
+            "FAILED",
+            "REMOVED"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "find_bank_account_owners",
+    "description": "Check whether OTHER Acme accounts have linked the same bank account (bank_account_sop BNK-10). Returns, for each other account, only the link status and that account's status: never who it is. Never tell the customer anything about the other account.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "account_number_masked": {
+          "description": "Masked account number, e.g. XXXXXX4321",
+          "type": "string"
+        },
+        "ifsc": {
+          "description": "IFSC code",
+          "type": "string"
+        }
+      },
+      "required": [
+        "account_number_masked",
+        "ifsc"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_bank_verification_failures",
+    "description": "Check bank verification across ALL users: failed verifications per bank in a recent window. Many failures at one bank = that bank's penny-drop is down, not the customer's problem.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "minutes": {
+          "description": "Window in minutes (default 60)",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_deposits",
+    "description": "List a user's INR deposits, newest first, with status, UTR, method and failure_reason. Filter by method, status, failure_reason, how many days back, or one calendar date. Then call check_deposit on the one the customer means.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "days": {
+          "description": "Only deposits from the last N days",
+          "type": "integer"
+        },
+        "failure_reason": {
+          "description": "Only this failure_reason, e.g. THIRD_PARTY_ACCOUNT",
+          "type": "string"
+        },
+        "from_time": {
+          "description": "Created at or after, ISO 8601",
+          "type": "string"
+        },
+        "method": {
+          "description": "Only this method",
+          "enum": [
+            "UPI",
+            "IMPS",
+            "NEFT",
+            "RTGS"
+          ],
+          "type": "string"
+        },
+        "on_date": {
+          "description": "Only deposits created on this date, YYYY-MM-DD",
+          "type": "string"
+        },
+        "status": {
+          "description": "Only this status",
+          "enum": [
+            "INITIATED",
+            "PENDING",
+            "SUCCESS",
+            "FAILED",
+            "ON_HOLD",
+            "REFUND_INITIATED",
+            "REFUNDED"
+          ],
+          "type": "string"
+        },
+        "statuses": {
+          "description": "Only these statuses, e.g. INITIATED, PENDING, ON_HOLD",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "to_time": {
+          "description": "Created at or before, ISO 8601",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "check_deposit",
+    "description": "Deposit checker: everything about one INR deposit in one call. Returns the deposit (status, UTR, amount, failure_reason, age in minutes), its payment-gateway record (gateway_status, bank_reference, webhook and last poll time), the ledger credit(s) it produced, and any refund (status, refund_utr). ledger_credited=false on a SUCCESS deposit means status and ledger disagree: escalate.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "deposit_id": {
+          "description": "deposit_id from get_deposits or find_deposits_by_reference",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "deposit_id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "find_deposits_by_reference",
+    "description": "Find the customer's deposits by a bank reference (UTR / RRN) they gave, with any gateway record for that reference. used_by_another_account=true means the UTR belongs to a different Acme account: share nothing about it and verify identity (SUP-01). No deposits and no gateway record = the payment never reached Acme.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "utr": {
+          "description": "UTR / RRN the customer gave",
+          "type": "string"
+        }
+      },
+      "required": [
+        "utr"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_refunds",
+    "description": "List a user's refunds (of deposits or withdrawals), newest first, with status, refund_utr, timing and, for deposit refunds, the original deposit's amount, method and status. Refunds take 5-7 working days (DD-09).",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "source_type": {
+          "description": "Only refunds of this kind",
+          "enum": [
+            "DEPOSIT",
+            "WITHDRAWAL"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_supported_networks",
+    "description": "Get the networks Acme supports for an asset: deposits_enabled, withdrawals_enabled, required_confirmations, min_withdrawal, withdrawal_fee and any maintenance_note. An asset/network missing here is not supported.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "asset": {
+          "description": "Crypto symbol, e.g. USDT",
+          "type": "string"
+        },
+        "network": {
+          "description": "Only this network, e.g. TRC20",
+          "type": "string"
+        }
+      },
+      "required": [
+        "asset"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_crypto_deposits",
+    "description": "List the customer's crypto deposits, or find one of theirs by tx hash (a hash on another account is not returned: use find_user_by_reference to tell 'not found' from 'another account'). Returns asset, network, amount, to_address, memo_tag, confirmations vs required_confirmations, status, and whether the ledger was credited.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "description": "Only this status",
+          "enum": [
+            "DETECTED",
+            "CONFIRMING",
+            "CREDITED",
+            "FAILED",
+            "UNSUPPORTED_NETWORK",
+            "MISSING_MEMO",
+            "MANUAL_REVIEW"
+          ],
+          "type": "string"
+        },
+        "statuses": {
+          "description": "Only these statuses, e.g. DETECTED, CONFIRMING, MANUAL_REVIEW",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tx_hash": {
+          "description": "Blockchain transaction hash the customer gave",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_deposit_addresses",
+    "description": "List a user's own deposit addresses (asset, network, address, memo_tag). Use to check the customer sent to the right address, network and memo.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "asset": {
+          "description": "Only this asset",
+          "type": "string"
+        },
+        "network": {
+          "description": "Only this network",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "find_deposit_address_owner",
+    "description": "Check a deposit address (and memo/tag for shared-address coins like XRP): is it an Acme address, and is it the customer's own? Use for missing-memo recovery or when a customer sent to another Acme address. Never says whose address it is.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Deposit address",
+          "type": "string"
+        },
+        "memo_tag": {
+          "description": "Memo / destination tag, if the coin uses one",
+          "type": "string"
+        }
+      },
+      "required": [
+        "address"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_address_whitelist",
+    "description": "List a user's whitelisted withdrawal addresses: status PENDING_COOLDOWN (new address, 24-hour cooldown until active_from) | ACTIVE | REMOVED.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "days": {
+          "description": "Only addresses added in the last N days",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_kyc_applications",
+    "description": "Get all of a user's KYC attempts, newest first, each with its documents (doc_type, verification_status, failure_reason, name_on_doc, dob_on_doc). Shows rejection_reason_code and attempt_number (max 3 attempts). SANCTIONS_HIT is Compliance-only: never disclose it.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_kyc_vendor_logs",
+    "description": "List the KYC vendor checks for one application (PAN verify, Aadhaar OTP, face match, liveness, sanctions), newest first. A response_code of 5xx or TIMEOUT means the vendor failed, not the customer.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "check_types": {
+          "description": "Only these check types: PAN_VERIFY, AADHAAR_OTP, FACE_MATCH, LIVENESS, SANCTIONS",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "kyc_id": {
+          "description": "kyc_id from get_kyc_applications",
+          "type": "integer"
+        },
+        "limit": {
+          "description": "Return at most this many rows (default 20)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kyc_id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_kyc_vendor_health",
+    "description": "Check KYC vendor health across ALL users: failed vendor calls (5xx or TIMEOUT) per check type in a recent window. Several failures = a vendor outage (kyc_sop KYC-14): the customer did nothing wrong.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "minutes": {
+          "description": "Window in minutes (default 60)",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_rewards",
+    "description": "List a user's rewards: type, campaign, asset, amount, status (PENDING | ELIGIBLE | CREDITED | EXPIRED | REVOKED | ON_HOLD), eligibility_reason, credit and expiry time.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "campaign_id": {
+          "description": "Only rewards from this campaign",
+          "type": "integer"
+        },
+        "reward_id": {
+          "description": "Only this one reward",
+          "type": "integer"
+        },
+        "reward_type": {
+          "description": "Only this type",
+          "enum": [
+            "REFERRAL",
+            "CASHBACK",
+            "SIGNUP_BONUS",
+            "COUPON",
+            "STREAK"
+          ],
+          "type": "string"
+        },
+        "status": {
+          "description": "Only this status",
+          "enum": [
+            "PENDING",
+            "ELIGIBLE",
+            "CREDITED",
+            "EXPIRED",
+            "REVOKED",
+            "ON_HOLD"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_campaigns",
+    "description": "Look up reward campaigns and their rules: by id, by type and status, by part of the name the customer used, or the ones running at a given time (e.g. the user's signup time).",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "active_at": {
+          "description": "Only campaigns running at this time, ISO 8601",
+          "type": "string"
+        },
+        "campaign_id": {
+          "description": "One campaign",
+          "type": "integer"
+        },
+        "name_contains": {
+          "description": "Part of the offer name, any case, e.g. 'diwali'",
+          "type": "string"
+        },
+        "reward_type": {
+          "description": "Only this type",
+          "enum": [
+            "REFERRAL",
+            "CASHBACK",
+            "SIGNUP_BONUS",
+            "COUPON",
+            "STREAK"
+          ],
+          "type": "string"
+        },
+        "status": {
+          "description": "Only this status",
+          "enum": [
+            "ACTIVE",
+            "ENDED",
+            "PAUSED"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_referrals",
+    "description": "A user's referrals in both directions: as_referee (the code they used at signup, its status and rejection_reason) and as_referrer (people they invited). rejection_reason is e.g. SAME_DEVICE, CODE_APPLIED_LATE, QUALIFYING_TRADE_NOT_MET.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_coupon",
+    "description": "Look up a coupon code (any case): campaign, redemptions used out of the maximum, status ACTIVE | EXPIRED | EXHAUSTED, valid_until, and whether it is a personal code valid for this customer.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "coupon_code": {
+          "description": "The code the customer entered",
+          "type": "string"
+        }
+      },
+      "required": [
+        "coupon_code"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_risk_holds",
+    "description": "List a user's risk holds (account freeze, withdrawal/deposit/reward hold, trade restriction). INTERNAL ONLY: never tell the customer the reason_code or source, and for source LAW_ENFORCEMENT do not even confirm that an agency is involved (fraud_risk_sop).",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "active_only": {
+          "description": "Only holds still ACTIVE (default true)",
+          "type": "boolean"
+        },
+        "hold_type": {
+          "description": "Only this hold type",
+          "enum": [
+            "ACCOUNT_FREEZE",
+            "WITHDRAWAL_HOLD",
+            "DEPOSIT_HOLD",
+            "REWARD_HOLD",
+            "TRADE_RESTRICTION"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_tickets",
+    "description": "List a user's support tickets, newest first: channel, category, status, priority, assigned team and response times. Use to find an existing ticket before opening a new one, and for SLA questions.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "description": "Only this category, e.g. payments",
+          "type": "string"
+        },
+        "days": {
+          "description": "Only tickets from the last N days",
+          "type": "integer"
+        },
+        "open_only": {
+          "description": "Only tickets not yet RESOLVED or CLOSED",
+          "type": "boolean"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_notifications",
+    "description": "List notifications sent to a user (push, SMS, email), newest first, with template and delivery status. Use when the customer says they did not get an alert.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "channel": {
+          "description": "Only this channel",
+          "enum": [
+            "PUSH",
+            "SMS",
+            "EMAIL"
+          ],
+          "type": "string"
+        },
+        "days": {
+          "description": "Only the last N days (default 7)",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_tax_records",
+    "description": "A user's tax records per financial year: TDS deducted, Form 16A status (NOT_AVAILABLE | GENERATED) and when the P&L statement was generated.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "financial_year": {
+          "description": "Only this year, e.g. FY2025-26",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_closure_requests",
+    "description": "A user's account closure requests, newest first: status (REQUESTED | BLOCKED_BY_BALANCE | BLOCKED_BY_HOLD | IN_PROGRESS | COMPLETED | WITHDRAWN), reason, created and completed time.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_orders",
+    "description": "List a user's orders, newest first: symbol, side, type, quantity, price, filled quantity, average fill price, status, reject_reason, source (APP | WEB | API | SIP). Filter by symbol, status, source, a time range (ISO 8601) or how many days back. Then call check_order.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "days": {
+          "description": "Only orders from the last N days",
+          "type": "integer"
+        },
+        "from_time": {
+          "description": "Created at or after, ISO 8601",
+          "type": "string"
+        },
+        "side": {
+          "description": "Only buys or sells",
+          "enum": [
+            "BUY",
+            "SELL"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "Only orders from this source",
+          "enum": [
+            "APP",
+            "WEB",
+            "API",
+            "SIP"
+          ],
+          "type": "string"
+        },
+        "status": {
+          "description": "Only this status",
+          "enum": [
+            "NEW",
+            "OPEN",
+            "PARTIALLY_FILLED",
+            "FILLED",
+            "CANCELLED",
+            "REJECTED",
+            "EXPIRED"
+          ],
+          "type": "string"
+        },
+        "statuses": {
+          "description": "Only these statuses, e.g. the open ones: NEW, OPEN, PARTIALLY_FILLED",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "symbol": {
+          "description": "Only this market, e.g. BTC-INR (a coin like BTC also works)",
+          "type": "string"
+        },
+        "to_time": {
+          "description": "Created at or before, ISO 8601",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "check_order",
+    "description": "Order checker: everything about one order in one call. Returns the order, every fill (trade) with the fee and GST charged next to what they should be (0.2% fee + 18% GST, DD-09), totals across fills, trade ids charged a fee more than once (fee_charged_twice), and the SIP run that placed it, if any.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "description": "order_id from get_orders or the customer",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "order_id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_trades",
+    "description": "List a user's trades (fills), newest first: symbol, side, price, quantity, fee, gst, tds. Filter by symbol, side or a time range (ISO 8601).",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "from_time": {
+          "description": "Executed at or after, ISO 8601",
+          "type": "string"
+        },
+        "side": {
+          "description": "Only buys or sells",
+          "enum": [
+            "BUY",
+            "SELL"
+          ],
+          "type": "string"
+        },
+        "symbol": {
+          "description": "Only this market, e.g. BTC-INR (a coin like BTC also works)",
+          "type": "string"
+        },
+        "to_time": {
+          "description": "Executed at or before, ISO 8601",
+          "type": "string"
+        },
+        "trade_id": {
+          "description": "Only this one trade",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_instrument",
+    "description": "Get a market's trading rules and status: TRADING | HALTED | DELISTED | POST_ONLY, min and max order value, tick size, lot size. Use when an order was rejected or a coin cannot be bought.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "symbol": {
+          "description": "Market, e.g. BTC-INR",
+          "type": "string"
+        }
+      },
+      "required": [
+        "symbol"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_market_price_range",
+    "description": "Lowest and highest traded price of a market (ALL users) in a time window. Use to check a limit or stop price was ever reached, or whether a fill price was in line with the market at that moment.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "from_time": {
+          "description": "Window start, ISO 8601",
+          "type": "string"
+        },
+        "symbol": {
+          "description": "Market, e.g. BTC-INR",
+          "type": "string"
+        },
+        "to_time": {
+          "description": "Window end, ISO 8601 (default: now)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "symbol",
+        "from_time"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_price_incidents",
+    "description": "Price or platform incidents (wrong price feed, outage) with any compensation_policy. Give at_time to get incidents active at that moment; give only a symbol to get its latest incident.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "at_time": {
+          "description": "Only incidents active at this time, ISO 8601",
+          "type": "string"
+        },
+        "symbol": {
+          "description": "Only incidents for this market",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_order_error_count",
+    "description": "Count orders rejected with SYSTEM_ERROR across ALL users around a moment. Several = a platform issue (trade_sop TRD-01), not the customer's mistake.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "around_time": {
+          "description": "The customer's order time, ISO 8601",
+          "type": "string"
+        },
+        "minutes": {
+          "description": "Look this many minutes before and after (default 15)",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "around_time"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_sip_plans",
+    "description": "List a user's SIP plans (symbol, amount, frequency, status ACTIVE | PAUSED | CANCELLED, next run), each with its last 10 runs (status, failure_reason, order_id).",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "description": "Only plans with this status",
+          "enum": [
+            "ACTIVE",
+            "PAUSED",
+            "CANCELLED"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "check_wallet_balance",
+    "description": "Wallet checker: a user's balances per asset (available, locked = reserved by open orders or pending withdrawals) next to the sum of their ledger entries. matches_ledger=false means available + locked is not what the ledger says (DD-10): do not guess, escalate to Payments Ops (INR) or Crypto Ops, P1.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "asset": {
+          "description": "Only this asset, e.g. INR or BTC",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_ledger_entries",
+    "description": "List a user's ledger entries (every balance change: +credit / -debit), newest first. Filter by asset, entry types, a reference (reference_type + reference_id, e.g. TRADE 901), all fills of an order (order_id), a time range or how many days back. Use to explain a balance or an unexpected deduction.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "asset": {
+          "description": "Only this asset",
+          "type": "string"
+        },
+        "days": {
+          "description": "Only entries from the last N days",
+          "type": "integer"
+        },
+        "entry_type": {
+          "description": "Only this entry type",
+          "enum": [
+            "DEPOSIT",
+            "WITHDRAWAL",
+            "TRADE_BUY",
+            "TRADE_SELL",
+            "FEE",
+            "TDS",
+            "REWARD",
+            "REFUND",
+            "ADJUSTMENT",
+            "REVERSAL"
+          ],
+          "type": "string"
+        },
+        "entry_types": {
+          "description": "Only these entry types, e.g. REWARD, DEPOSIT",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "from_time": {
+          "description": "Created at or after, ISO 8601",
+          "type": "string"
+        },
+        "order_id": {
+          "description": "Only the TRADE entries of this order's fills (an order with no fills has none)",
+          "type": "integer"
+        },
+        "reference_id": {
+          "description": "Only entries for this record id (use with reference_type)",
+          "type": "integer"
+        },
+        "reference_type": {
+          "description": "Only entries for this kind of record",
+          "enum": [
+            "DEPOSIT",
+            "CRYPTO_DEPOSIT",
+            "WITHDRAWAL",
+            "TRADE",
+            "REWARD",
+            "REFUND",
+            "ADJUSTMENT"
+          ],
+          "type": "string"
+        },
+        "to_time": {
+          "description": "Created at or before, ISO 8601",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_fee_summary",
+    "description": "Totals a user paid between two times: trading fee, GST and TDS from all trades (no row limit), and INR withdrawal fees (fees_charges_sop FEE-11, tax_statements_sop TDS questions). Times are ISO 8601, e.g. 2026-04-01T00:00:00+00:00.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "from_time": {
+          "description": "Start, ISO 8601",
+          "type": "string"
+        },
+        "to_time": {
+          "description": "End, ISO 8601",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from_time",
+        "to_time"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "get_withdrawals",
+    "description": "List a user's withdrawals (INR or crypto), newest first: amount, fee, status, payout_utr or tx_hash, hold_reason. Filter by asset, status, a bank account, or how many days back. Then call check_withdrawal.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "asset": {
+          "description": "INR or a crypto symbol, e.g. USDT",
+          "type": "string"
+        },
+        "bank_account_id": {
+          "description": "Only withdrawals to this bank account",
+          "type": "integer"
+        },
+        "days": {
+          "description": "Only withdrawals from the last N days",
+          "type": "integer"
+        },
+        "status": {
+          "description": "Only this status",
+          "enum": [
+            "REQUESTED",
+            "PENDING_APPROVAL",
+            "PROCESSING",
+            "SUCCESS",
+            "FAILED",
+            "CANCELLED",
+            "ON_HOLD"
+          ],
+          "type": "string"
+        },
+        "statuses": {
+          "description": "Only these statuses, e.g. the still-open ones",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "check_withdrawal",
+    "description": "Withdrawal checker: everything about one withdrawal in one call. Returns the withdrawal (status, amount, fee, payout_utr / tx_hash, hold_reason, hours since request), the destination bank account (INR), its ledger entries (WITHDRAWAL, FEE, and REVERSAL if the payout failed and money returned) and any refund. hold_reason is internal: never quote it to the customer.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "withdrawal_id": {
+          "description": "withdrawal_id from get_withdrawals",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "withdrawal_id"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

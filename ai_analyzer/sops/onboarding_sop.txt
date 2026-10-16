@@ -1,0 +1,746 @@
+SOP_ID: ONB
+TITLE: Onboarding - Signup, OTP, Login, Blocked and Duplicate Accounts
+CATEGORY: onboarding
+VERSION: 1.0
+LAST_REVIEWED: 2026-09-27
+OWNER: Support Operations
+NOTE: Fictional sample SOP for the Acme Invest demo. Policy values live in data_dictionary.txt
+      (DD-09). Values marked "(sample value)" are not in DD-09 and are placeholders.
+
+======================================================================
+## ONB-00: Scope and quick triage
+======================================================================
+Covers everything from "I want to sign up" until the customer can log in and start KYC:
+signup OTPs, email verification, already-registered errors, login and password problems,
+temporary login blocks, new-device logins, duplicate accounts, referral codes at signup,
+eligibility (NRI, foreign nationals, minors) and what a user can do before KYC.
+
+Not covered here (route instead):
+  - KYC documents, PAN, Aadhaar, selfie, rejections        -> kyc_sop
+  - "My account was hacked" / login I did not do           -> account_security_sop SEC-01
+  - 2FA reset, lost phone, change phone/email              -> account_security_sop SEC-02 to SEC-05
+  - Account FROZEN                                         -> fraud_risk_sop RSK-01
+  - Account DORMANT or CLOSED                              -> account_closure_sop CLS-04 / CLS-05
+  - App crashes, blank screens, "something went wrong"     -> app_technical_sop
+
+Sample onboarding policies used in this SOP (not in DD-09):
+  - OTP validity: 10 minutes (sample value). Resend allowed after 60 seconds (sample value).
+  - OTP rate limit: 5 OTP requests per destination per hour (sample value); after that,
+    OTPs are paused for 1 hour (sample value).
+  - Email verification link validity: 24 hours (sample value).
+  - Password reset link validity: 30 minutes (sample value).
+  - Login block: 5 failed attempts -> BLOCKED, auto-unblocks after 24 hours (DD-09 Security).
+  - Eligibility: 18+ and Indian resident with a PAN linked to Aadhaar (DD-09 KYC).
+  - One account per PAN (enforced at KYC with DUPLICATE_PAN).
+
+Quick triage:
+  1. Identify the user (support_guidelines_sop SUP-02). For signup problems there may be
+     no account yet; search the OTP logs by destination instead (get_otp_logs).
+  2. Check the user's status first:
+     - BLOCKED -> ONB-05. FROZEN -> fraud_risk_sop RSK-01. DORMANT -> account_closure_sop
+       CLS-04. CLOSED -> account_closure_sop CLS-05. ACTIVE -> continue below.
+  3. Map the complaint:
+     - "OTP not coming" on phone                        -> ONB-01
+     - Email verification link / email OTP missing      -> ONB-02
+     - "Already registered" at signup                   -> ONB-03
+     - Wrong password / forgot password / cannot log in -> ONB-04
+     - "Account blocked / too many attempts"            -> ONB-05
+     - "New device" / "device not trusted"              -> ONB-06
+     - Two accounts for one person                      -> ONB-07
+     - Referral code missed at signup                   -> ONB-08 (rewards_sop RWD-03)
+     - NRI / foreigner / minor                          -> ONB-09 / ONB-10
+     - "What can I do before KYC?"                      -> ONB-11
+     - Signed up with a wrong phone number or email     -> ONB-12
+
+======================================================================
+## ONB-01: Signup or login OTP not received on SMS
+======================================================================
+CUSTOMER MAY SAY:
+  - "I am not getting the OTP on my mobile, tried 5 times"
+  - "OTP nahi aa raha, signup stuck on verify number screen"
+  - "SMS OTP is not coming, my number is on DND, is that the issue?"
+  - "It says too many attempts, try later. But I never got a single OTP"
+  - "Getting OTP for other apps but not for Acme"
+INFO NEEDED FROM CUSTOMER:
+  - Mobile number exactly as entered (with country code), approximate time of the attempt
+  - Whether this is signup (new user) or login (existing user)
+  - Mobile operator and whether the SIM is in the same phone as the app (optional)
+  - Never ask for the OTP itself.
+TOOLS: get_otp_logs, get_otp_delivery_health, get_auth_events
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02). Normalise the number to +91XXXXXXXXXX.
+     If no account exists (signup in progress), continue with the number only.
+  2. Look at the OTP attempts for that destination in the last 24 hours:
+     Call get_otp_logs(destination=<phone>, channel="SMS", hours=24).
+     - If no OTPs at all: the request never reached us. Common causes: number typed in a
+       wrong format (missing digit, extra 0, +91 twice), or the app could not reach our
+       servers. Search the same number without the country code / with a leading 0
+       (the tool matches a phone on its last 10 digits):
+       Call get_otp_logs(destination=<last_10_digits>, hours=24).
+       -> If found under a malformed number: tell the customer to re-enter the 10-digit
+          number without 0 or +91 (the app adds the country code). Resolve.
+       -> If still nothing: ask the customer to update the app, check internet, and retry;
+          if it fails again, route to app_technical_sop. Ask customer.
+     - Else if the latest OTPs are DELIVERED or VERIFIED: the SMS reached the phone.
+       -> If VERIFIED: the OTP was used successfully; ask what screen they are stuck on.
+       -> If DELIVERED but not VERIFIED: ask them to check the SMS inbox / spam-SMS folder,
+          and to type the latest OTP only (older OTPs stop working when a new one is sent).
+          Resolve.
+     - Else if status = EXPIRED: the OTP arrived but was entered after 10 minutes
+       (sample value). Ask them to request a new one and enter it straight away. Resolve.
+     - Else if status = FAILED: read provider_error (step 3).
+     - Else if status = SENT for more than 5 minutes with no DELIVERED: operator delay.
+       Ask the customer to wait 10 minutes (sample value) and retry once; offer the
+       WhatsApp/email OTP option if the app shows it. Wait.
+  3. For FAILED OTPs, check provider_error (sample values seen in logs):
+     - DND / promotional block / "blocked by subscriber preference": OTP SMS are
+       transactional and normally bypass DND, but some operator settings block them.
+       -> Ask the customer to use the WhatsApp or email OTP option if offered, or to
+          temporarily disable full DND with their operator (for example by messaging
+          their operator's DND service). Ask customer.
+     - Invalid number / unknown subscriber / "not a mobile number": the number is wrong or
+       is a landline or inactive SIM. -> Ask them to confirm the number and that the SIM is
+       active and can receive SMS. Ask customer.
+     - Rate limited / throttled (or 5+ OTPs in the last hour): our rate limit
+       (5 per hour, sample value) was hit. -> Ask them to wait 1 hour (sample value) and
+       try once. Wait.
+     - Handset unreachable / absent subscriber: phone off or no network. -> Ask them to
+       retry with good network, SIM in the same phone. Ask customer.
+     - Provider error on many unrelated numbers at the same time (check below): SMS
+       provider outage.
+       Call get_otp_delivery_health(channel="SMS", minutes=30). Look at failed and
+       failed_destinations.
+       -> If failures are spread across many numbers: escalate to Tech On-call (P2) and
+          tell the customer we are aware of an SMS delay; retry in 1-2 hours. Wait.
+  4. For an existing user, also check whether login is actually blocked:
+     Call get_auth_events(). Look at the latest 20 events.
+     - If failure_reason = ACCOUNT_BLOCKED or the user's status = BLOCKED: go to ONB-05.
+RESOLUTION:
+  Explain the likely cause in plain words and give one clear next step: re-enter the number,
+  wait out the limit, use the alternative OTP channel, or wait for an SMS delay to clear.
+  We cannot send an OTP manually or read one out.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Sorry you are having trouble receiving the OTP. I checked your recent attempts and
+  <cause in plain words, e.g. "your mobile network was not accepting our SMS messages" /
+  "several OTP requests were made in a short time, so new ones are paused for a while">.
+  Please <next step, e.g. "wait 1 hour and then request a single new OTP" / "choose the
+  option to receive the OTP on WhatsApp or email">. Always enter only the latest OTP you
+  received; it is valid for 10 minutes.
+  Please never share your OTP with anyone, including us.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - OTP failures across many numbers in the same period -> Tech On-call, P2, include:
+    time window, count of failed OTPs, sample provider_error values.
+  - Customer still cannot receive OTP after 24 hours and all steps above -> Tech On-call,
+    P3, include: user_id (if any), destination, otp_ids, provider_error values.
+DO NOT:
+  - Do not ask for, read out or accept the OTP.
+  - Do not name the SMS provider or show provider_error text.
+  - Do not change the registered number from email (see account_security_sop SEC-04).
+
+======================================================================
+## ONB-02: Email verification link or email OTP not received
+======================================================================
+CUSTOMER MAY SAY:
+  - "Verification mail not received, checked everywhere"
+  - "The email verify link says expired"
+  - "I think I typed my email wrong during signup, gmial instead of gmail"
+  - "Email OTP is not coming, phone OTP came fine"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone number and the email address they intended to use
+  - Approximate time of the attempt
+TOOLS: find_user, get_otp_logs, get_notifications, get_otp_delivery_health
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02). Use the phone number because the
+     email on file may be the mistyped one.
+     Call find_user(phone=<phone>).
+  2. Compare the account's email with the address the customer expects.
+     - If it differs by a typo (gmial.com, gmail.co, missing letter, extra dot): the
+       verification went to the wrong address -> ONB-12 (wrong email at signup).
+     - Else continue.
+  3. Check the email OTP / link attempts:
+     Call get_otp_logs(channel="EMAIL", hours=48).
+     Call get_otp_logs(destination=<email>, channel="EMAIL", hours=48).
+     Call get_notifications(channel="EMAIL"). Look at the latest 10.
+     - If DELIVERED / SENT: the email left us. Ask the customer to check Spam, Promotions,
+       Updates and "All mail", search for "Acme Invest", and add our sender to contacts.
+       Corporate mailboxes may quarantine it; ask them to check with their IT or use a
+       personal email. Ask customer.
+     - If EXPIRED or the customer says "link expired": links are valid for 24 hours
+       (sample value). Ask them to tap "Resend verification email" in the app. Resolve.
+     - If FAILED with a bounce-type provider_error (mailbox does not exist, domain not
+       found): the address is invalid -> ONB-12.
+     - If FAILED with mailbox full / temporarily rejected: ask the customer to free space or
+       wait 1 hour and resend. Wait.
+     - If nothing found: the resend was never triggered. Ask them to update the app and tap
+       resend once. Ask customer.
+  4. Call get_otp_delivery_health(channel="EMAIL", minutes=30). If many EMAIL OTPs FAILED
+     across different users in the last 30 minutes, treat it as an email delivery outage ->
+     escalate Tech On-call (P2).
+RESOLUTION:
+  Most cases are spam-folder or typo cases. Guide the customer to resend, check folders, or
+  correct the email through the in-app flow.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for letting us know that the verification email has not reached you. I checked,
+  and <finding, e.g. "our email was sent to <masked email> at 10:42 AM IST">.
+  Please check your Spam, Promotions and Updates folders and search for "Acme Invest". If
+  the link has expired, tap "Resend verification email" in the app; each link is valid for
+  24 hours.
+  If you still cannot find it, reply to this email and we will look into it further.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Email delivery failing for many users -> Tech On-call, P2, include: time window,
+    count of failures, template names.
+  - Resend works for others but repeatedly fails for this address for 24 hours ->
+    Tech On-call, P3, include: user_id, destination (masked), otp_ids.
+DO NOT:
+  - Do not change the email on file based on an email request (account_security_sop SEC-05).
+  - Do not show the full email address on file to an unverified sender; mask it
+    (e.g. ra****@gmail.com).
+
+======================================================================
+## ONB-03: "Phone number / email already registered" at signup
+======================================================================
+CUSTOMER MAY SAY:
+  - "Trying to sign up but it says this number is already registered. I never made an account"
+  - "Email already in use error, but I am a new user"
+  - "My old number was with someone else earlier, now I can't register"
+  - "I think I made an account 2 years back and forgot"
+INFO NEEDED FROM CUSTOMER:
+  - The phone number or email that shows as registered
+  - Whether they may have signed up before (even partially)
+TOOLS: find_user
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02). Do not confirm to an unverified
+     sender that an account exists for a number/email they do not own (SUP-01 rule 3).
+  2. Find the existing account:
+     Call find_user(email=<email>, phone=<phone>).
+     - If found AND the sender's email matches the account's email: it is their own old account.
+       -> Tell them they already have an account and should use "Log in" / "Forgot
+          password" (ONB-04). If status DORMANT -> account_closure_sop CLS-04. If CLOSED ->
+          account_closure_sop CLS-05. Resolve.
+     - Else if found, phone matches but email differs, and kyc_status is NOT_STARTED with
+       last_login_at long ago or null: likely a recycled mobile number (the previous owner
+       signed up and never completed KYC), or the customer's own abandoned signup.
+       -> Ask the customer to try "Log in" with the number; login is by OTP to that number,
+          so if they own the SIM they can get in and then update the email in-app
+          (account_security_sop SEC-05). Ask customer.
+     - Else if found, phone matches, and the account is VERIFIED with a different KYC name
+       than the customer: recycled number belonging to another verified person.
+       -> Do not share any details. Escalate to Support Operations/KYC Ops (P3) to handle
+          the number release; ask the customer to sign up with a different number meanwhile.
+     - Else if email matches another user and the phone differs: ask the customer to log in
+       with the phone they used earlier, or sign up with a different email. Ask customer.
+  3. Check whether the customer is trying to create a second account on purpose
+     (e.g. "I want a separate account for my trading"). -> Explain one account per
+     person/PAN (ONB-07). Resolve.
+RESOLUTION:
+  Either guide the customer into their existing account, or have them use a different
+  number/email. Recycled-number cases on verified accounts are handled internally.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for reaching out about the "already registered" message.
+  <If own account:> It looks like an account was created earlier using your details. Please
+  tap "Log in" instead of "Sign up" and use your registered mobile number. If you do not
+  remember your password, use "Forgot password" on the login screen.
+  <If not theirs / cannot confirm:> For privacy reasons we cannot share details about the
+  number or email you mentioned. Please sign up with a different mobile number or email for
+  now. If you believe the number has been reassigned to you by your operator, reply to let
+  us know and our team will review it within 5 working days.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Recycled number on a VERIFIED account belonging to someone else -> KYC Ops, P3,
+    include: both user_ids (internal note only), phone, created_at dates.
+  - Customer claims someone else registered with their email or number fraudulently ->
+    account_security_sop SEC-01 checks, Risk & Compliance, P2.
+DO NOT:
+  - Do not reveal the name, KYC status or email of the account holding the number.
+  - Do not delete or free up a phone/email on another user's account yourself.
+
+======================================================================
+## ONB-04: Cannot log in / wrong password / forgot password
+======================================================================
+CUSTOMER MAY SAY:
+  - "Password is correct but it says invalid credentials"
+  - "I forgot my password, reset link not coming"
+  - "Login nahi ho raha, bar bar wrong password bol raha hai"
+  - "Reset password link expired before I could open it"
+  - "Changed password yesterday, now withdrawal is not allowed"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email, platform (Android/iOS/web), app version if known
+  - Exact error message or screenshot
+TOOLS: get_auth_events, get_otp_logs
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02) and check the user's status.
+     - BLOCKED -> ONB-05. FROZEN -> fraud_risk_sop RSK-01. DORMANT -> account_closure_sop
+       CLS-04. CLOSED -> account_closure_sop CLS-05.
+  2. Look at recent login activity:
+     Call get_auth_events(days=7). Look at the latest 30 events.
+     - If LOGIN_FAILED with WRONG_PASSWORD: the password entered does not match. Count
+       them in the last 24h. If 3-4 failures, warn that 5 failures block login for 24 hours
+       and advise "Forgot password" now. Resolve.
+     - If LOGIN_FAILED with WRONG_OTP or OTP_EXPIRED: it is an OTP problem -> ONB-01.
+     - If LOGIN_FAILED with DEVICE_NOT_TRUSTED -> ONB-06.
+     - If LOGIN_FAILED with ACCOUNT_BLOCKED -> ONB-05.
+     - If no LOGIN_FAILED events at the time the customer mentions: the request did not
+       reach us (network or app issue) -> ask them to update the app and retry; if the
+       app shows an error screen, route to app_technical_sop. Ask customer.
+     - If LOGIN_SUCCESS events from a device or city the customer does not recognise ->
+       account_security_sop SEC-01 immediately.
+  3. For "reset link / OTP not coming", check the reset attempts:
+     Call get_otp_logs(hours=24).
+     - DELIVERED but not used: ask them to check spam/SMS inbox and use the latest link
+       within 30 minutes (sample value). Resolve.
+     - FAILED / none: follow ONB-01 (SMS) or ONB-02 (email) branches.
+  4. After a successful reset, check for PASSWORD_RESET in the get_auth_events output. If the customer
+     complains that withdrawals are disabled: this is the 24-hour withdrawal cooldown after
+     a password reset (DD-09). Tell them the time it ends (created_at of PASSWORD_RESET
+     + 24 hours, in IST). Resolve.
+RESOLUTION:
+  Guide the customer to reset the password themselves through "Forgot password" (OTP to
+  the registered phone/email, then a new password). Support cannot set or tell a password.
+  For password hygiene see account_security_sop SEC-10.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Sorry you are having trouble logging in. I checked your account and <finding, e.g. "the
+  last few attempts were made with an incorrect password">.
+  To get back in, please:
+  - Tap "Forgot password" on the login screen
+  - Enter the OTP sent to your registered mobile number or email
+  - Set a new password (at least 8 characters, with letters and numbers)
+  Note: 5 wrong attempts in a row pause login for 24 hours, so please reset rather than
+  guess. After a password reset, withdrawals are paused for 24 hours for your safety.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Correct OTP and reset succeed but login still fails with no failure recorded ->
+    Tech On-call, P2, include: user_id, device_id, platform, app_version, timestamps.
+  - Signs of someone else logging in -> account_security_sop SEC-01 (P1).
+DO NOT:
+  - Do not ask for the current or old password, or the OTP.
+  - Do not set, reset or email a password on the customer's behalf.
+  - Do not lift the post-reset withdrawal cooldown.
+
+======================================================================
+## ONB-05: Account BLOCKED after 5 failed login attempts
+======================================================================
+CUSTOMER MAY SAY:
+  - "My account is blocked, it says too many incorrect attempts"
+  - "Account locked for 24 hours, please unblock urgently, I need to sell"
+  - "Mera account block ho gaya, kab khulega?"
+  - "I didn't try to login 5 times, why is it blocked?"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email; whether all the failed attempts were theirs
+TOOLS: get_user, get_auth_events, get_user_devices
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+     Call get_user(). Note status and last_login_at.
+     - If status = FROZEN, not BLOCKED: this is a risk freeze, not a login block ->
+       fraud_risk_sop RSK-01. Do not describe it as a login block.
+     - If status = ACTIVE: the block has already been lifted. Ask them to try again,
+       using "Forgot password" if unsure of the password. Resolve.
+     - If status = BLOCKED: continue.
+  2. Find when the block started and who made the attempts:
+     Call get_auth_events(days=2).
+     The block time is the first LOGIN_FAILED with failure_reason = ACCOUNT_BLOCKED, or
+     the 5th consecutive WRONG_PASSWORD. Unblock time = block time + 24 hours (DD-09).
+  3. Compare the failed attempts' device_id with the customer's known devices:
+     Call get_user_devices().
+     - If all failures come from the customer's own trusted device(s): customer mistyped.
+       -> Tell them the unblock time in IST and to use "Forgot password" once it unblocks.
+          Wait (until unblock time).
+     - Else if failures come from unknown devices or many different device_ids, and the
+       customer says they did not try: possible password-guessing attack.
+       -> Keep the block (it protects the account). Follow account_security_sop SEC-01
+          checks; advise changing the password after unblock and enabling 2FA (SEC-02).
+          If any LOGIN_SUCCESS from an unknown device exists -> SEC-01, P1.
+  4. If the block time + 24 hours has passed and status is still BLOCKED: auto-unblock did
+     not run -> escalate Tech On-call (P2).
+RESOLUTION:
+  The block is automatic and lifts by itself 24 hours after it started. Support does not
+  unblock early, including for urgent trades; market movements during the block are not
+  compensated.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I understand how frustrating it is to be locked out. For your security, login is paused
+  for 24 hours after 5 incorrect attempts. Your account will be available again from
+  <unblock time, e.g. 28 Sep 2026, 11:15 AM IST>, automatically; you do not need to do
+  anything else.
+  When it opens, please use "Forgot password" to set a new password rather than trying
+  again from memory. We also recommend turning on two-factor authentication in
+  Settings > Security.
+  <If attempts were not theirs:> Since you did not make these attempts, please change your
+  password as soon as the account opens. We have also reviewed the login activity.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Still BLOCKED more than 24 hours after the block started -> Tech On-call, P2, include:
+    user_id, block timestamp, current status.
+  - Failed attempts from unknown devices plus any successful login, order or withdrawal the
+    customer does not recognise -> Risk & Compliance, P1 (account_security_sop SEC-01).
+DO NOT:
+  - Do not promise or perform an early unblock.
+  - Do not share IP addresses or device identifiers from the failed attempts.
+  - Do not call a FROZEN account "blocked" or give it a 24-hour time frame.
+
+======================================================================
+## ONB-06: New device login / "device not trusted"
+======================================================================
+CUSTOMER MAY SAY:
+  - "Got a new phone, now login says device not recognised"
+  - "It keeps asking for OTP every time on my laptop"
+  - "Changed my phone and now withdrawals are disabled"
+  - "Device not trusted error after reinstalling the app"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email, new device platform (Android/iOS/web), whether they still have
+    the old device and the registered SIM
+TOOLS: get_user_devices, get_auth_events
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. List devices:
+     Call get_user_devices().
+  3. Check the recent login attempts from the new device:
+     Call get_auth_events(days=3).
+     - If DEVICE_NOT_TRUSTED and no OTP_VERIFIED on that device: the new device must be
+       confirmed with an OTP to the registered phone (and 2FA if enabled). Ask the customer
+       to complete the in-app device verification. If OTP does not arrive -> ONB-01.
+     - If the customer no longer has the registered SIM or the 2FA app: they cannot
+       verify the device -> account_security_sop SEC-03 (lost phone / 2FA reset).
+     - If OTP_VERIFIED exists but is_trusted is still false after 24 hours: sample policy
+       is that a new device becomes trusted after successful verification plus 24 hours
+       (sample value); until then withdrawals may be restricted. Tell them the time. Wait.
+     - If a new device appears that the customer does not recognise ->
+       account_security_sop SEC-01 / SEC-08.
+  4. Web logins that "always ask OTP": browsers in private mode or with cookies cleared are
+     seen as a new device every time. Ask them to use a normal browser window. Resolve.
+RESOLUTION:
+  The customer verifies the new device themselves through OTP (and 2FA). Support cannot mark
+  a device as trusted.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for writing in. When you log in from a new phone or browser, we ask you to confirm
+  it with an OTP on your registered mobile number to keep your account safe.
+  Please open the app on the new device, log in, and enter the OTP when asked. <If
+  applicable:> For your safety, some actions such as withdrawals may stay paused on a new
+  device for up to 24 hours after verification.
+  If you no longer have access to your registered number, reply and we will guide you
+  through our secure recovery process.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Device verified correctly but login keeps failing with DEVICE_NOT_TRUSTED for over 24
+    hours -> Tech On-call, P2, include: user_id, device_id, platform, app_version, events.
+DO NOT:
+  - Do not mark a device trusted or bypass OTP/2FA on request.
+  - Do not share device IDs with the customer.
+
+======================================================================
+## ONB-07: Duplicate accounts for the same person
+======================================================================
+CUSTOMER MAY SAY:
+  - "I have two Acme accounts, one on my old number and one on new number"
+  - "KYC rejected saying PAN already used, but that is my own other account"
+  - "Can I merge my two accounts? Balance is in the old one"
+  - "Can I open a second account for my wife using my PAN?"
+  - "Want separate accounts for long-term and trading"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email of BOTH accounts (from the registered email of at least one)
+  - Which account they want to keep
+TOOLS: find_user, get_kyc_applications, check_wallet_balance, get_risk_holds
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02) for the sender. Then find the other
+     account the customer mentions:
+     Call find_user(email=<other_email>, phone=<other_phone>).
+     - If the customer cannot prove control of the other account (the sender email is not
+       on either account and they cannot verify per SUP-01): ask them to write from the
+       registered email of the account concerned. Ask customer.
+  2. Policy: one account per PAN. Check KYC on both accounts: this account with
+     Call get_kyc_applications().
+     and the other account from the kyc_status in find_user's other_accounts (the tools only
+     show this email's own account in detail; never ask for or share more about the other one).
+     - Case A: one account VERIFIED, the other REJECTED with DUPLICATE_PAN (or not
+       started). -> The VERIFIED account is the one to use. The second account cannot be
+       verified. Offer to close the unverified one (account_closure_sop CLS-01). Resolve.
+     - Case B: the customer wants to keep the NEW (unverified) account, e.g. because the old
+       number is lost. -> The old account must be closed first (it holds the PAN). Check
+       balances on the old account. If this email comes from the old account, Call
+       check_wallet_balance() and look at assets with available > 0 or locked > 0. If it comes
+       from the new account, the old account's balances cannot be checked from here: ask the
+       customer to write from the old account's registered email, or escalate KYC Ops, P3,
+       to check them.
+       -> If balance exists: they must log in and withdraw first (they may need
+          account_security_sop SEC-04 to regain access to the old account). Ask customer.
+       -> If zero balance, no open orders, no active holds: raise a closure of the old
+          account (account_closure_sop CLS-01); after closure is COMPLETED, KYC Ops
+          releases the PAN and the customer re-submits KYC on the new account. Escalate KYC
+          Ops, P3.
+     - Case C: two VERIFIED accounts with the same PAN (should not happen). -> Do not act;
+       escalate to KYC Ops and Risk & Compliance, P2.
+     - Case D: accounts under different PANs but the same person (e.g. customer admits to
+       holding two PANs): possible legal issue -> escalate Risk & Compliance, P2, reply
+       generically.
+  3. Merging: accounts cannot be merged and balances cannot be moved between accounts
+     internally. The customer withdraws INR to their own verified bank account or crypto
+     to their own address, then deposits into the account they keep (withdrawal_sop,
+     crypto_transfers_sop).
+  4. Check active holds before offering closure:
+     Call get_risk_holds(active_only=true).
+     - If any: do not proceed; route per account_closure_sop CLS-03.
+     - Holds on the other account are checked when its closure is raised from that account
+       (account_closure_sop CLS-01 checks them first).
+  5. Family members: each person needs their own account with their own PAN, phone and
+     email. A PAN cannot be shared.
+RESOLUTION:
+  Keep one account per PAN. The unwanted account is emptied (by the customer) and closed;
+  if the customer wants the new account, the old one is closed first and KYC Ops releases
+  the PAN. No merging, no internal transfers.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for explaining. Each person can hold only one Acme Invest account, linked to their
+  PAN. I can see that your PAN is already verified on your other account, which is why
+  verification on this one did not go through.
+  Here is how we can sort this out:
+  - <Option A> Continue using your verified account (registered on <masked phone>). We can
+    close the second account for you if you confirm.
+  - <Option B> If you would rather use the new account, please first withdraw any balance
+    from the older account. Once it is closed, we will enable verification on the new one.
+  Accounts cannot be merged, and balances cannot be moved between accounts directly.
+  Please reply with the option you prefer.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - PAN release after closure of the old account -> KYC Ops, P3, include: both user_ids,
+    closure request_id, which account to keep.
+  - Two VERIFIED accounts with one PAN, or one person with two PANs -> KYC Ops and
+    Risk & Compliance, P2, include: user_ids, kyc_ids, what the customer said.
+  - Either account has an active hold -> Risk & Compliance per account_closure_sop CLS-03.
+DO NOT:
+  - Do not merge accounts or move balances between accounts.
+  - Do not share details of the other account with a sender who has not verified it.
+  - Do not allow a family member to use someone else's PAN.
+
+======================================================================
+## ONB-08: Referral code not applied at signup
+======================================================================
+CUSTOMER MAY SAY:
+  - "Forgot to enter my friend's referral code while signing up, can you add it now?"
+  - "I used the referral link but code is not showing in my account"
+  - "Referral code field was not there when I registered"
+  - "Mere dost ka code lagana bhool gaya"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email, the referral code they intended to use, signup date
+TOOLS: get_user, get_referrals
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+     Call get_user(). Note referred_by and created_at.
+  2. Call get_referrals(). Look at as_referee.
+     - If as_referee has an entry: the code was applied. Hand over to rewards_sop for qualification
+       status (rewards_sop RWD-01/RWD-02; KYC + first trade of Rs 500 within 30 days, DD-09). Resolve.
+     - If as_referee is empty and referred_by is null: the code was not applied. Policy (DD-09) says the
+       code must be applied at signup; it cannot be added later. Resolve with explanation.
+     - If the customer used a referral link but as_referee is empty: possible install-tracking
+       loss -> handle per rewards_sop RWD-03 (Rewards Team), P3.
+RESOLUTION:
+  Codes cannot be added after signup. Point to current offers available to all users.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for checking with us. I looked at your account and a referral code was not added
+  when you signed up. As per the referral terms, a code can only be applied at the time of
+  signup, so we are unable to add it now. Sorry about that.
+  You can still invite your own friends using your referral code from the Rewards section
+  of the app.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Customer shows they entered the code at signup (screenshot) but no referral row
+    exists -> Rewards Team, P3, include: user_id, code, signup time, screenshot.
+DO NOT:
+  - Do not add a referral or credit a reward manually.
+  - Do not reveal who owns a referral code.
+
+======================================================================
+## ONB-09: NRI, non-resident or foreign national wants to sign up
+======================================================================
+CUSTOMER MAY SAY:
+  - "I am an NRI living in Dubai, can I open an account?"
+  - "I am a foreign citizen working in Bangalore, can I invest?"
+  - "Moving to Canada next month, what happens to my account?"
+  - "Does Acme support OCI card holders?"
+  - "Can I sign up with a UAE number?"
+INFO NEEDED FROM CUSTOMER:
+  - Country of residence and citizenship (only as stated by the customer), existing account
+    if any
+TOOLS: none
+DEBUGGING STEPS:
+  1. If the customer has an account, identify the user (support_guidelines_sop SUP-02) and
+     check kyc_status. Otherwise no lookup is needed.
+  2. Policy (DD-09 KYC): users must be Indian residents with a PAN linked to Aadhaar.
+     Sample policy details:
+     - NRIs, OCI holders and foreign nationals: not supported at this time (sample policy).
+     - Only Indian (+91) mobile numbers are accepted at signup (sample policy).
+     - Existing customer who becomes a non-resident: must stop depositing and trading and
+       close the account, or withdraw holdings (sample policy); handle via
+       account_closure_sop CLS-01.
+  3. Branches:
+     - Prospective NRI/foreign national: explain it is not supported. Resolve.
+     - Existing VERIFIED customer moving abroad: explain the residency requirement and offer
+       closure; do not freeze or change anything yourself. Resolve (or CLS-01 if they ask).
+     - Customer asks for exceptions or cites FEMA/regulation arguments -> Legal only if it
+       turns into a complaint (complaints_escalation_sop CMP-04); otherwise resolve.
+RESOLUTION:
+  Explain the eligibility rule politely; no exceptions.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thank you for your interest in Acme Invest. At present, accounts can be opened only by
+  Indian residents aged 18 or above, with an Indian mobile number and a PAN linked to
+  Aadhaar. We are unable to open accounts for non-resident Indians or foreign nationals at
+  this time. We will share any update on our website and app.
+  <If existing customer moving abroad:> Since you are moving outside India, please withdraw
+  your funds before you move; we can then close your account for you.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - An existing account appears to be used from abroad for a long period with the customer
+    confirming non-residence -> Risk & Compliance, P3, include: user_id, customer statement.
+DO NOT:
+  - Do not suggest workarounds (a relative's PAN, an Indian SIM, a VPN).
+  - Do not give legal or tax advice about foreign residency.
+
+======================================================================
+## ONB-10: Minor wants to sign up
+======================================================================
+CUSTOMER MAY SAY:
+  - "I am 16, can I start investing in crypto?"
+  - "Can I open an account for my son who is 15?"
+  - "KYC failed because of age, I turn 18 next month"
+  - "Can I use my father's PAN since I am under 18?"
+INFO NEEDED FROM CUSTOMER:
+  - None required; if an account exists, the registered phone/email
+TOOLS: get_kyc_applications
+DEBUGGING STEPS:
+  1. If an account exists, identify the user (support_guidelines_sop SUP-02) and check:
+     Call get_kyc_applications(). Use the latest (first) application.
+     - If rejection_reason_code = UNDERAGE -> kyc_sop (UNDERAGE section) for handling.
+  2. Policy (DD-09): users must be 18+. No minor accounts, no guardian-operated accounts
+     (sample policy).
+     - Parent asks to open an account for a child: not possible; the parent may open their
+       own account only for their own money. Resolve.
+     - Minor asks to use a parent's PAN/details: explain this is not allowed; every account
+       must be in the holder's own name. If an account already exists with a parent's PAN
+       but used by the minor, escalate Risk & Compliance (P3).
+     - Customer turns 18 soon: they can sign up and complete KYC on or after their 18th
+       birthday. Resolve.
+RESOLUTION:
+  Politely decline; explain they can apply once 18.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for your interest in Acme Invest. To open an account, you need to be at least 18
+  years old and complete verification with your own PAN and Aadhaar. We are unable to
+  open accounts for anyone under 18, including accounts managed by a parent.
+  You are welcome to sign up and complete verification on or after your 18th birthday.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Evidence that a minor is operating an account in another adult's name -> Risk &
+    Compliance, P3, include: user_id and the customer's statement.
+DO NOT:
+  - Do not suggest using a parent's PAN or account.
+  - Do not ask for the minor's documents.
+
+======================================================================
+## ONB-11: What can I do before KYC is complete?
+======================================================================
+CUSTOMER MAY SAY:
+  - "I signed up, can I deposit money before KYC?"
+  - "Why can't I buy? It says complete verification first"
+  - "Can I just watch prices without KYC?"
+  - "Friend sent crypto to my address, KYC is still pending, will it come?"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone/email
+TOOLS: get_user, get_orders, get_crypto_deposits
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+     Call get_user(). Note kyc_status.
+  2. Sample policy - before kyc_status = VERIFIED the user can:
+     - browse prices, charts, coin information and news; create watchlists and price
+       alerts; read help content; set up profile basics.
+     The user cannot: add a bank account, deposit INR, receive or send crypto, trade, set up
+     SIPs, or withdraw. Orders are rejected with KYC_NOT_VERIFIED.
+  3. Branches by kyc_status:
+     - NOT_STARTED or IN_PROGRESS: tell them to complete KYC in the app (kyc_sop). Resolve.
+     - UNDER_REVIEW: automatic review takes minutes, manual up to 48 hours (DD-09). Wait.
+       If longer than 48 hours -> kyc_sop (stuck under review).
+     - REJECTED or RE_KYC_REQUIRED: -> kyc_sop.
+     - VERIFIED but orders still rejected with KYC_NOT_VERIFIED:
+       Call get_orders(). Look at the latest 5 (reject_reason, created_at).
+       -> Escalate Tech On-call, P2 (status sync issue).
+  4. Crypto sent to a user before KYC: deposit addresses are only issued after KYC; check
+     crypto_transfers_sop for any crypto deposits for this user:
+     Call get_crypto_deposits().
+RESOLUTION:
+  Explain what is available now and how to finish KYC.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Welcome to Acme Invest! Until your identity verification is complete, you can explore
+  prices, charts and coin details, and set up watchlists and price alerts.
+  Adding money, buying or selling, and transfers become available as soon as verification
+  is done. It usually takes a few minutes, and at most 48 hours if a manual check is needed.
+  Current status of your verification: <plain-language status and next step>.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - VERIFIED user still blocked from depositing or trading -> Tech On-call, P2, include:
+    user_id, kyc_status, sample order_ids and reject_reason.
+DO NOT:
+  - Do not accept deposits or enable features manually before KYC.
+
+======================================================================
+## ONB-12: Signed up with a wrong phone number or wrong email
+======================================================================
+CUSTOMER MAY SAY:
+  - "Typed wrong email while signing up, verification is going to the wrong id"
+  - "My number was entered wrongly by mistake, can you correct it?"
+  - "Registered with my old email which I can't access now"
+INFO NEEDED FROM CUSTOMER:
+  - The registered number/email (as they think it was entered) and the correct one
+TOOLS: get_user, check_wallet_balance
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+     Call get_user(). Note phone, email, kyc_status and created_at.
+  2. Wrong email, phone is correct:
+     - If kyc_status NOT_STARTED/IN_PROGRESS: the customer can log in with the phone OTP and
+       edit the email from the profile screen (sample flow; OTP to the new email). Resolve.
+     - If kyc_status VERIFIED: use the in-app change-email flow with selfie
+       (account_security_sop SEC-05). Resolve.
+  3. Wrong phone, email is correct:
+     - Customer cannot receive OTP on the wrong number, so cannot log in. If kyc_status is
+       NOT_STARTED and there is no balance:
+       Call check_wallet_balance(). No balance = no asset with available > 0
+       or locked > 0.
+       -> Simplest path: sign up again with the correct number and a different email, or
+          ask us to close the abandoned account (account_closure_sop CLS-01) so the email
+          can be reused. Ask customer.
+     - If the account is VERIFIED: phone change via account_security_sop SEC-04 (needs
+       selfie verification). Resolve.
+RESOLUTION:
+  Customer corrects details through in-app flows; for abandoned unverified signups, close
+  and re-register.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for letting us know about the incorrect <email/number>. For your security we cannot
+  change contact details over email, but you can fix this quickly in the app:
+  <steps for their case>.
+  If you prefer, we can close the unused account so you can sign up again with the correct
+  details. Just reply to confirm.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Customer cannot use any in-app flow (no access to either phone or email) -> handle as
+    account_security_sop SEC-03/SEC-04 recovery.
+DO NOT:
+  - Do not edit phone or email in the database or on request by email.

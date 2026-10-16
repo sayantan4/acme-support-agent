@@ -1,0 +1,3585 @@
+{
+  "uid": "ai-agent",
+  "title": "AI agent: runs, latency, tokens, cost",
+  "tags": [
+    "ai",
+    "agent"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 3,
+  "refresh": "30s",
+  "editable": true,
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "run",
+        "label": "Orchestrator run",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "ai_analyzer_pg"
+        },
+        "query": "SELECT id AS __value, '#' || id || ' · ' || to_char(created_at AT TIME ZONE 'Asia/Kolkata', 'DD Mon HH24:MI') || ' · ' || CASE WHEN scope_decision IN ('no_issue', 'out_of_scope') THEN 'gate → template' WHEN scope_decision IS NULL THEN 'main agent' ELSE 'gate → main agent' END || ' → ' || coalesce(reply_kind, 'none') || CASE WHEN escalate THEN ' (escalated)' ELSE '' END || ' · \"' || coalesce(left(customer_message, 45), 'no customer message') || '\"' AS __text FROM agent_runs ORDER BY id DESC LIMIT 200",
+        "refresh": 2,
+        "sort": 0,
+        "includeAll": false,
+        "multi": false,
+        "current": {},
+        "options": []
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Orchestrator run: one email, step by step (pick a run at the top)",
+      "id": 200,
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "table",
+      "title": "The run",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT '#' || r.id AS run, to_char(r.created_at AT TIME ZONE 'Asia/Kolkata', 'DD Mon HH24:MI:SS') AS \"time (IST)\",\n       coalesce(r.customer_message, '(no customer message: summary only)') AS \"customer wrote\",\n       coalesce(r.scope_decision, '-') AS gate,\n       CASE WHEN r.scope_decision IN ('no_issue', 'out_of_scope') THEN 'template'\n            WHEN r.scope_decision IS NULL THEN 'main agent (no gate)' ELSE 'main agent' END AS \"handled by\",\n       r.reply_kind AS reply, CASE WHEN r.escalate THEN 'yes' ELSE 'no' END AS escalated,\n       CASE WHEN rv.status = 'REVIEWED' AND rv.agent_was_wrong THEN 'WRONG' WHEN rv.status = 'REVIEWED' THEN 'RIGHT'\n            WHEN rv.status = 'SKIPPED' THEN 'not sent' ELSE 'not reviewed yet' END AS review\nFROM agent_runs r LEFT JOIN reply_reviews rv ON rv.agent_run_id = r.id WHERE r.id::text = '${run}'"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "customer wrote"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 460
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "handled by"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "template": {
+                        "color": "#FADE2A"
+                      },
+                      "main agent": {
+                        "color": "#B877D9"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "review"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "WRONG": {
+                        "color": "red"
+                      },
+                      "RIGHT": {
+                        "color": "green"
+                      },
+                      "not reviewed yet": {
+                        "color": "text"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "id": 201,
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 24,
+        "h": 3
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Total latency",
+      "description": "Scope gate + main agent (or template).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH r AS (SELECT * FROM agent_runs WHERE id::text = '${run}'),\nc AS (SELECT c.*, (greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6 AS usd FROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model\n      WHERE c.agent_run_id::text = '${run}'),\ns AS (SELECT\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'scope'), 0) AS gate_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'embedding'), 0) AS embed_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'rerank'), 0) AS rerank_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'agent'), 0) AS llm_s,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'scope'), 0) AS gate_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose IN ('embedding', 'rerank')), 0) AS retrieval_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'agent'), 0) AS llm_usd,\n  coalesce(sum(usd), 0) AS total_usd,\n  coalesce(sum(input_tokens), 0) AS input_tokens, coalesce(sum(cached_tokens), 0) AS cached_tokens,\n  coalesce(sum(output_tokens), 0) AS output_tokens\n  FROM c),\nx AS (SELECT s.*, r.seconds AS agent_s, r.retrieval_seconds AS retrieval_s,\n             greatest(r.retrieval_seconds - s.embed_s - s.rerank_s, 0) AS search_s,\n             greatest(r.loop_seconds - s.llm_s, 0) AS tools_s, s.gate_s + r.seconds AS total_s\n      FROM s, r) SELECT total_s AS value FROM x"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5794F2"
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "id": 202,
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Scope gate",
+      "description": "The gpt-5.4-nano call that routes the message.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH r AS (SELECT * FROM agent_runs WHERE id::text = '${run}'),\nc AS (SELECT c.*, (greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6 AS usd FROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model\n      WHERE c.agent_run_id::text = '${run}'),\ns AS (SELECT\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'scope'), 0) AS gate_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'embedding'), 0) AS embed_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'rerank'), 0) AS rerank_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'agent'), 0) AS llm_s,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'scope'), 0) AS gate_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose IN ('embedding', 'rerank')), 0) AS retrieval_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'agent'), 0) AS llm_usd,\n  coalesce(sum(usd), 0) AS total_usd,\n  coalesce(sum(input_tokens), 0) AS input_tokens, coalesce(sum(cached_tokens), 0) AS cached_tokens,\n  coalesce(sum(output_tokens), 0) AS output_tokens\n  FROM c),\nx AS (SELECT s.*, r.seconds AS agent_s, r.retrieval_seconds AS retrieval_s,\n             greatest(r.retrieval_seconds - s.embed_s - s.rerank_s, 0) AS search_s,\n             greatest(r.loop_seconds - s.llm_s, 0) AS tools_s, s.gate_s + r.seconds AS total_s\n      FROM s, r) SELECT gate_s AS value FROM x"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#FADE2A"
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "id": 203,
+      "gridPos": {
+        "x": 4,
+        "y": 4,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Main agent",
+      "description": "Retrieval + LLM calls + tools. 0 when a template answered.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH r AS (SELECT * FROM agent_runs WHERE id::text = '${run}'),\nc AS (SELECT c.*, (greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6 AS usd FROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model\n      WHERE c.agent_run_id::text = '${run}'),\ns AS (SELECT\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'scope'), 0) AS gate_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'embedding'), 0) AS embed_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'rerank'), 0) AS rerank_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'agent'), 0) AS llm_s,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'scope'), 0) AS gate_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose IN ('embedding', 'rerank')), 0) AS retrieval_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'agent'), 0) AS llm_usd,\n  coalesce(sum(usd), 0) AS total_usd,\n  coalesce(sum(input_tokens), 0) AS input_tokens, coalesce(sum(cached_tokens), 0) AS cached_tokens,\n  coalesce(sum(output_tokens), 0) AS output_tokens\n  FROM c),\nx AS (SELECT s.*, r.seconds AS agent_s, r.retrieval_seconds AS retrieval_s,\n             greatest(r.retrieval_seconds - s.embed_s - s.rerank_s, 0) AS search_s,\n             greatest(r.loop_seconds - s.llm_s, 0) AS tools_s, s.gate_s + r.seconds AS total_s\n      FROM s, r) SELECT agent_s AS value FROM x"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B877D9"
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "id": 204,
+      "gridPos": {
+        "x": 8,
+        "y": 4,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "↳ Retrieval",
+      "description": "Embed the email, BM25 + dense search, LLM rerank.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH r AS (SELECT * FROM agent_runs WHERE id::text = '${run}'),\nc AS (SELECT c.*, (greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6 AS usd FROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model\n      WHERE c.agent_run_id::text = '${run}'),\ns AS (SELECT\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'scope'), 0) AS gate_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'embedding'), 0) AS embed_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'rerank'), 0) AS rerank_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'agent'), 0) AS llm_s,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'scope'), 0) AS gate_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose IN ('embedding', 'rerank')), 0) AS retrieval_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'agent'), 0) AS llm_usd,\n  coalesce(sum(usd), 0) AS total_usd,\n  coalesce(sum(input_tokens), 0) AS input_tokens, coalesce(sum(cached_tokens), 0) AS cached_tokens,\n  coalesce(sum(output_tokens), 0) AS output_tokens\n  FROM c),\nx AS (SELECT s.*, r.seconds AS agent_s, r.retrieval_seconds AS retrieval_s,\n             greatest(r.retrieval_seconds - s.embed_s - s.rerank_s, 0) AS search_s,\n             greatest(r.loop_seconds - s.llm_s, 0) AS tools_s, s.gate_s + r.seconds AS total_s\n      FROM s, r) SELECT retrieval_s AS value FROM x"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#73BF69"
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "id": 205,
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "↳ LLM calls",
+      "description": "The main agent's LLM turns.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH r AS (SELECT * FROM agent_runs WHERE id::text = '${run}'),\nc AS (SELECT c.*, (greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6 AS usd FROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model\n      WHERE c.agent_run_id::text = '${run}'),\ns AS (SELECT\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'scope'), 0) AS gate_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'embedding'), 0) AS embed_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'rerank'), 0) AS rerank_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'agent'), 0) AS llm_s,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'scope'), 0) AS gate_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose IN ('embedding', 'rerank')), 0) AS retrieval_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'agent'), 0) AS llm_usd,\n  coalesce(sum(usd), 0) AS total_usd,\n  coalesce(sum(input_tokens), 0) AS input_tokens, coalesce(sum(cached_tokens), 0) AS cached_tokens,\n  coalesce(sum(output_tokens), 0) AS output_tokens\n  FROM c),\nx AS (SELECT s.*, r.seconds AS agent_s, r.retrieval_seconds AS retrieval_s,\n             greatest(r.retrieval_seconds - s.embed_s - s.rerank_s, 0) AS search_s,\n             greatest(r.loop_seconds - s.llm_s, 0) AS tools_s, s.gate_s + r.seconds AS total_s\n      FROM s, r) SELECT llm_s AS value FROM x"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#FF9830"
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "id": 206,
+      "gridPos": {
+        "x": 16,
+        "y": 4,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "↳ Tools",
+      "description": "Tool calls through ToolSvc, plus our own code between LLM turns.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH r AS (SELECT * FROM agent_runs WHERE id::text = '${run}'),\nc AS (SELECT c.*, (greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6 AS usd FROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model\n      WHERE c.agent_run_id::text = '${run}'),\ns AS (SELECT\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'scope'), 0) AS gate_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'embedding'), 0) AS embed_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'rerank'), 0) AS rerank_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'agent'), 0) AS llm_s,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'scope'), 0) AS gate_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose IN ('embedding', 'rerank')), 0) AS retrieval_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'agent'), 0) AS llm_usd,\n  coalesce(sum(usd), 0) AS total_usd,\n  coalesce(sum(input_tokens), 0) AS input_tokens, coalesce(sum(cached_tokens), 0) AS cached_tokens,\n  coalesce(sum(output_tokens), 0) AS output_tokens\n  FROM c),\nx AS (SELECT s.*, r.seconds AS agent_s, r.retrieval_seconds AS retrieval_s,\n             greatest(r.retrieval_seconds - s.embed_s - s.rerank_s, 0) AS search_s,\n             greatest(r.loop_seconds - s.llm_s, 0) AS tools_s, s.gate_s + r.seconds AS total_s\n      FROM s, r) SELECT tools_s AS value FROM x"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#8AB8FF"
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "id": 207,
+      "gridPos": {
+        "x": 20,
+        "y": 4,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Total cost",
+      "description": "Tokens x model_prices (estimate).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH r AS (SELECT * FROM agent_runs WHERE id::text = '${run}'),\nc AS (SELECT c.*, (greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6 AS usd FROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model\n      WHERE c.agent_run_id::text = '${run}'),\ns AS (SELECT\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'scope'), 0) AS gate_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'embedding'), 0) AS embed_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'rerank'), 0) AS rerank_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'agent'), 0) AS llm_s,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'scope'), 0) AS gate_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose IN ('embedding', 'rerank')), 0) AS retrieval_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'agent'), 0) AS llm_usd,\n  coalesce(sum(usd), 0) AS total_usd,\n  coalesce(sum(input_tokens), 0) AS input_tokens, coalesce(sum(cached_tokens), 0) AS cached_tokens,\n  coalesce(sum(output_tokens), 0) AS output_tokens\n  FROM c),\nx AS (SELECT s.*, r.seconds AS agent_s, r.retrieval_seconds AS retrieval_s,\n             greatest(r.retrieval_seconds - s.embed_s - s.rerank_s, 0) AS search_s,\n             greatest(r.loop_seconds - s.llm_s, 0) AS tools_s, s.gate_s + r.seconds AS total_s\n      FROM s, r) SELECT total_usd AS value FROM x"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#F2495C"
+          },
+          "decimals": 5
+        },
+        "overrides": []
+      },
+      "id": 208,
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Scope gate cost",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH r AS (SELECT * FROM agent_runs WHERE id::text = '${run}'),\nc AS (SELECT c.*, (greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6 AS usd FROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model\n      WHERE c.agent_run_id::text = '${run}'),\ns AS (SELECT\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'scope'), 0) AS gate_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'embedding'), 0) AS embed_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'rerank'), 0) AS rerank_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'agent'), 0) AS llm_s,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'scope'), 0) AS gate_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose IN ('embedding', 'rerank')), 0) AS retrieval_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'agent'), 0) AS llm_usd,\n  coalesce(sum(usd), 0) AS total_usd,\n  coalesce(sum(input_tokens), 0) AS input_tokens, coalesce(sum(cached_tokens), 0) AS cached_tokens,\n  coalesce(sum(output_tokens), 0) AS output_tokens\n  FROM c),\nx AS (SELECT s.*, r.seconds AS agent_s, r.retrieval_seconds AS retrieval_s,\n             greatest(r.retrieval_seconds - s.embed_s - s.rerank_s, 0) AS search_s,\n             greatest(r.loop_seconds - s.llm_s, 0) AS tools_s, s.gate_s + r.seconds AS total_s\n      FROM s, r) SELECT gate_usd AS value FROM x"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#FADE2A"
+          },
+          "decimals": 5
+        },
+        "overrides": []
+      },
+      "id": 209,
+      "gridPos": {
+        "x": 4,
+        "y": 8,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Retrieval cost",
+      "description": "Embedding + reranker call.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH r AS (SELECT * FROM agent_runs WHERE id::text = '${run}'),\nc AS (SELECT c.*, (greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6 AS usd FROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model\n      WHERE c.agent_run_id::text = '${run}'),\ns AS (SELECT\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'scope'), 0) AS gate_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'embedding'), 0) AS embed_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'rerank'), 0) AS rerank_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'agent'), 0) AS llm_s,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'scope'), 0) AS gate_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose IN ('embedding', 'rerank')), 0) AS retrieval_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'agent'), 0) AS llm_usd,\n  coalesce(sum(usd), 0) AS total_usd,\n  coalesce(sum(input_tokens), 0) AS input_tokens, coalesce(sum(cached_tokens), 0) AS cached_tokens,\n  coalesce(sum(output_tokens), 0) AS output_tokens\n  FROM c),\nx AS (SELECT s.*, r.seconds AS agent_s, r.retrieval_seconds AS retrieval_s,\n             greatest(r.retrieval_seconds - s.embed_s - s.rerank_s, 0) AS search_s,\n             greatest(r.loop_seconds - s.llm_s, 0) AS tools_s, s.gate_s + r.seconds AS total_s\n      FROM s, r) SELECT retrieval_usd AS value FROM x"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#73BF69"
+          },
+          "decimals": 5
+        },
+        "overrides": []
+      },
+      "id": 210,
+      "gridPos": {
+        "x": 8,
+        "y": 8,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Main agent LLM cost",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH r AS (SELECT * FROM agent_runs WHERE id::text = '${run}'),\nc AS (SELECT c.*, (greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6 AS usd FROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model\n      WHERE c.agent_run_id::text = '${run}'),\ns AS (SELECT\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'scope'), 0) AS gate_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'embedding'), 0) AS embed_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'rerank'), 0) AS rerank_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'agent'), 0) AS llm_s,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'scope'), 0) AS gate_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose IN ('embedding', 'rerank')), 0) AS retrieval_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'agent'), 0) AS llm_usd,\n  coalesce(sum(usd), 0) AS total_usd,\n  coalesce(sum(input_tokens), 0) AS input_tokens, coalesce(sum(cached_tokens), 0) AS cached_tokens,\n  coalesce(sum(output_tokens), 0) AS output_tokens\n  FROM c),\nx AS (SELECT s.*, r.seconds AS agent_s, r.retrieval_seconds AS retrieval_s,\n             greatest(r.retrieval_seconds - s.embed_s - s.rerank_s, 0) AS search_s,\n             greatest(r.loop_seconds - s.llm_s, 0) AS tools_s, s.gate_s + r.seconds AS total_s\n      FROM s, r) SELECT llm_usd AS value FROM x"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#FF9830"
+          },
+          "decimals": 5
+        },
+        "overrides": []
+      },
+      "id": 211,
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Input tokens",
+      "description": "All LLM calls. The cached part is billed at 10%.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH r AS (SELECT * FROM agent_runs WHERE id::text = '${run}'),\nc AS (SELECT c.*, (greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6 AS usd FROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model\n      WHERE c.agent_run_id::text = '${run}'),\ns AS (SELECT\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'scope'), 0) AS gate_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'embedding'), 0) AS embed_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'rerank'), 0) AS rerank_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'agent'), 0) AS llm_s,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'scope'), 0) AS gate_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose IN ('embedding', 'rerank')), 0) AS retrieval_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'agent'), 0) AS llm_usd,\n  coalesce(sum(usd), 0) AS total_usd,\n  coalesce(sum(input_tokens), 0) AS input_tokens, coalesce(sum(cached_tokens), 0) AS cached_tokens,\n  coalesce(sum(output_tokens), 0) AS output_tokens\n  FROM c),\nx AS (SELECT s.*, r.seconds AS agent_s, r.retrieval_seconds AS retrieval_s,\n             greatest(r.retrieval_seconds - s.embed_s - s.rerank_s, 0) AS search_s,\n             greatest(r.loop_seconds - s.llm_s, 0) AS tools_s, s.gate_s + r.seconds AS total_s\n      FROM s, r) SELECT input_tokens AS value FROM x"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5794F2"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "id": 212,
+      "gridPos": {
+        "x": 16,
+        "y": 8,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "↳ cached",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH r AS (SELECT * FROM agent_runs WHERE id::text = '${run}'),\nc AS (SELECT c.*, (greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6 AS usd FROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model\n      WHERE c.agent_run_id::text = '${run}'),\ns AS (SELECT\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'scope'), 0) AS gate_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'embedding'), 0) AS embed_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'rerank'), 0) AS rerank_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'agent'), 0) AS llm_s,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'scope'), 0) AS gate_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose IN ('embedding', 'rerank')), 0) AS retrieval_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'agent'), 0) AS llm_usd,\n  coalesce(sum(usd), 0) AS total_usd,\n  coalesce(sum(input_tokens), 0) AS input_tokens, coalesce(sum(cached_tokens), 0) AS cached_tokens,\n  coalesce(sum(output_tokens), 0) AS output_tokens\n  FROM c),\nx AS (SELECT s.*, r.seconds AS agent_s, r.retrieval_seconds AS retrieval_s,\n             greatest(r.retrieval_seconds - s.embed_s - s.rerank_s, 0) AS search_s,\n             greatest(r.loop_seconds - s.llm_s, 0) AS tools_s, s.gate_s + r.seconds AS total_s\n      FROM s, r) SELECT cached_tokens AS value FROM x"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#8AB8FF"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "id": 213,
+      "gridPos": {
+        "x": 19,
+        "y": 8,
+        "w": 2,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Output tokens",
+      "description": "Includes the model's hidden reasoning tokens.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH r AS (SELECT * FROM agent_runs WHERE id::text = '${run}'),\nc AS (SELECT c.*, (greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6 AS usd FROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model\n      WHERE c.agent_run_id::text = '${run}'),\ns AS (SELECT\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'scope'), 0) AS gate_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'embedding'), 0) AS embed_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'rerank'), 0) AS rerank_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'agent'), 0) AS llm_s,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'scope'), 0) AS gate_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose IN ('embedding', 'rerank')), 0) AS retrieval_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'agent'), 0) AS llm_usd,\n  coalesce(sum(usd), 0) AS total_usd,\n  coalesce(sum(input_tokens), 0) AS input_tokens, coalesce(sum(cached_tokens), 0) AS cached_tokens,\n  coalesce(sum(output_tokens), 0) AS output_tokens\n  FROM c),\nx AS (SELECT s.*, r.seconds AS agent_s, r.retrieval_seconds AS retrieval_s,\n             greatest(r.retrieval_seconds - s.embed_s - s.rerank_s, 0) AS search_s,\n             greatest(r.loop_seconds - s.llm_s, 0) AS tools_s, s.gate_s + r.seconds AS total_s\n      FROM s, r) SELECT output_tokens AS value FROM x"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#FF9830"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "id": 214,
+      "gridPos": {
+        "x": 21,
+        "y": 8,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Waterfall: every step of the run, on one time axis",
+      "description": "Each bar starts when the step started and is as long as it took. Gaps between LLM turns are tool calls (named) and our own code.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH c AS (\n  SELECT seq, purpose, model, seconds,\n         extract(epoch FROM started_at - min(started_at) OVER ())::numeric AS off,\n         row_number() OVER (PARTITION BY purpose ORDER BY seq) AS k\n  FROM llm_calls WHERE agent_run_id::text = '${run}'),\ng AS (SELECT c.*, lead(off) OVER (ORDER BY seq) AS next_off, lead(purpose) OVER (ORDER BY seq) AS next_purpose FROM c),\ntools AS (SELECT (t->>'turn')::int AS turn, string_agg(t->>'name', ', ') AS names, count(*) AS n\n          FROM agent_runs r, json_array_elements(r.tool_calls) AS t WHERE r.id::text = '${run}' GROUP BY 1),\nsteps AS (\n  SELECT seq * 2 AS ord, off, seconds::numeric AS dur,\n         CASE purpose WHEN 'scope' THEN 'gate' WHEN 'agent' THEN 'llm' ELSE 'retrieval' END AS stage,\n         CASE purpose WHEN 'scope' THEN 'Scope gate (' || model || ')'\n                      WHEN 'embedding' THEN 'Retrieval: embed the email'\n                      WHEN 'rerank' THEN 'Retrieval: rerank SOPs (' || model || ')'\n                      WHEN 'agent' THEN 'Main agent: LLM turn ' || k ELSE purpose END AS step\n  FROM g\n  UNION ALL\n  SELECT g.seq * 2 + 1, g.off + g.seconds::numeric, g.next_off - (g.off + g.seconds::numeric),\n         CASE WHEN g.purpose = 'agent' THEN 'tools' ELSE 'retrieval' END,\n         CASE WHEN g.purpose = 'agent' THEN 'Tools: ' || coalesce(t.names, 'our code')\n              WHEN g.purpose = 'embedding' THEN 'Retrieval: BM25 + dense search' ELSE 'our code' END\n  FROM g LEFT JOIN tools t ON t.turn = g.k AND g.purpose = 'agent'\n  WHERE g.next_off IS NOT NULL AND (g.purpose = 'agent' OR g.next_off - (g.off + g.seconds::numeric) > 0.05))\nSELECT row_number() OVER (ORDER BY ord) || '. ' || step AS step, round(off, 2) AS \"starts at\",\n       round(CASE WHEN stage = 'gate' THEN dur END, 2) AS \"scope gate\",\n       round(CASE WHEN stage = 'retrieval' THEN dur END, 2) AS retrieval,\n       round(CASE WHEN stage = 'llm' THEN dur END, 2) AS \"main agent LLM\",\n       round(CASE WHEN stage = 'tools' THEN dur END, 2) AS tools\nFROM steps ORDER BY ord"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "stacking": "normal",
+        "xField": "step",
+        "showValue": "never",
+        "barWidth": 0.75,
+        "groupWidth": 0.7,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 85,
+            "lineWidth": 0
+          },
+          "decimals": 2
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "starts at"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "transparent"
+                }
+              },
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": true,
+                  "tooltip": false,
+                  "viz": false
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "scope gate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FADE2A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "retrieval"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "main agent LLM"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "tools"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8AB8FF"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 215,
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 16,
+        "h": 11
+      }
+    },
+    {
+      "type": "piechart",
+      "title": "Where the time went",
+      "description": "",
+      "id": 216,
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 12,
+        "w": 8,
+        "h": 11
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH r AS (SELECT * FROM agent_runs WHERE id::text = '${run}'),\nc AS (SELECT c.*, (greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6 AS usd FROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model\n      WHERE c.agent_run_id::text = '${run}'),\ns AS (SELECT\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'scope'), 0) AS gate_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'embedding'), 0) AS embed_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'rerank'), 0) AS rerank_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'agent'), 0) AS llm_s,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'scope'), 0) AS gate_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose IN ('embedding', 'rerank')), 0) AS retrieval_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'agent'), 0) AS llm_usd,\n  coalesce(sum(usd), 0) AS total_usd,\n  coalesce(sum(input_tokens), 0) AS input_tokens, coalesce(sum(cached_tokens), 0) AS cached_tokens,\n  coalesce(sum(output_tokens), 0) AS output_tokens\n  FROM c),\nx AS (SELECT s.*, r.seconds AS agent_s, r.retrieval_seconds AS retrieval_s,\n             greatest(r.retrieval_seconds - s.embed_s - s.rerank_s, 0) AS search_s,\n             greatest(r.loop_seconds - s.llm_s, 0) AS tools_s, s.gate_s + r.seconds AS total_s\n      FROM s, r)\nSELECT gate_s AS \"scope gate\", embed_s AS \"retrieval: embed\", search_s AS \"retrieval: search\",\n       rerank_s AS \"retrieval: rerank\", llm_s AS \"main agent LLM\", tools_s AS tools FROM x"
+        }
+      ],
+      "options": {
+        "pieType": "donut",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "single"
+        },
+        "displayLabels": []
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 2
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "scope gate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FADE2A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "retrieval: embed"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56A64B"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "retrieval: search"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#96D98D"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "retrieval: rerank"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#37872D"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "main agent LLM"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "tools"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8AB8FF"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "table",
+      "title": "Every LLM call: tokens, latency, cost",
+      "description": "Cached input tokens are part of input and are billed at about 10% of the price.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT c.seq AS \"#\", CASE c.purpose WHEN 'scope' THEN 'scope gate' WHEN 'agent' THEN 'main agent LLM'\n                                    ELSE 'retrieval: ' || c.purpose END AS stage, c.model,\n       round(extract(epoch FROM c.started_at - min(c.started_at) OVER ())::numeric, 2) AS \"starts at (s)\",\n       round(c.seconds::numeric, 2) AS \"seconds\", c.input_tokens AS input, c.cached_tokens AS cached,\n       c.input_tokens - c.cached_tokens AS uncached, c.output_tokens AS output,\n       round(((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6)::numeric, 6) AS \"cost $\"\nFROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model WHERE c.agent_run_id::text = '${run}' ORDER BY c.seq"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "stage"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "scope gate": {
+                        "color": "#FADE2A"
+                      },
+                      "main agent LLM": {
+                        "color": "#FF9830"
+                      },
+                      "retrieval: embedding": {
+                        "color": "#56A64B"
+                      },
+                      "retrieval: rerank": {
+                        "color": "#73BF69"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "seconds"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "input"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cached"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8AB8FF"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "uncached"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#3274D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "output"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cost $"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2495C"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 217,
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 8
+      }
+    },
+    {
+      "type": "piechart",
+      "title": "Where the money went",
+      "description": "",
+      "id": 218,
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH r AS (SELECT * FROM agent_runs WHERE id::text = '${run}'),\nc AS (SELECT c.*, (greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6 AS usd FROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model\n      WHERE c.agent_run_id::text = '${run}'),\ns AS (SELECT\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'scope'), 0) AS gate_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'embedding'), 0) AS embed_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'rerank'), 0) AS rerank_s,\n  coalesce(sum(seconds) FILTER (WHERE purpose = 'agent'), 0) AS llm_s,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'scope'), 0) AS gate_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose IN ('embedding', 'rerank')), 0) AS retrieval_usd,\n  coalesce(sum(usd) FILTER (WHERE purpose = 'agent'), 0) AS llm_usd,\n  coalesce(sum(usd), 0) AS total_usd,\n  coalesce(sum(input_tokens), 0) AS input_tokens, coalesce(sum(cached_tokens), 0) AS cached_tokens,\n  coalesce(sum(output_tokens), 0) AS output_tokens\n  FROM c),\nx AS (SELECT s.*, r.seconds AS agent_s, r.retrieval_seconds AS retrieval_s,\n             greatest(r.retrieval_seconds - s.embed_s - s.rerank_s, 0) AS search_s,\n             greatest(r.loop_seconds - s.llm_s, 0) AS tools_s, s.gate_s + r.seconds AS total_s\n      FROM s, r)\nSELECT gate_usd AS \"scope gate\", retrieval_usd AS retrieval, llm_usd AS \"main agent LLM\" FROM x"
+        }
+      ],
+      "options": {
+        "pieType": "donut",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "single"
+        },
+        "displayLabels": []
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "scope gate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FADE2A"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "retrieval"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "main agent LLM"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "table",
+      "title": "Tools the main agent called",
+      "description": "Only the tools listed on the retrieved SOP sections are offered. 'after turn' is empty for runs saved before it was recorded.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT (t.call->>'turn') AS \"after turn\", t.call->>'name' AS tool,\n       CASE WHEN (t.call->>'ok')::boolean THEN 'ok' ELSE 'error' END AS result,\n       t.call->'arguments' AS arguments, left((t.call->'output')::text, 140) AS \"output (start)\"\nFROM agent_runs r, json_array_elements(r.tool_calls) WITH ORDINALITY AS t(call, n)\nWHERE r.id::text = '${run}' ORDER BY t.n"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "result"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "ok": {
+                        "color": "green"
+                      },
+                      "error": {
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "after turn"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "tool"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 190
+              }
+            ]
+          }
+        ]
+      },
+      "id": 219,
+      "gridPos": {
+        "x": 8,
+        "y": 31,
+        "w": 16,
+        "h": 9
+      }
+    },
+    {
+      "type": "table",
+      "title": "SOPs: retrieved vs followed",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH r AS (SELECT sops_retrieved, sops_followed FROM agent_runs WHERE id::text = '${run}'),\nretrieved AS (SELECT s->>'sop_id' AS sop, (s->>'grade')::int AS grade FROM r, json_array_elements(r.sops_retrieved) s)\nSELECT sop, grade AS \"reranker grade (0-3)\",\n       CASE WHEN sop IN (SELECT json_array_elements_text(sops_followed) FROM r) THEN 'followed' ELSE 'not used' END AS used\nFROM retrieved ORDER BY grade DESC"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "used"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "followed": {
+                        "color": "green"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "reranker grade (0-3)"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              },
+              {
+                "id": "max",
+                "value": 3
+              },
+              {
+                "id": "min",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "id": 220,
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 8,
+        "h": 9
+      }
+    },
+    {
+      "type": "table",
+      "title": "Reply, escalation, gate reason and review",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT kv.field, kv.value FROM agent_runs r LEFT JOIN reply_reviews rv ON rv.agent_run_id = r.id\nCROSS JOIN LATERAL (VALUES\n  (1, 'gate reason', coalesce(r.scope_reason, '-')),\n  (2, 'reply', coalesce(r.reply, '(no reply)')),\n  (3, 'escalation note', coalesce(r.escalation_note, '-')),\n  (4, 'summary after this run', r.summary),\n  (5, 'review', coalesce(rv.status, '-') || coalesce(': ' || rv.notes, '')),\n  (6, 'prompt versions', r.prompt_version || ' · ' || r.model)) AS kv(n, field, value)\nWHERE r.id::text = '${run}' ORDER BY kv.n"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": true
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "field"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          }
+        ]
+      },
+      "id": 221,
+      "gridPos": {
+        "x": 8,
+        "y": 40,
+        "w": 16,
+        "h": 9
+      }
+    },
+    {
+      "type": "row",
+      "title": "Overall: all agent runs so far (Postgres, exact)",
+      "collapsed": false,
+      "panels": [],
+      "id": 1,
+      "gridPos": {
+        "x": 0,
+        "y": 49,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "text",
+      "title": "",
+      "options": {
+        "mode": "markdown",
+        "content": "Cost is an **estimate**: tokens × `model_prices` (from `ai_analyzer/model_prices.json`, OpenAI Standard-tier prices checked 2026-10-14; the `price_source` column shows where each price came from). When prices change, edit the JSON and restart C1 (or run `python -m ai_analyzer prices`): every cost on this page is recomputed. SOP-indexing embeddings at C1 start are not part of any run, so they are not counted here."
+      },
+      "id": 2,
+      "gridPos": {
+        "x": 0,
+        "y": 50,
+        "w": 24,
+        "h": 2
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Agent runs",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT count(*) AS runs FROM agent_runs"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "id": 3,
+      "gridPos": {
+        "x": 0,
+        "y": 52,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "LLM calls",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT count(*) AS calls FROM llm_calls"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "id": 4,
+      "gridPos": {
+        "x": 3,
+        "y": 52,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Tokens (in + out)",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT sum(input_tokens + output_tokens) AS tokens FROM llm_calls"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "id": 5,
+      "gridPos": {
+        "x": 6,
+        "y": 52,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Cached share of input",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT 100.0 * sum(cached_tokens) / nullif(sum(input_tokens), 0) AS cached FROM llm_calls"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "id": 6,
+      "gridPos": {
+        "x": 9,
+        "y": 52,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Approx cost",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT sum((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS cost FROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "decimals": 4
+        },
+        "overrides": []
+      },
+      "id": 7,
+      "gridPos": {
+        "x": 12,
+        "y": 52,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Approx cost per run",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT sum((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) / nullif(count(DISTINCT c.agent_run_id), 0) AS cost FROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "decimals": 4
+        },
+        "overrides": []
+      },
+      "id": 8,
+      "gridPos": {
+        "x": 15,
+        "y": 52,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Avg main-agent latency",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT avg(seconds) AS seconds FROM agent_runs WHERE (scope_decision IS NULL OR scope_decision IN ('in_scope', 'mixed'))"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "id": 9,
+      "gridPos": {
+        "x": 18,
+        "y": 52,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Reviewed runs that were wrong",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT 100.0 * count(*) FILTER (WHERE agent_was_wrong) / nullif(count(*) FILTER (WHERE status = 'REVIEWED'), 0) AS wrong FROM reply_reviews"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "none reviewed",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "id": 10,
+      "gridPos": {
+        "x": 21,
+        "y": 52,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "table",
+      "title": "Latency percentiles (main agent, orchestrator, each LLM purpose)",
+      "description": "Exact percentiles over every stored run and LLM call.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nSELECT 'main agent run' AS stage, count(*) AS n,\n       round(percentile_cont(0.5) WITHIN GROUP (ORDER BY seconds)::numeric, 2) AS p50_s,\n       round(percentile_cont(0.95) WITHIN GROUP (ORDER BY seconds)::numeric, 2) AS p95_s,\n       round(percentile_cont(0.99) WITHIN GROUP (ORDER BY seconds)::numeric, 2) AS p99_s,\n       round(avg(seconds)::numeric, 2) AS avg_s, round(max(seconds)::numeric, 2) AS max_s\nFROM agent_runs WHERE (scope_decision IS NULL OR scope_decision IN ('in_scope', 'mixed'))\nUNION ALL\nSELECT 'retrieval (per run)', count(*),\n       round(percentile_cont(0.5) WITHIN GROUP (ORDER BY retrieval_seconds)::numeric, 2),\n       round(percentile_cont(0.95) WITHIN GROUP (ORDER BY retrieval_seconds)::numeric, 2),\n       round(percentile_cont(0.99) WITHIN GROUP (ORDER BY retrieval_seconds)::numeric, 2),\n       round(avg(retrieval_seconds)::numeric, 2), round(max(retrieval_seconds)::numeric, 2)\nFROM agent_runs WHERE (scope_decision IS NULL OR scope_decision IN ('in_scope', 'mixed'))\nUNION ALL\nSELECT 'agent tool loop (per run)', count(*),\n       round(percentile_cont(0.5) WITHIN GROUP (ORDER BY loop_seconds)::numeric, 2),\n       round(percentile_cont(0.95) WITHIN GROUP (ORDER BY loop_seconds)::numeric, 2),\n       round(percentile_cont(0.99) WITHIN GROUP (ORDER BY loop_seconds)::numeric, 2),\n       round(avg(loop_seconds)::numeric, 2), round(max(loop_seconds)::numeric, 2)\nFROM agent_runs WHERE (scope_decision IS NULL OR scope_decision IN ('in_scope', 'mixed'))\nUNION ALL\nSELECT 'orchestrator total (gate + agent or template)', count(*),\n       round(percentile_cont(0.5) WITHIN GROUP (ORDER BY t)::numeric, 2),\n       round(percentile_cont(0.95) WITHIN GROUP (ORDER BY t)::numeric, 2),\n       round(percentile_cont(0.99) WITHIN GROUP (ORDER BY t)::numeric, 2),\n       round(avg(t)::numeric, 2), round(max(t)::numeric, 2)\nFROM (SELECT r.seconds + coalesce(sum(c.seconds) FILTER (WHERE c.purpose = 'scope'), 0) AS t\n      FROM agent_runs r LEFT JOIN llm_calls c ON c.agent_run_id = r.id\n      WHERE r.scope_decision IS NOT NULL GROUP BY r.id, r.seconds) AS routed\nUNION ALL\nSELECT * FROM (\n  SELECT 'LLM call: ' || purpose, count(*),\n         round(percentile_cont(0.5) WITHIN GROUP (ORDER BY seconds)::numeric, 2),\n         round(percentile_cont(0.95) WITHIN GROUP (ORDER BY seconds)::numeric, 2),\n         round(percentile_cont(0.99) WITHIN GROUP (ORDER BY seconds)::numeric, 2),\n         round(avg(seconds)::numeric, 2), round(max(seconds)::numeric, 2)\n  FROM llm_calls GROUP BY purpose ORDER BY purpose\n) AS per_purpose"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          }
+        },
+        "overrides": []
+      },
+      "id": 11,
+      "gridPos": {
+        "x": 0,
+        "y": 56,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "table",
+      "title": "Tokens and cost by purpose (all runs)",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nSELECT c.purpose, c.model, count(*) AS calls,\n       sum(c.input_tokens) AS input, sum(c.cached_tokens) AS cached,\n       sum(c.input_tokens - c.cached_tokens) AS uncached, sum(c.output_tokens) AS output,\n       round(100.0 * sum(c.cached_tokens) / nullif(sum(c.input_tokens), 0), 1) AS cached_pct,\n       round(sum((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6)::numeric, 5) AS cost_usd,\n       round((100.0 * sum((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) / nullif(sum(sum((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6)) OVER (), 0))::numeric, 1) AS cost_share_pct,\n       max(p.source) AS price_source\nFROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model\nGROUP BY c.purpose, c.model\nORDER BY cost_usd DESC"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          }
+        },
+        "overrides": []
+      },
+      "id": 12,
+      "gridPos": {
+        "x": 12,
+        "y": 56,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Approx cost per day",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nSELECT $__timeGroupAlias(c.created_at, '1d'), sum((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS \"cost (USD)\"\nFROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model WHERE $__timeFilter(c.created_at) GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 5,
+            "spanNulls": true,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "id": 13,
+      "gridPos": {
+        "x": 0,
+        "y": 64,
+        "w": 8,
+        "h": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Tokens per day",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nSELECT $__timeGroupAlias(created_at, '1d'),\n       sum(input_tokens - cached_tokens) AS \"uncached input\", sum(cached_tokens) AS cached,\n       sum(output_tokens) AS output\nFROM llm_calls WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 5,
+            "spanNulls": true,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "id": 14,
+      "gridPos": {
+        "x": 8,
+        "y": 64,
+        "w": 8,
+        "h": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Agent runs per day, by outcome",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nSELECT $__timeGroupAlias(created_at, '1d'), outcome AS metric, count(*) AS value\nFROM agent_runs WHERE $__timeFilter(created_at) GROUP BY 1, 2 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 5,
+            "spanNulls": true,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "id": 15,
+      "gridPos": {
+        "x": 16,
+        "y": 64,
+        "w": 8,
+        "h": 7
+      }
+    },
+    {
+      "type": "table",
+      "title": "Was the agent right? (reviews)",
+      "description": "Filled in by a human reviewer (reply_reviews). Until runs are reviewed they show NOT REVIEWED YET.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nSELECT CASE WHEN rv.status = 'REVIEWED' AND rv.agent_was_wrong THEN 'WRONG' WHEN rv.status = 'REVIEWED' THEN 'RIGHT' WHEN rv.status = 'SKIPPED' THEN 'SKIPPED (not sent)' ELSE 'NOT REVIEWED YET' END AS verdict, count(*) AS runs\nFROM reply_reviews rv GROUP BY 1 ORDER BY 2 DESC"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "verdict"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "RIGHT": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "WRONG": {
+                        "color": "red",
+                        "index": 1
+                      },
+                      "NOT REVIEWED YET": {
+                        "color": "orange",
+                        "index": 2
+                      },
+                      "SKIPPED (not sent)": {
+                        "color": "text",
+                        "index": 3
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "id": 16,
+      "gridPos": {
+        "x": 0,
+        "y": 71,
+        "w": 8,
+        "h": 6
+      }
+    },
+    {
+      "type": "table",
+      "title": "Outcomes and escalations",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nSELECT outcome, count(*) AS runs, count(*) FILTER (WHERE escalate) AS escalated,\n       count(*) FILTER (WHERE reply_kind = 'closing') AS closing_replies\nFROM agent_runs GROUP BY outcome ORDER BY runs DESC"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          }
+        },
+        "overrides": []
+      },
+      "id": 17,
+      "gridPos": {
+        "x": 8,
+        "y": 71,
+        "w": 8,
+        "h": 6
+      }
+    },
+    {
+      "type": "table",
+      "title": "Tool usage (all runs)",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nSELECT t.call->>'name' AS tool, count(*) AS calls,\n       count(*) FILTER (WHERE (t.call->>'ok')::boolean IS NOT TRUE) AS errors,\n       count(DISTINCT r.id) AS runs\nFROM agent_runs r, json_array_elements(r.tool_calls) AS t(call)\nGROUP BY 1 ORDER BY calls DESC"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          }
+        },
+        "overrides": []
+      },
+      "id": 18,
+      "gridPos": {
+        "x": 16,
+        "y": 71,
+        "w": 8,
+        "h": 6
+      }
+    },
+    {
+      "type": "row",
+      "title": "Orchestrator: scope gate, then main agent or template",
+      "id": 50,
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 77,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "type": "text",
+      "title": "",
+      "id": 51,
+      "gridPos": {
+        "x": 0,
+        "y": 78,
+        "w": 24,
+        "h": 2
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Every customer message goes through the **orchestrator** (`agent/orchestrator.py`): the **scope gate** (`llm_calls.purpose = scope`, a small model) decides, then **in_scope / mixed** go to the **main agent** (purposes agent, rerank, embedding) and **no_issue / out_of_scope** get a template (no agent run, no main-agent cost). Runs with no gate decision are older runs or messages with no verified customer (summary only)."
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Messages routed",
+      "description": "Agent runs where the scope gate decided.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT count(*) FROM agent_runs WHERE scope_decision IS NOT NULL"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "id": 52,
+      "gridPos": {
+        "x": 0,
+        "y": 80,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Sent to main agent",
+      "description": "Share of routed messages the gate sent to the main agent (in_scope or mixed).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT 100.0 * count(*) FILTER (WHERE scope_decision IN ('in_scope', 'mixed')) / nullif(count(*), 0) FROM agent_runs WHERE scope_decision IS NOT NULL"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "id": 53,
+      "gridPos": {
+        "x": 3,
+        "y": 80,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Handled by template",
+      "description": "Share of routed messages answered by a template (or not answered): the main agent didn't run.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT 100.0 * count(*) FILTER (WHERE scope_decision IN ('no_issue', 'out_of_scope')) / nullif(count(*), 0) FROM agent_runs WHERE scope_decision IS NOT NULL"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "id": 54,
+      "gridPos": {
+        "x": 6,
+        "y": 80,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Gate latency p50",
+      "description": "The gate's LLM call. It runs before the main agent, so it adds this much to every in-scope reply.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY seconds) FROM llm_calls WHERE purpose = 'scope'"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "id": 55,
+      "gridPos": {
+        "x": 9,
+        "y": 80,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Gate latency p95",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY seconds) FROM llm_calls WHERE purpose = 'scope'"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "id": 56,
+      "gridPos": {
+        "x": 12,
+        "y": 80,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Gate cost per message",
+      "description": "Approx: tokens x model_prices.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT sum((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) / nullif(count(DISTINCT c.agent_run_id), 0) FROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model WHERE c.purpose = 'scope'"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "decimals": 5
+        },
+        "overrides": []
+      },
+      "id": 57,
+      "gridPos": {
+        "x": 15,
+        "y": 80,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Approx net saved by the gate",
+      "description": "Agent runs avoided (template runs x the average main-agent run cost) minus what the gate cost on every message. Negative means the gate costs more than it saves so far.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nWITH run_cost AS (\n  SELECT c.agent_run_id, sum((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) FILTER (WHERE c.purpose <> 'scope') AS agent_usd,\n         sum((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) FILTER (WHERE c.purpose = 'scope') AS gate_usd\n  FROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model GROUP BY 1),\navg_agent_run AS (\n  SELECT avg(rc.agent_usd) AS usd FROM agent_runs r JOIN run_cost rc ON rc.agent_run_id = r.id\n  WHERE r.in_reply_to_id IS NOT NULL AND (r.scope_decision IS NULL OR r.scope_decision IN ('in_scope', 'mixed')) AND rc.agent_usd > 0)\nSELECT count(*) FILTER (WHERE r.scope_decision IN ('no_issue', 'out_of_scope')) * (SELECT usd FROM avg_agent_run)\n       - coalesce(sum(rc.gate_usd), 0)\nFROM agent_runs r LEFT JOIN run_cost rc ON rc.agent_run_id = r.id WHERE r.scope_decision IS NOT NULL"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "decimals": 4
+        },
+        "overrides": []
+      },
+      "id": 58,
+      "gridPos": {
+        "x": 18,
+        "y": 80,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Gate failures (fail open)",
+      "description": "The gate errored, so the message went to the main agent (fail open). Should be 0.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT count(*) FROM agent_runs WHERE scope_reason LIKE 'scope check failed%'"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "-",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "id": 59,
+      "gridPos": {
+        "x": 21,
+        "y": 80,
+        "w": 3,
+        "h": 4
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Routing per day, by gate decision",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nSELECT $__timeGroupAlias(created_at, '1d'), scope_decision AS metric, count(*) AS value\nFROM agent_runs WHERE $__timeFilter(created_at) AND scope_decision IS NOT NULL GROUP BY 1, 2 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 5,
+            "spanNulls": true,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "id": 60,
+      "gridPos": {
+        "x": 0,
+        "y": 84,
+        "w": 8,
+        "h": 8
+      }
+    },
+    {
+      "type": "table",
+      "title": "Per route: what happened next",
+      "description": "avg_total_s = gate + main agent (0 for templates).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nWITH calls AS (\n  SELECT c.agent_run_id, sum(c.seconds) FILTER (WHERE c.purpose = 'scope') AS gate_s, sum((greatest(c.input_tokens - c.cached_tokens, 0) * coalesce(p.input_per_1m, 0) + c.cached_tokens * coalesce(p.cached_input_per_1m, 0) + c.output_tokens * coalesce(p.output_per_1m, 0)) / 1e6) AS usd\n  FROM llm_calls c LEFT JOIN model_prices p ON p.model = c.model GROUP BY 1)\nSELECT r.scope_decision AS gate_decision,\n       CASE WHEN r.scope_decision IN ('in_scope', 'mixed') THEN 'main agent' ELSE 'template' END AS route,\n       count(*) AS runs, count(*) FILTER (WHERE r.reply IS NOT NULL) AS replied,\n       count(*) FILTER (WHERE r.reply IS NULL) AS silent, count(*) FILTER (WHERE r.escalate) AS escalated,\n       round(avg(coalesce(calls.gate_s, 0) + r.seconds)::numeric, 2) AS avg_total_s,\n       round(avg(calls.usd)::numeric, 5) AS avg_cost_usd\nFROM agent_runs r LEFT JOIN calls ON calls.agent_run_id = r.id\nWHERE r.scope_decision IS NOT NULL GROUP BY 1, 2 ORDER BY runs DESC"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          }
+        },
+        "overrides": []
+      },
+      "id": 61,
+      "gridPos": {
+        "x": 8,
+        "y": 84,
+        "w": 8,
+        "h": 8
+      }
+    },
+    {
+      "type": "table",
+      "title": "Latest gate decisions",
+      "description": "Read the reasons to spot a gate that is too strict.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "ai_analyzer_pg"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ai_analyzer_pg"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "\nSELECT id AS run, to_char(created_at, 'MM-DD HH24:MI') AS \"time\", scope_decision AS decision, reply_kind,\n       scope_reason AS reason\nFROM agent_runs WHERE scope_decision IS NOT NULL ORDER BY id DESC LIMIT 20"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            }
+          }
+        },
+        "overrides": []
+      },
+      "id": 62,
+      "gridPos": {
+        "x": 16,
+        "y": 84,
+        "w": 8,
+        "h": 8
+      }
+    },
+    {
+      "type": "row",
+      "title": "Live from C1 since its last start (Prometheus): bucket-estimated percentiles, rates",
+      "collapsed": true,
+      "panels": [
+        {
+          "type": "bargauge",
+          "title": "LLM call latency by purpose (p50/p95/p99)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "histogram_quantile(0.5, sum by (le, purpose) (increase(ai_llm_call_seconds_bucket[$__range])))",
+              "legendFormat": "{{purpose}} p50",
+              "instant": true,
+              "range": false
+            },
+            {
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "histogram_quantile(0.95, sum by (le, purpose) (increase(ai_llm_call_seconds_bucket[$__range])))",
+              "legendFormat": "{{purpose}} p95",
+              "instant": true,
+              "range": false
+            },
+            {
+              "refId": "C",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "histogram_quantile(0.99, sum by (le, purpose) (increase(ai_llm_call_seconds_bucket[$__range])))",
+              "legendFormat": "{{purpose}} p99",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "options": {
+            "orientation": "horizontal",
+            "displayMode": "basic",
+            "showUnfilled": true,
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 2,
+              "min": 0
+            },
+            "overrides": []
+          },
+          "id": 35,
+          "gridPos": {
+            "x": 0,
+            "y": 129,
+            "w": 12,
+            "h": 8
+          }
+        },
+        {
+          "type": "bargauge",
+          "title": "Retrieval latency (p50/p95/p99)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "histogram_quantile(0.5, sum by (le) (increase(ai_retrieval_seconds_bucket[$__range])))",
+              "legendFormat": "p50",
+              "instant": true,
+              "range": false
+            },
+            {
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "histogram_quantile(0.95, sum by (le) (increase(ai_retrieval_seconds_bucket[$__range])))",
+              "legendFormat": "p95",
+              "instant": true,
+              "range": false
+            },
+            {
+              "refId": "C",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "histogram_quantile(0.99, sum by (le) (increase(ai_retrieval_seconds_bucket[$__range])))",
+              "legendFormat": "p99",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "options": {
+            "orientation": "horizontal",
+            "displayMode": "basic",
+            "showUnfilled": true,
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 2,
+              "min": 0
+            },
+            "overrides": []
+          },
+          "id": 36,
+          "gridPos": {
+            "x": 12,
+            "y": 129,
+            "w": 6,
+            "h": 8
+          }
+        },
+        {
+          "type": "bargauge",
+          "title": "Whole agent run (p50/p95/p99)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "histogram_quantile(0.5, sum by (le) (increase(ai_agent_run_seconds_bucket[$__range])))",
+              "legendFormat": "p50",
+              "instant": true,
+              "range": false
+            },
+            {
+              "refId": "B",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "histogram_quantile(0.95, sum by (le) (increase(ai_agent_run_seconds_bucket[$__range])))",
+              "legendFormat": "p95",
+              "instant": true,
+              "range": false
+            },
+            {
+              "refId": "C",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "histogram_quantile(0.99, sum by (le) (increase(ai_agent_run_seconds_bucket[$__range])))",
+              "legendFormat": "p99",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "options": {
+            "orientation": "horizontal",
+            "displayMode": "basic",
+            "showUnfilled": true,
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 2,
+              "min": 0
+            },
+            "overrides": []
+          },
+          "id": 37,
+          "gridPos": {
+            "x": 18,
+            "y": 129,
+            "w": 6,
+            "h": 8
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "LLM call latency p95 by purpose (5m window)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "histogram_quantile(0.95, sum by (le, purpose) (rate(ai_llm_call_seconds_bucket[5m])))",
+              "legendFormat": "{{purpose}} p95",
+              "instant": false,
+              "range": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "custom": {
+                "showPoints": "always",
+                "spanNulls": true
+              }
+            },
+            "overrides": []
+          },
+          "id": 38,
+          "gridPos": {
+            "x": 0,
+            "y": 137,
+            "w": 12,
+            "h": 8
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Tokens per minute by kind",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "sum by (kind) (rate(ai_llm_tokens_total[5m])) * 60",
+              "legendFormat": "{{kind}}",
+              "instant": false,
+              "range": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "custom": {
+                "showPoints": "always",
+                "spanNulls": true
+              }
+            },
+            "overrides": []
+          },
+          "id": 39,
+          "gridPos": {
+            "x": 12,
+            "y": 137,
+            "w": 12,
+            "h": 8
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Scope gate decisions per minute",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "expr": "sum by (decision) (rate(ai_scope_decisions_total[5m])) * 60",
+              "legendFormat": "{{decision}}",
+              "instant": false,
+              "range": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "custom": {
+                "showPoints": "always",
+                "spanNulls": true
+              }
+            },
+            "overrides": []
+          },
+          "id": 63,
+          "gridPos": {
+            "x": 0,
+            "y": 145,
+            "w": 12,
+            "h": 8
+          }
+        }
+      ],
+      "id": 40,
+      "gridPos": {
+        "x": 0,
+        "y": 128,
+        "w": 24,
+        "h": 1
+      }
+    }
+  ]
+}

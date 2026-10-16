@@ -1,0 +1,27 @@
+# Loaded by Grafana at start. Hosts and credentials come from the environment, so the same file works locally
+# (scripts/monitoring.sh: localhost) and in docker compose (prometheus, postgres).
+apiVersion: 1
+
+datasources:
+  # Aggregates: latency histograms (p50/p95/p99), token and tool counters.
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: $PROMETHEUS_URL
+    isDefault: true
+    jsonData:
+      timeInterval: 5s
+
+  # Per-run detail: ai_analyzer's own tables (agent_runs, llm_calls).
+  - name: ai_analyzer
+    type: grafana-postgresql-datasource
+    uid: ai_analyzer_pg
+    url: $PG_HOST
+    user: $PG_USER
+    jsonData:
+      database: ai_analyzer
+      sslmode: disable
+      postgresVersion: 1700
+    secureJsonData:
+      password: $PG_PASSWORD

@@ -1,0 +1,473 @@
+SOP_ID: TAX
+TITLE: Tax and Statements (TDS, P&L statements, Form 16A, GST invoices)
+CATEGORY: tax
+VERSION: 1.0
+LAST_REVIEWED: 2026-09-27
+OWNER: Support Operations
+NOTE: Fictional sample SOP for the Acme Invest demo. Policy values live in data_dictionary.txt.
+      Tax answers are INFORMATIONAL ONLY. Support never gives tax advice.
+
+======================================================================
+## TAX-00: Scope and quick triage
+======================================================================
+Covers TDS deducted on crypto sales, TDS certificates (Form 16A), TDS in Form 26AS / AIS,
+P&L / tax / trade statements, PAN shown on statements, GST invoices for fees, and general
+questions about how crypto is taxed.
+Not covered here: fee disputes (fees_charges_sop), trade issues (trade_sop), closed accounts
+(account_closure_sop CLS-05), PAN/KYC changes (kyc_sop).
+
+Quick triage (after identifying the user per support_guidelines_sop SUP-02):
+  - "What is this 1% TDS?"                       -> TAX-01
+  - "TDS deducted though I made a loss"          -> TAX-02
+  - "Need P&L / tax statement / trade history"   -> TAX-03
+  - "Form 16A / TDS certificate not available"   -> TAX-04
+  - "TDS not showing in 26AS / AIS"              -> TAX-05
+  - "Wrong PAN / name on statement"              -> TAX-06
+  - "30% tax, loss set-off, how to file"         -> TAX-07
+  - "Statements for my closed account"           -> TAX-08
+  - "GST invoice for fees"                       -> TAX-09
+  - "Can I get my TDS refunded by Acme?"         -> TAX-10
+
+Key rules:
+  - Policy values (DD-09): TDS is 1% of the sale value of crypto (Section 194S), deducted at the
+    time of sale. Trading fee is 0.2% of order value plus 18% GST on the fee.
+  - Never tell a customer how much tax they owe, which ITR form or schedule to use, or how to
+    plan/reduce tax. Always add: "Please consult a qualified tax advisor for advice on your situation."
+  - Never share a full PAN over email (support_guidelines_sop SUP-01); show only the last 4
+    characters, e.g. XXXXXX234F.
+  - Tax records are per financial year (FY, 1 April to 31 March), e.g. FY2025-26.
+  - Priority: statement and certificate issues are P3 (DD-09), unless a filing deadline is within
+    7 days (sample rule) -> P2.
+
+======================================================================
+## TAX-01: What is the 1% TDS and when is it deducted?
+======================================================================
+CUSTOMER MAY SAY:
+  - "Why did Acme deduct 1% TDS on my sale?"
+  - "What is this TDS line in my trade details?"
+  - "I sold BTC for Rs 50,000 but received less money"
+  - "TDS kya hai aur kyun kata?"
+  - "Is TDS deducted when I buy?"
+INFO NEEDED FROM CUSTOMER:
+  - The trade (coin, date) if they are asking about a specific one
+TOOLS: get_trades, get_ledger_entries, get_tax_records
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. For a specific sale:
+     Call get_trades(side="SELL"). Look at the 10 most recent.
+     Call get_ledger_entries(reference_type="TRADE", reference_id=<trade_id>).
+  3. Verify tds = 1% of sale value (price x quantity), rounded to 2 decimals.
+     Worked example (sample numbers):
+       Sell 0.01 BTC at Rs 50,00,000
+       Sale value                     = 0.01 x 50,00,000 = Rs 50,000.00
+       Trading fee (0.2%)             = Rs 100.00
+       GST on fee (18% of Rs 100)     = Rs 18.00
+       TDS (1% of sale value)         = Rs 500.00
+       Amount credited to INR wallet  = 50,000 - 100 - 18 - 500 = Rs 49,382.00
+     Ledger shows: TRADE_SELL +50,000.00, FEE -118.00 (or FEE -100 and a separate GST line,
+     depending on booking), TDS -500.00.
+     - Matches: resolve with the explanation.
+     - tds differs from 1% of sale value by more than Rs 1 (sample tolerance) -> escalate Trading Ops (P3).
+     - TDS on a BUY trade -> not expected under DD-09; escalate Trading Ops (P2).
+  4. Year-to-date TDS: Call get_tax_records(). Use tds_deducted_total.
+RESOLUTION:
+  Explain that TDS is a legal deduction on the sale value of crypto at the time of sale, deposited
+  with the government against the customer's PAN; it can be claimed as credit when filing their
+  income-tax return (general information).
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Happy to explain. Under Indian income-tax rules, 1% TDS (tax deducted at source) applies to the
+  sale value whenever crypto is sold. It is not a fee charged by Acme Invest; we deposit it with the
+  government against your PAN. For your sale on <date>:
+  - Sale value: Rs <x>
+  - Trading fee: Rs <fee> + GST Rs <gst>
+  - TDS (1%): Rs <tds>
+  - Credited to you: Rs <net>
+  The TDS appears in your tax credit statement and can generally be claimed when you file your return.
+  Please consult a qualified tax advisor for advice on your situation.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - TDS not equal to 1% of sale value, or TDS on a buy -> Trading Ops, P3/P2, include: trade_id, price, quantity, tds
+DO NOT:
+  - Do not say TDS is "refundable by Acme" or give filing advice.
+
+======================================================================
+## TAX-02: TDS deducted on a trade I made at a loss
+======================================================================
+CUSTOMER MAY SAY:
+  - "I sold at a loss, why is TDS still deducted?"
+  - "No profit, still TDS kaat liya"
+  - "TDS should be only on profit, please refund"
+  - "I lost money and you charged tax also"
+INFO NEEDED FROM CUSTOMER:
+  - The trade (coin, date)
+TOOLS: get_trades
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_trades(side="SELL", trade_id=<trade_id>) (the trade the customer
+     means). No trade_id from the customer: Call get_trades(side="SELL") and pick
+     the sell they describe (coin, amount, date).
+  3. Confirm tds = 1% of (price x quantity).
+     - Matches: TDS is calculated on the sale value, not on profit, and applies whether the trade made
+       a profit or a loss. Resolve.
+     - Does not match -> TAX-01 escalation.
+RESOLUTION:
+  TDS is on sale value regardless of profit. Acme cannot refund TDS; it has been deposited against
+  the customer's PAN and may be claimed in the return (general information, TAX-10).
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I understand this is frustrating after a loss. The 1% TDS is calculated on the total sale value
+  of crypto, not on profit, so it applies to every sale whether it made a profit or a loss. For your
+  sale on <date>, the sale value was Rs <x> and TDS of Rs <tds> was deducted and deposited against
+  your PAN. This amount is shown as tax already paid in your tax credit statement and can generally
+  be claimed when you file your income-tax return. Please consult a qualified tax advisor for advice
+  on your situation.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Calculation mismatch -> Trading Ops, P3
+DO NOT:
+  - Do not promise a refund of TDS. Do not advise on how to claim it beyond the general statement.
+
+======================================================================
+## TAX-03: Download P&L statement, tax statement or trade history
+======================================================================
+CUSTOMER MAY SAY:
+  - "How do I download my P&L statement for FY2025-26?"
+  - "Need tax report for ITR filing"
+  - "Send me all my trade history in Excel"
+  - "Statement download nahi ho raha"
+  - "P&L report shows blank"
+INFO NEEDED FROM CUSTOMER:
+  - Financial year / date range, which report
+TOOLS: get_tax_records, get_trades, get_notifications
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02). Verify sender email matches exactly before
+     sending any statement (SUP-01); statements are only sent to the registered email.
+  2. Call get_tax_records().
+  3. Branch:
+     - How-to: self-service path (sample): App > Profile > Reports & Statements > choose report
+       (P&L / Tax statement / Trade history) and financial year > Download or Email. Reports are
+       emailed to the registered email within 30 minutes (sample value). Resolve.
+     - pnl_statement_generated_at is NULL or older than the latest trade in that FY:
+       Call get_trades(from_time=<FY start>, to_time=<FY end>). The first
+       trade returned is the latest one (newest first).
+       -> No trades returned: no trades in that year, so the report is empty. Resolve with explanation.
+       -> trades exist: ask the customer to request the report again from the app; if it still fails
+          after 24 hours (sample value) -> escalate Tech On-call (P3).
+     - Customer requested by email but did not receive it:
+       Call get_notifications(channel="EMAIL"). Look at the 10 most recent.
+       -> SENT: ask them to check spam/promotions. FAILED: escalate Tech On-call (P3).
+     - App download error -> app_technical_sop.
+  4. Statement numbers look wrong (e.g. missing a trade): compare the report period with get_trades;
+     escalate Trading Ops (P3) with trade_ids if a trade is genuinely missing.
+RESOLUTION:
+  Guide self-service; resend or escalate if generation or email failed.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  You can download your statements anytime from the app: go to Profile > Reports & Statements,
+  choose the report (P&L, Tax statement or Trade history) and the financial year, then tap Download
+  or Email. Emailed reports reach your registered email address within about 30 minutes; please also
+  check your spam folder. <"I can see you have no trades in <FY>, so that report will be empty.">
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Report fails to generate or email fails after 24 hours (sample value) -> Tech On-call, P3, include: user_id, FY, notifications status
+  - Trades missing from the report -> Trading Ops, P3
+DO NOT:
+  - Do not send statements to any email other than the registered one.
+  - Do not interpret the statement as tax payable.
+
+======================================================================
+## TAX-04: Form 16A / TDS certificate not available
+======================================================================
+CUSTOMER MAY SAY:
+  - "Where is my Form 16A?"
+  - "TDS certificate not available in the app"
+  - "Need Form 16A for Q1, CA is asking"
+  - "Form 16A kab milega?"
+INFO NEEDED FROM CUSTOMER:
+  - Financial year and quarter
+TOOLS: get_tax_records, get_fee_summary
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_tax_records(financial_year=<fy>).
+  3. Explain the schedule (sample values): Form 16A is generated quarterly, within 15 days after the
+     quarter's TDS return filing due date:
+       Q1 (Apr-Jun)  return due 31 Jul -> Form 16A by 15 Aug
+       Q2 (Jul-Sep)  return due 31 Oct -> Form 16A by 15 Nov
+       Q3 (Oct-Dec)  return due 31 Jan -> Form 16A by 15 Feb
+       Q4 (Jan-Mar)  return due 31 May -> Form 16A by 15 Jun
+  4. Branch:
+     - No TDS in that quarter (no SELL trades):
+       Call get_fee_summary(from_time=<quarter start>, to_time=<quarter end>).
+       Use tds.
+       -> fills is 0, or tds is 0: no certificate is issued for that quarter. Resolve.
+     - form16a_status = NOT_AVAILABLE and today is before the quarter's availability date: tell the
+       customer the expected date. Resolve (wait).
+     - form16a_status = NOT_AVAILABLE and today is after the availability date + 7 days (sample
+       grace) -> escalate Risk & Compliance (P3).
+     - form16a_status = GENERATED: guide to App > Profile > Reports & Statements > Form 16A.
+       If download fails -> TAX-03 steps.
+RESOLUTION:
+  Give the expected date or the download path; escalate only if overdue.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Form 16A (TDS certificate) is issued every quarter after the TDS return for that quarter is filed.
+  For <quarter, FY>, it will be available by <date>. Once ready, you can download it from Profile >
+  Reports & Statements > Form 16A in the app, and we will also notify you.
+  <"There was no TDS deducted on your account in <quarter>, so no certificate is issued for it.">
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Past availability date + 7 days (sample value) and still NOT_AVAILABLE -> Risk & Compliance, P3 (P2 if filing deadline within 7 days), include: user_id, FY, quarter, TDS amount
+DO NOT:
+  - Do not create or send a "manual" certificate.
+
+======================================================================
+## TAX-05: TDS not reflecting in Form 26AS / AIS
+======================================================================
+CUSTOMER MAY SAY:
+  - "TDS deducted by Acme is not showing in my 26AS"
+  - "AIS shows less TDS than your statement"
+  - "Mismatch between your TDS and income tax portal"
+  - "26AS mein TDS nahi dikh raha, ITR file karna hai"
+INFO NEEDED FROM CUSTOMER:
+  - Financial year / quarter, the amount they see in 26AS/AIS (no need to send the full document)
+TOOLS: get_fee_summary, get_ledger_entries, get_tax_records, get_kyc_applications, get_user
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Our TDS for the period:
+     Call get_fee_summary(from_time=<period start>, to_time=<period end>).
+     Use tds.
+     Call get_ledger_entries(entry_type="TDS", from_time=<period start>,
+          to_time=<period end>). Add up amount.
+     Call get_tax_records(financial_year=<fy>). Use tds_deducted_total.
+     -> trades TDS vs ledger TDS vs tds_deducted_total disagree -> escalate Trading Ops (P2) first.
+  3. Timing: TDS appears in 26AS/AIS only after the quarterly TDS return is filed and processed,
+     typically 2-4 weeks after the return due date (sample value; due dates in TAX-04).
+     - Period's return not yet due/processed: tell the customer when to expect it. Resolve (wait).
+  4. PAN check (TDS is reported against the PAN on the customer's KYC):
+     Call get_kyc_applications(). Use the documents with doc_type PAN.
+     Call get_user(). Look at kyc_status.
+     -> Ask the customer to confirm the last 4 characters of their PAN; compare with KYC (do not
+        reveal the full PAN). Different PAN -> TAX-06.
+  5. Processed period, correct PAN, amounts still differ -> escalate Risk & Compliance (P3; P2 if the
+     filing deadline is within 7 days, sample rule) for a TDS return check/correction.
+RESOLUTION:
+  Explain timing; verify PAN; escalate genuine mismatches for correction of the TDS return.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for flagging this. Our records show TDS of Rs <x> deducted on your crypto sales in <period>.
+  TDS appears in Form 26AS / AIS only after the quarterly TDS return is filed and processed, which is
+  usually a few weeks after <due date>. <"For <quarter>, please check again after <date>." / "Since this
+  period should already be updated, I have asked our team to check the filing. You will hear from us
+  within 5 working days.">
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Internal records disagree -> Trading Ops, P2
+  - Processed period still missing or short in 26AS/AIS -> Risk & Compliance, P3 (P2 near a deadline), include: user_id, FY, quarter, our TDS total, amount customer sees, PAN last 4 match (yes/no)
+DO NOT:
+  - Do not ask the customer to email their full 26AS/AIS or full PAN.
+  - Do not tell the customer how to file around the mismatch.
+
+======================================================================
+## TAX-06: Wrong PAN or name on statements
+======================================================================
+CUSTOMER MAY SAY:
+  - "My statement shows a different PAN"
+  - "Name on tax statement is wrong"
+  - "I updated my PAN, but old PAN on Form 16A"
+  - "PAN galat hai statement mein, correct karo"
+INFO NEEDED FROM CUSTOMER:
+  - Last 4 characters of the correct PAN, which document shows the wrong value
+TOOLS: get_user, get_kyc_applications
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_user(). Look at kyc_status.
+     Call get_kyc_applications(). Use each application's status, reviewed_at
+     and its documents with doc_type PAN (name_on_doc, verification_status).
+  3. Branch:
+     - Name differs only in format (initials, order): statements use the name as per PAN records.
+       Resolve with explanation.
+     - Customer claims the PAN itself is wrong: PAN can only be changed through re-KYC (kyc_sop).
+       Do not change it on email request. Escalate KYC Ops (P3) to verify; if TDS was already filed
+       against a wrong PAN, also escalate Risk & Compliance (P3) for a TDS return correction.
+     - Recent KYC update (reviewed_at recent) but old PAN on a statement generated earlier: statements
+       generated after the update use the new details; ask the customer to regenerate (TAX-03).
+       Already-issued Form 16A reflects the PAN used in the filed TDS return -> Risk & Compliance (P3).
+RESOLUTION:
+  PAN corrections go through re-KYC and, where TDS was filed, a TDS return correction.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for letting us know. For your security, the PAN linked to your account can only be updated
+  through a fresh KYC verification in the app, not over email. I have asked our team to review your
+  records, and if any TDS was reported under incorrect details, it will be reviewed for correction.
+  We will update you within 5 working days.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - PAN dispute -> KYC Ops, P3, include: user_id, PAN last 4 (customer vs KYC)
+  - TDS filed against a wrong PAN -> Risk & Compliance, P3
+DO NOT:
+  - Do not display or ask for the full PAN over email. Do not change KYC data manually.
+
+======================================================================
+## TAX-07: 30% tax on crypto gains / loss set-off questions
+======================================================================
+CUSTOMER MAY SAY:
+  - "How much tax do I have to pay on my crypto profit?"
+  - "Can I set off my crypto loss against gains in other coins?"
+  - "Can I carry forward crypto loss?"
+  - "Kitna tax dena padega? Which ITR form should I use?"
+  - "Is the 30% tax on profit or on total amount?"
+INFO NEEDED FROM CUSTOMER:
+  - None (general information only)
+TOOLS: none
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02) only if they also ask about their own
+     records; general questions need no account lookup.
+  2. Give general, publicly known information only (as understood at the time of writing):
+     - Gains from transfer of virtual digital assets (VDA, including crypto) are taxed at a flat 30%
+       plus applicable surcharge and cess.
+     - Only the cost of acquisition is deductible; other expenses are not.
+     - Losses from VDA cannot be set off against other income or against gains from other VDAs,
+       and cannot be carried forward.
+     - 1% TDS on sale value is separate from this income tax and can generally be claimed as credit.
+  3. Anything beyond that (their tax amount, ITR form, schedule, planning, whether a specific
+     transaction is taxable) -> "please consult a qualified tax advisor". Resolve.
+  4. Point to TAX-03 for statements that help with filing.
+RESOLUTION:
+  General information + statements + advisor referral. No personalised advice.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for your question. We cannot give tax advice, but here is general information that may help:
+  - Gains from crypto (virtual digital assets) are generally taxed at 30% plus surcharge and cess.
+  - Only the purchase cost can be deducted from the sale value.
+  - Losses on crypto generally cannot be set off against other income or other crypto gains, or
+    carried forward.
+  - The 1% TDS deducted on your sales is separate and can generally be claimed as tax already paid.
+  You can download your P&L and tax statements from Profile > Reports & Statements in the app to share
+  with your advisor. Please consult a qualified tax advisor for advice on your situation.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Not normally escalated. Legal/regulatory threats -> complaints_escalation_sop CMP-04.
+DO NOT:
+  - Do not calculate the customer's tax liability, recommend an ITR form, or suggest tax-saving strategies.
+  - Do not say rules are final or unchanged; say "generally" and refer to an advisor.
+
+======================================================================
+## TAX-08: Statements for a closed account
+======================================================================
+CUSTOMER MAY SAY:
+  - "I closed my Acme account, need P&L for ITR"
+  - "Account closed last year, please send Form 16A"
+  - "Old account ka tax statement chahiye"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone of the closed account, financial year(s)
+TOOLS: get_closure_requests, get_tax_records
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02). The user's status = CLOSED ->
+     follow account_closure_sop CLS-05 for identity verification and how records are shared.
+  2. Call get_closure_requests().
+     Call get_tax_records().
+  3. Branch:
+     - Verified per CLS-05 and records exist: request the statements for the registered email only
+       -> escalate Support Operations queue (P3) to generate and send (the customer cannot log in).
+     - Form 16A for a quarter after closure not yet due -> TAX-04 schedule applies.
+     - Identity not verified -> ask for verification per support_guidelines_sop SUP-01.
+RESOLUTION:
+  Records are retained after closure (sample: 8 years); statements are sent only to the registered email.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  We can help with statements for your closed account. After verifying your details, we will send the
+  <P&L / tax statement / Form 16A> for <FY> to your registered email address within 5 working days.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Verified request -> Support Operations, P3, include: user_id, FY list, documents requested
+DO NOT:
+  - Do not send statements to a new/unregistered email. Do not reopen the account for this.
+
+======================================================================
+## TAX-09: GST invoice for trading fees
+======================================================================
+CUSTOMER MAY SAY:
+  - "Need GST invoice for the fees charged"
+  - "Why is GST charged on my trade?"
+  - "Please add my company GSTIN to invoices"
+  - "GST bill chahiye for business accounting"
+INFO NEEDED FROM CUSTOMER:
+  - Period (month/FY); GSTIN if they want it on invoices
+TOOLS: get_fee_summary
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Explain GST: 18% GST applies on the trading fee (0.2% of order value), not on the trade value
+     (DD-09). Example: order value Rs 10,000 -> fee Rs 20 -> GST Rs 3.60.
+  3. Totals for the period:
+     Call get_fee_summary(from_time=<period start>, to_time=<period end>).
+     Use fills (number of trades), trading_fee and gst.
+  4. Branch:
+     - Invoice request: monthly GST invoices are available (sample) in App > Profile > Reports &
+       Statements > GST invoices. Resolve.
+     - GSTIN request: individual accounts are invoiced to the account holder's name; adding a GSTIN
+       is available only if the product supports it (sample: via Profile > Tax details). Otherwise
+       escalate Support Operations (P4) as a feature request.
+     - GST charged on something other than fees, or GST not equal to 18% of fee -> fees_charges_sop /
+       escalate Trading Ops (P3).
+RESOLUTION:
+  Explain GST on fees, give the download path or escalate.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  GST of 18% is charged only on the trading fee, not on the value of your trade. For example, on a
+  Rs 10,000 order the fee is Rs 20 and GST is Rs 3.60. For <period>, you paid Rs <fee> in fees and
+  Rs <gst> in GST across <n> trades. You can download monthly GST invoices from Profile > Reports &
+  Statements > GST invoices in the app.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - GST not 18% of fee -> Trading Ops, P3, include: trade_ids
+  - Invoice unavailable in app for a past month -> Tech On-call, P3
+DO NOT:
+  - Do not advise whether GST can be claimed as input credit.
+
+======================================================================
+## TAX-10: Request to refund TDS or not deduct TDS
+======================================================================
+CUSTOMER MAY SAY:
+  - "Please refund my TDS"
+  - "Don't deduct TDS on my sales, I am not taxable"
+  - "I have a lower deduction certificate, stop TDS"
+  - "TDS wapas kab milega?"
+INFO NEEDED FROM CUSTOMER:
+  - What they are asking for; any certificate they mention (do not ask them to email tax documents)
+TOOLS: get_tax_records
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_tax_records().
+  3. Branch:
+     - Refund request: TDS already deducted is deposited with the government against the PAN; Acme
+       cannot refund it. Any excess tax paid is generally settled through the income-tax return
+       process. Resolve (general information + advisor).
+     - Request to not deduct: TDS is mandatory on every crypto sale per DD-09. Resolve.
+     - Customer mentions a government-issued lower/nil deduction certificate -> escalate Risk &
+       Compliance (P3); do not promise it will be applied.
+     - TDS was deducted twice or on a buy -> TAX-01 escalation.
+RESOLUTION:
+  Explain TDS cannot be refunded or skipped by Acme; route certificates to Compliance.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I understand. TDS on crypto sales is required by law, and the amount deducted from your sales
+  (Rs <x> in <FY>) has already been deposited with the government against your PAN, so Acme Invest
+  cannot refund it or stop deducting it. It is shown as tax already paid, and any excess is generally
+  adjusted when you file your income-tax return. Please consult a qualified tax advisor for advice on
+  your situation.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Lower/nil deduction certificate mentioned -> Risk & Compliance, P3, include: user_id, FY
+DO NOT:
+  - Do not promise a refund or an exemption.

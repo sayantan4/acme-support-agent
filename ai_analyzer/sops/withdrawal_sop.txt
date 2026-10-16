@@ -1,0 +1,595 @@
+SOP_ID: WDR
+TITLE: INR Withdrawals to Bank
+CATEGORY: withdrawals
+VERSION: 1.0
+LAST_REVIEWED: 2026-09-27
+OWNER: Payments Ops
+NOTE: Fictional sample SOP for the Acme Invest demo. Policy values live in data_dictionary.txt
+      (DD-09). Values marked "(sample value)" are not in the data dictionary yet.
+
+======================================================================
+## WDR-00: Scope and quick triage
+======================================================================
+SCOPE:
+  INR withdrawals from the Acme Invest wallet to the customer's own verified bank account:
+  pending, processing, failed, approval, holds, cooldowns, eligibility, locked balance,
+  cancellation, limits and fees.
+  NOT in scope:
+    - Crypto withdrawals (withdrawals.asset <> 'INR') -> crypto_transfers_sop
+    - Adding or verifying a bank account -> bank_account_sop
+    - Fee disputes in detail -> fees_charges_sop FEE-03
+    - Frozen accounts -> fraud_risk_sop RSK-01; account closure payouts -> account_closure_sop
+
+TOOLS: get_withdrawals
+QUICK TRIAGE (find the user first, see support_guidelines_sop SUP-02, then):
+  Call get_withdrawals(asset="INR", days=30).
+
+  withdrawals.status   Meaning                                         Go to
+  REQUESTED            accepted, waiting to be sent to the bank          WDR-01
+  PENDING_APPROVAL     large amount, manual review (up to 48 hours)      WDR-04
+  PROCESSING           sent to the bank; payout_utr may exist            WDR-01 / WDR-02
+  SUCCESS              bank confirmed the payout                         WDR-02 (not received)
+  FAILED               payout did not complete; money returns to wallet  WDR-03
+  CANCELLED            cancelled by the customer or the system           WDR-11
+  ON_HOLD              held for review                                   WDR-05
+  No row               customer could not place the withdrawal           WDR-06 / WDR-07 / WDR-08
+
+LEDGER FLOW FOR INR WITHDRAWALS (sample flow, use to explain balances):
+  - On request: amount + fee move from wallet_balances.available to locked. No ledger entry yet.
+  - When sent to the bank (PROCESSING): ledger WITHDRAWAL debit (amount) and FEE debit (Rs 10),
+    reference_type = 'WITHDRAWAL', reference_id = withdrawal_id; locked is released.
+  - If the payout later fails: ledger REVERSAL credit of amount + fee, same reference.
+  - If it fails or is cancelled before PROCESSING: the locked amount goes back to available,
+    no ledger entries.
+
+POLICY (DD-09): minimum Rs 100; fee Rs 10 per withdrawal; only to a VERIFIED bank account in
+the user's own name; normal SLA within 24 hours; above Rs 5,00,000 -> PENDING_APPROVAL, up to
+48 hours; 24-hour cooldown after password reset, phone change, email change or 2FA reset.
+
+======================================================================
+## WDR-01: Withdrawal pending beyond 24 hours
+======================================================================
+CUSTOMER MAY SAY:
+  - "I withdrew Rs 25,000 yesterday, still not in my bank"
+  - "Withdrawal pending since 2 days, please help"
+  - "Paisa withdraw kiya tha, abhi tak bank me nahi aaya"
+  - "Withdrawal stuck on processing"
+  - "When will my withdrawal come? It says requested"
+INFO NEEDED FROM CUSTOMER:
+  - Amount and date of the withdrawal (withdrawal ID if they have it)
+TOOLS: get_risk_holds, check_withdrawal
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Find the withdrawal (quick triage query in WDR-00).
+  3. Check age (now() - created_at) and status:
+     - Less than 24 hours old, REQUESTED or PROCESSING: within SLA. Tell the customer the
+       expected time (created_at + 24 hours, in IST). Wait.
+     - PROCESSING with payout_utr present: the bank has the payout -> WDR-02.
+     - PENDING_APPROVAL -> WDR-04. ON_HOLD -> WDR-05. FAILED -> WDR-03.
+     - SUCCESS -> WDR-02.
+     - REQUESTED or PROCESSING, no payout_utr, older than 24 hours: SLA breached, check
+       step 4 then escalate.
+  4. Rule out a hold that did not update the status:
+     Call get_risk_holds().
+     - Active WITHDRAWAL_HOLD or ACCOUNT_FREEZE: treat as WDR-05 (do not disclose).
+     - None: escalate to Payments Ops, P2 (SLA breached, money delayed). Raise to P1 if
+       older than 72 hours (sample value) or if the ledger shows a WITHDRAWAL debit but the
+       status is not moving:
+       Call check_withdrawal(withdrawal_id=<withdrawal_id>). Use its ledger_entries.
+  5. Withdrawals placed on a weekend or bank holiday may be credited on the next banking day
+     by some banks; this does not extend the 24-hour SLA for sending it from Acme.
+RESOLUTION:
+  Within SLA: give the expected time. Beyond SLA: apologise, escalate, give the P2 timeline.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Sorry that your withdrawal of Rs <amount> requested on <date> has not reached you yet.
+  <It is being processed and should reach your bank account ending <last 4> by <date, time IST>. /
+  It is taking longer than our usual 24 hours, so I have passed it to our payments team to
+  push it through with priority. We will update you within 4 hours.>
+  Your money is safe; if the transfer cannot be completed, the full amount will come back to
+  your Acme wallet.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - REQUESTED/PROCESSING older than 24 hours without payout_utr -> Payments Ops, P2 (P1 after
+    72 hours), include: user_id, withdrawal_id, amount, status, created_at, bank_account_id,
+    ledger query result.
+DO NOT:
+  - Do not ask the customer to place a second withdrawal for the same money.
+  - Do not cancel a PROCESSING withdrawal to "retry" it.
+
+======================================================================
+## WDR-02: Withdrawal PROCESSING/SUCCESS but not received in bank
+======================================================================
+CUSTOMER MAY SAY:
+  - "App shows withdrawal successful but money not in my HDFC account"
+  - "Withdrawal completed but bank says nothing received"
+  - "Status success hai but account me credit nahi hua"
+  - "Please give me the UTR for my withdrawal"
+INFO NEEDED FROM CUSTOMER:
+  - Amount and date; bank statement screenshot if the bank says not received after 2 working days
+TOOLS: check_withdrawal
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call check_withdrawal(withdrawal_id=<withdrawal_id>). Check that withdrawal.user_id is the
+     customer's and asset is INR. The bank_account it returns has bank_name,
+     account_number_masked and ifsc.
+  3. Branch:
+     - payout_utr present (PROCESSING or SUCCESS): the bank has received the payout
+       instruction. Give the customer the UTR, the amount (amount only; the Rs 10 fee is
+       deducted from the wallet, not from the bank credit (sample rule)) and the account
+       (bank name + last 4). Ask them to check their statement and, if not visible, to quote
+       the UTR to their bank. Most banks credit within 2 hours; allow up to 2 working days
+       (sample value) before escalating.
+     - SUCCESS, payout_utr present, customer's bank confirms no credit after 2 working days:
+       ask for the bank statement for the period -> escalate to Payments Ops, P2 for a trace.
+     - PROCESSING with no payout_utr: not yet with the bank -> WDR-01.
+     - Customer is checking a different account than bank_account_masked: explain which
+       account it was sent to. Resolve.
+  4. Check the ledger to confirm the debit and no reversal: use the ledger_entries returned
+     by check_withdrawal.
+     - REVERSAL present (reversed is true): the bank returned it -> WDR-03 (money back in wallet).
+RESOLUTION:
+  Share UTR and account; bank traces the credit. Escalate if the bank denies receipt after
+  2 working days.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for checking with us. Your withdrawal of Rs <amount> on <date> was sent from our side
+  on <date, time IST> to your <bank> account ending <last 4>.
+  The bank reference number (UTR) is <payout_utr>. If you do not see the credit, please share
+  this number with your bank; it lets them locate the payment. Banks usually credit within a
+  few hours; if your bank still cannot find it after 2 working days, reply with your bank
+  statement for those dates and we will trace it for you.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Bank denies receipt 2+ working days after SUCCESS -> Payments Ops, P2, include
+    withdrawal_id, payout_utr, amount, masked account, IFSC, statement.
+DO NOT:
+  - Do not reissue the payout or promise a second transfer.
+  - Do not share the full account number; use last 4 digits only.
+
+======================================================================
+## WDR-03: Withdrawal FAILED and money return to wallet
+======================================================================
+CUSTOMER MAY SAY:
+  - "My withdrawal failed, where is my money?"
+  - "Withdrawal failed but balance not back"
+  - "Failed dikha raha hai, paisa wallet me wapas nahi aaya"
+  - "Why did my withdrawal fail?"
+INFO NEEDED FROM CUSTOMER:
+  - Amount and date
+TOOLS: get_withdrawals, check_withdrawal, check_wallet_balance
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call get_withdrawals(asset="INR", status="FAILED").
+  3. Check the ledger:
+     Call check_withdrawal(withdrawal_id=<withdrawal_id>). Use its ledger_entries.
+     - No WITHDRAWAL debit and no REVERSAL: failed before being sent; the locked amount should
+       be back in available. Confirm:
+       Call check_wallet_balance(asset="INR").
+       -> Available reflects it: tell the customer the money is back. Resolve.
+       -> Still locked more than 1 hour (sample value) after FAILED: escalate Payments Ops, P2.
+     - WITHDRAWAL debit and REVERSAL credit present: money returned to wallet on the REVERSAL
+       date. Resolve.
+     - WITHDRAWAL debit but no REVERSAL: the bank may still be returning the money. Bank
+       returns take up to 3-5 working days (sample value) after the failure. Check the
+       refunds returned by check_withdrawal (status, refund_utr, processed_at).
+       -> Inside 5 working days of updated_at: wait, give date.
+       -> Beyond 5 working days: escalate Payments Ops, P1 (money missing).
+  4. Explain the likely reason in plain words (from the bank account record; there is no
+     reason column on withdrawals): use the bank_account returned by check_withdrawal
+     (status, bank_name, ifsc).
+     - Account REMOVED / FAILED or customer says account closed -> WDR-09.
+     - Otherwise say "the bank could not complete the transfer" and suggest retrying; if it
+       fails twice in a row -> escalate Payments Ops, P3.
+RESOLUTION:
+  Confirm the money (including the fee) is back in the wallet or give the return date.
+  The customer can place a new withdrawal.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Sorry that your withdrawal of Rs <amount> on <date> did not go through. The bank could not
+  complete the transfer. <The full amount, including the Rs 10 fee, was returned to your Acme
+  wallet on <date>, so it is available to use or withdraw again. / The bank is returning the
+  money to us, and it will be back in your Acme wallet by <date>.>
+  If you retry, please make sure the bank account ending <last 4> is active. If it fails
+  again, let us know and we will look into it.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Debit without REVERSAL after 5 working days -> Payments Ops, P1, include withdrawal_id,
+    ledger entries, payout_utr.
+  - Balance stuck in locked after a pre-send failure -> Payments Ops, P2.
+  - Repeated failures to a VERIFIED account -> Payments Ops, P3.
+DO NOT:
+  - Do not invent a failure reason. Do not blame the customer's bank by name.
+
+======================================================================
+## WDR-04: Withdrawal PENDING_APPROVAL (large amounts)
+======================================================================
+CUSTOMER MAY SAY:
+  - "My withdrawal of Rs 8 lakh shows pending approval"
+  - "Why does my big withdrawal need approval?"
+  - "Approval pending since yesterday, please approve fast"
+  - "Urgent hai, approval jaldi karo"
+INFO NEEDED FROM CUSTOMER:
+  - Amount and date. Nothing else unless the review team asks.
+TOOLS: get_withdrawals, get_risk_holds
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call get_withdrawals(asset="INR", status="PENDING_APPROVAL").
+     - amount > Rs 5,00,000 and less than 48 hours old: normal manual review (DD-09).
+       Tell the customer the latest time (created_at + 48 hours). Wait.
+     - More than 48 hours old: SLA breached -> escalate to Payments Ops, P2.
+     - amount <= Rs 5,00,000 but PENDING_APPROVAL: unusual; check risk_holds (step 3).
+  3. Call get_risk_holds().
+     - Active hold: treat as WDR-05.
+     - None and amount <= Rs 5,00,000: escalate Payments Ops, P3 (review the routing).
+  4. Customer asks to speed it up: do not escalate only for urgency inside 48 hours, unless
+     there is a medical or similar emergency stated; then note it and escalate P2.
+  5. Tip for the future: splitting into smaller withdrawals is allowed but each one costs
+     the Rs 10 fee; do not suggest it as a way to avoid review.
+RESOLUTION:
+  Explain the review, give the 48-hour window.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for your patience. Withdrawals above Rs 5,00,000 go through an additional check to
+  keep your funds safe. Your withdrawal of Rs <amount> requested on <date> is in this check
+  and will be completed by <date, time IST> at the latest. Once approved, it usually reaches
+  your bank within a few hours. Your money remains safe in your account meanwhile.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Older than 48 hours -> Payments Ops, P2, include withdrawal_id, amount, created_at.
+  - Stated emergency -> Payments Ops, P2, include the customer's stated reason.
+DO NOT:
+  - Do not advise splitting the amount to avoid review.
+  - Do not promise approval; only the review time frame.
+
+======================================================================
+## WDR-05: Withdrawal ON_HOLD (risk hold)
+======================================================================
+CUSTOMER MAY SAY:
+  - "Withdrawal on hold, why are you holding my money?"
+  - "My funds are blocked, I cannot withdraw"
+  - "Hold kyu lagaya hai? Mera paisa release karo"
+  - "Withdrawal under review for 3 days"
+INFO NEEDED FROM CUSTOMER:
+  - None beyond identification. Do not request documents unless Risk & Compliance asks.
+TOOLS: get_withdrawals, get_risk_holds
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02). If users.status = FROZEN
+     -> fraud_risk_sop RSK-01 and stop here.
+  2. Call get_withdrawals(status="ON_HOLD").
+     Call get_risk_holds(active_only=false).
+     (hold_reason, reason_code and source are for the internal note only. NEVER disclose.)
+  3. Branch:
+     - Active WITHDRAWAL_HOLD / ACCOUNT_FREEZE: follow fraud_risk_sop for holds. Send the
+       generic review reply; route the ticket to Risk & Compliance, P2.
+     - source = LAW_ENFORCEMENT: same generic reply only; do not hint at any external request.
+     - No active hold but withdrawal ON_HOLD, or hold RELEASED more than 2 hours ago
+       (sample value) and withdrawal still ON_HOLD: escalate Payments Ops, P2.
+  4. If the customer mentions being told to pay a "release fee" or "tax" to unlock the
+     withdrawal: that is a scam -> fraud_risk_sop RSK-05; tell them Acme never asks for this.
+RESOLUTION:
+  Generic review message; Risk & Compliance owns the outcome.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for reaching out about your withdrawal of Rs <amount>. It is currently going through
+  a routine review that we carry out from time to time to keep accounts safe. Your funds
+  remain in your account during this time. Our team is reviewing it and we will update you
+  within 48 hours. If anything is needed from you, we will ask by email from this address.
+  Please note Acme Invest will never ask you to pay any fee to release a withdrawal.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Always: Risk & Compliance, P2, include user_id, withdrawal_id, hold_id (internal).
+  - Status inconsistent with risk_holds -> Payments Ops, P2.
+DO NOT:
+  - Do not reveal the hold reason, the source, thresholds, or that anyone external is involved.
+  - Do not promise a release date or cancel the withdrawal to move funds.
+
+======================================================================
+## WDR-06: 24-hour withdrawal cooldown after security changes
+======================================================================
+CUSTOMER MAY SAY:
+  - "I reset my password and now I can't withdraw"
+  - "Changed my phone number, withdrawal blocked for 24 hours?"
+  - "Withdrawal says try after some time"
+  - "2FA reset kiya, ab withdraw nahi ho raha"
+INFO NEEDED FROM CUSTOMER:
+  - Whether they recently changed password, phone, email or 2FA
+TOOLS: get_auth_events
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call get_auth_events(event_types=["PASSWORD_RESET", "PHONE_CHANGED",
+     "EMAIL_CHANGED", "TWO_FA_RESET"], days=1). Use only events from the last 24 hours.
+  3. Branch:
+     - Event found: cooldown applies until <latest event created_at + 24 hours> (IST). Tell
+       the customer the exact time. Wait; no override.
+     - Event found and customer says they did NOT make that change: possible account
+       takeover -> account_security_sop SEC-01, P1. Do not explain further in this SOP.
+     - No event in the last 24 hours: cooldown is not the cause -> check WDR-07 / WDR-08 /
+       WDR-05; if none match, escalate Tech On-call, P2 with the error text/screenshot.
+RESOLUTION:
+  Explain the security cooldown and when it ends.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for writing in. For your security, withdrawals are paused for 24 hours after a
+  password, phone number, email or two-factor change on the account. Your account had such a
+  change on <date, time IST>, so withdrawals will be available again from <date, time IST>.
+  You can still trade and add money in the meantime.
+  If you did not make this change yourself, please reply immediately so we can secure your account.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Customer denies making the change -> account_security_sop SEC-01, P1.
+  - No cooldown event but withdrawals blocked with no other cause -> Tech On-call, P2.
+DO NOT:
+  - Do not lift or shorten the cooldown, even for urgent requests.
+  - Do not share the IP address or device details of the change.
+
+======================================================================
+## WDR-07: Cannot withdraw because the bank account is not verified
+======================================================================
+CUSTOMER MAY SAY:
+  - "Withdrawal says add a verified bank account"
+  - "My bank account is pending, can I still withdraw?"
+  - "No bank account option while withdrawing"
+  - "Bank verify nahi hua, withdraw kaise karu?"
+INFO NEEDED FROM CUSTOMER:
+  - Bank name and last 4 digits they want to withdraw to
+TOOLS: get_bank_accounts
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call get_bank_accounts().
+     - No bank accounts: they need to add one -> bank_account_sop BNK-01.
+     - PENDING_VERIFICATION -> bank_account_sop BNK-08.
+     - FAILED -> bank_account_sop BNK-02 (penny drop) / BNK-03 (name mismatch).
+     - REMOVED only -> add again (BNK-01).
+     - At least one VERIFIED account exists: withdrawals go only to VERIFIED accounts; ask the
+       customer to select it. If the app still refuses -> escalate Tech On-call, P3.
+RESOLUTION:
+  Point the customer to verify or add their own bank account.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for reaching out. Withdrawals can be sent only to a bank account in your name that
+  is verified on Acme Invest. <Your bank account ending <last 4> is still being verified;
+  this usually completes within 48 hours. / The verification of your bank account ending
+  <last 4> did not succeed, so please add the account again from Profile > Bank Accounts,
+  making sure it is a savings or current account in your own name.> Once it shows as
+  verified, you can withdraw straight away.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - VERIFIED account exists but withdrawal screen blocks it -> Tech On-call, P3, include
+    bank_account_id, app version (user_devices), screenshot.
+DO NOT:
+  - Do not send a withdrawal to an unverified account or to someone else's account.
+
+======================================================================
+## WDR-08: Withdrawal button disabled / KYC not verified
+======================================================================
+CUSTOMER MAY SAY:
+  - "The withdraw button is greyed out"
+  - "Can't withdraw, it says complete KYC"
+  - "Withdraw option hi nahi aa raha"
+  - "It says re-KYC required to withdraw"
+INFO NEEDED FROM CUSTOMER:
+  - Screenshot of the screen/error, app version if known
+TOOLS: get_user, check_wallet_balance, get_user_devices
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02). Status FROZEN / DORMANT /
+     CLOSED -> follow the linked SOP.
+  2. Call get_user(). Check kyc_status.
+     - VERIFIED: continue step 3.
+     - NOT_STARTED / IN_PROGRESS / UNDER_REVIEW / REJECTED / RE_KYC_REQUIRED: withdrawals need
+       VERIFIED KYC -> kyc_sop. Explain and resolve.
+  3. Check the other blockers in order:
+     - Cooldown (WDR-06 query) -> WDR-06.
+     - Active WITHDRAWAL_HOLD / ACCOUNT_FREEZE -> WDR-05.
+     - No VERIFIED bank account -> WDR-07.
+     - Available INR balance below Rs 110 (Rs 100 minimum + Rs 10 fee):
+       Call check_wallet_balance(asset="INR").
+       -> Explain the minimum. If funds are locked -> WDR-10.
+  4. None of the above: possible app issue. Call get_user_devices().
+     Ask them to update the app and retry; if it persists -> app_technical_sop / escalate
+     Tech On-call, P2.
+RESOLUTION:
+  Name the one blocker in plain words and how to clear it.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for the screenshot. I checked your account: withdrawals are not available yet
+  because <your identity verification (KYC) is not complete / your KYC needs to be updated /
+  your available balance is below the minimum of Rs 100 plus the Rs 10 fee>.
+  <How to fix: complete or update your KYC from Profile > Verification; it usually takes a
+  few minutes, and up to 48 hours if it goes for manual review.>
+  Once this is done, the Withdraw button will be enabled.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - No blocker found and the app still blocks withdrawal after an update -> Tech On-call, P2,
+    include user_id, app_version, platform, screenshot.
+DO NOT:
+  - Do not tell the customer about a risk hold as the reason; use WDR-05 wording.
+
+======================================================================
+## WDR-09: Withdrawal to a wrong or closed bank account
+======================================================================
+CUSTOMER MAY SAY:
+  - "I closed that bank account, but the withdrawal went there"
+  - "Withdrew to my old account by mistake, please send to new one"
+  - "Galat account select ho gaya withdrawal me"
+  - "Account is inactive/frozen at bank, what happens to my withdrawal?"
+INFO NEEDED FROM CUSTOMER:
+  - Amount and date; which account they intended; whether the old account is closed or just
+    not preferred
+TOOLS: check_withdrawal
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call check_withdrawal(withdrawal_id=<withdrawal_id>). Check that withdrawal.user_id is the
+     customer's. bank_account.status is the bank account's status.
+     Note: withdrawals only go to the customer's own VERIFIED accounts, so a "wrong" account is
+     always one of their own.
+  3. Branch:
+     - REQUESTED / PENDING_APPROVAL: the customer can cancel it (WDR-11) and place a new one
+       to the right account.
+     - PROCESSING / SUCCESS to an OPEN account of theirs: money is in their own account. It
+       cannot be redirected. Give the UTR (WDR-02). Resolve.
+     - PROCESSING / SUCCESS to a CLOSED or inactive account: the bank normally returns it
+       within 3-5 working days (sample value); Acme then credits it back to the wallet
+       (REVERSAL). Check the ledger_entries returned by check_withdrawal for a REVERSAL.
+       -> REVERSAL present: money is back. Resolve.
+       -> Not yet and within 5 working days of updated_at: wait, give date.
+       -> Beyond 5 working days with no REVERSAL -> escalate Payments Ops, P1.
+       -> Bank credited the closed account (SUCCESS, bank confirms credit): the customer must
+          contact their bank to recover it; give UTR. Resolve (P3 follow-up if they need a
+          confirmation letter).
+     - FAILED -> WDR-03.
+  4. Ask the customer to remove the closed account and set the correct primary account
+     (bank_account_sop BNK-05, BNK-06) to prevent a repeat.
+RESOLUTION:
+  Cancel if still possible; otherwise the payout returns or stays in their own account.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for letting us know. Your withdrawal of Rs <amount> on <date> was sent to your
+  <bank> account ending <last 4>. <Because that account is closed, the bank will return the
+  amount to us, usually within 3-5 working days, and we will add it back to your Acme wallet.
+  You can then withdraw to your active account.> To avoid this in future, please remove the
+  old account and set your active account as primary under Profile > Bank Accounts.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - No return 5 working days after sending to a closed account -> Payments Ops, P1, include
+    withdrawal_id, payout_utr, masked account, IFSC.
+DO NOT:
+  - Do not promise to "redirect" a payout that has been sent.
+  - Do not add or change bank details on the customer's behalf over email.
+
+======================================================================
+## WDR-10: Balance shows locked
+======================================================================
+CUSTOMER MAY SAY:
+  - "Part of my INR balance shows locked, why?"
+  - "Available balance is less than total"
+  - "Mera paisa locked dikha raha hai"
+  - "Can't withdraw full amount, some is blocked"
+INFO NEEDED FROM CUSTOMER:
+  - None beyond identification
+TOOLS: check_wallet_balance, get_orders, get_withdrawals, get_risk_holds
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call check_wallet_balance(asset="INR").
+  3. Find what is holding the locked amount:
+     - Open buy orders:
+       Call get_orders(side="BUY", statuses=["NEW", "OPEN", "PARTIALLY_FILLED"]).
+     - Pending INR withdrawals:
+       Call get_withdrawals(asset="INR",
+                            statuses=["REQUESTED", "PENDING_APPROVAL", "ON_HOLD"]).
+     - Sum of (open order value + withdrawal amount + fee) roughly equals locked: explain.
+       Customer can cancel open orders (trade_sop) or wait for the withdrawal. Resolve.
+     - Withdrawal ON_HOLD is part of the locked amount -> WDR-05 wording.
+     - Locked is larger than anything open: stale lock -> Call get_risk_holds()
+       (ACTIVE hold -> fraud_risk_sop wording). No hold -> escalate Payments Ops, P2.
+RESOLUTION:
+  Explain the open orders or withdrawals that reserve the funds.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for asking. Rs <locked> of your balance is reserved for <an open buy order for
+  <coin> placed on <date> / your withdrawal of Rs <amount> that is being processed>. Reserved
+  money is released automatically when the order is filled or cancelled, or when the
+  withdrawal completes. If you no longer want the order, you can cancel it from Orders and
+  the amount will return to your available balance immediately.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Locked amount not explained by any open order or withdrawal and no hold -> Payments Ops,
+    P2, include wallet_balances row and both query results.
+DO NOT:
+  - Do not cancel the customer's orders yourself.
+
+======================================================================
+## WDR-11: Cancel a withdrawal
+======================================================================
+CUSTOMER MAY SAY:
+  - "Please cancel my withdrawal, I want to buy BTC instead"
+  - "Withdrawal galti se kar diya, cancel karo"
+  - "How do I cancel a pending withdrawal?"
+  - "Why was my withdrawal cancelled?"
+INFO NEEDED FROM CUSTOMER:
+  - Which withdrawal (amount, date)
+TOOLS: get_withdrawals, check_wallet_balance
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call get_withdrawals(asset="INR"). Look at the latest 5.
+  3. Branch:
+     - REQUESTED or PENDING_APPROVAL: the customer can cancel it in the app (Transactions >
+       select withdrawal > Cancel) (sample value). Support does not cancel on their behalf by
+       email. Resolve.
+     - PROCESSING / SUCCESS: already sent to the bank; cannot be cancelled. Resolve.
+     - ON_HOLD: cannot be cancelled while under review -> WDR-05 wording.
+     - CANCELLED and the customer did not cancel it: check whether funds are back
+       (Call check_wallet_balance(asset="INR"), available). If CANCELLED
+       within 24h of a security change or by the system for an unverified/removed bank
+       account, explain generically. If unclear ->
+       escalate Payments Ops, P3. If the customer suspects someone else placed/cancelled it
+       -> account_security_sop SEC-01, P1.
+RESOLUTION:
+  Guide self-cancel when allowed; otherwise explain why it cannot be cancelled.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for writing. <Your withdrawal of Rs <amount> has not been sent yet, so you can cancel
+  it yourself: open Transactions in the app, select this withdrawal and tap Cancel. The amount
+  returns to your available balance straight away. / Your withdrawal of Rs <amount> has
+  already been sent to your bank, so it can no longer be cancelled. It should reach your
+  account ending <last 4> by <date>.>
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - System-cancelled with no clear cause -> Payments Ops, P3, include withdrawal_id.
+DO NOT:
+  - Do not try to recall a PROCESSING or SUCCESS payout.
+
+======================================================================
+## WDR-12: Withdrawal limits and fees (how-to)
+======================================================================
+CUSTOMER MAY SAY:
+  - "What is the minimum and maximum I can withdraw?"
+  - "Why was Rs 10 deducted on withdrawal?"
+  - "How long does withdrawal take?"
+  - "Withdrawal charges kitne hai?"
+  - "Can I withdraw to UPI ID?"
+INFO NEEDED FROM CUSTOMER:
+  - None (general question)
+TOOLS: check_withdrawal
+DEBUGGING STEPS:
+  1. If about a specific withdrawal's fee: identify the user (support_guidelines_sop SUP-02) and
+     Call check_withdrawal(withdrawal_id=<withdrawal_id>).
+     - withdrawal.fee = 10: correct per policy. Resolve.
+     - withdrawal.fee <> 10: -> fees_charges_sop FEE-03.
+  2. Otherwise answer from policy. Resolve.
+POLICY (DD-09 unless marked):
+  - Minimum Rs 100 per withdrawal; fee Rs 10 per withdrawal (charged from the wallet on top of
+    the amount; the bank receives the full amount) (sample rule for how the fee is applied).
+  - Maximum per day: Rs 25,00,000 (sample value). Above Rs 5,00,000 per withdrawal goes to
+    manual approval (up to 48 hours).
+  - Normal time: within 24 hours.
+  - Only to a VERIFIED bank account in the customer's own name; not to UPI IDs, cards or
+    third-party accounts (sample value for UPI ID).
+  - 24-hour pause after password, phone, email or 2FA changes.
+  - Crypto withdrawals have network fees instead -> crypto_transfers_sop / fees_charges_sop FEE-04.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for your question. Here is how INR withdrawals work on Acme Invest:
+  - Minimum Rs 100 per withdrawal, with a flat fee of Rs 10 per withdrawal.
+  - Withdrawals usually reach your bank within 24 hours. Amounts above Rs 5,00,000 go
+    through an extra check that can take up to 48 hours.
+  - Money can be sent only to your own verified bank account.
+  - For your security, withdrawals pause for 24 hours after you change your password, phone,
+    email or two-factor settings.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Not needed for a how-to question.
+DO NOT:
+  - Do not offer to waive the fee (see fees_charges_sop FEE-08).

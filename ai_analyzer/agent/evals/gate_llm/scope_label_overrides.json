@@ -1,0 +1,245 @@
+{
+  "_note": "Scope labels that override the retrieval eval sets' out_of_scope flag, for the scope gate eval only (run_scope_evals.py). Reviewed by hand on 2026-10-15 from the scope-v3 disagreements; 'ambiguous' cases are not scored. The retrieval eval files themselves are unchanged.",
+  "overrides": {
+    "evals_cfpb/cfpb-035": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-046": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-060": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-088": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-098": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-120": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-141": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-143": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-144": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-148": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-149": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-150": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-153": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-156": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-158": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-161": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-162": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-164": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-165": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-166": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-167": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-169": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-171": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-173": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-174": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-175": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-176": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-177": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-179": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-180": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-181": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-183": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-189": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-191": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-209": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_cfpb/cfpb-228": {
+      "scope_label": "out_of_scope",
+      "reason": "about another company's product or account; Acme Invest is not involved"
+    },
+    "evals_banking77/b77-040": {
+      "scope_label": "out_of_scope",
+      "reason": "a credit card declined at eBay: not Acme"
+    },
+    "evals_banking77/b77-085": {
+      "scope_label": "out_of_scope",
+      "reason": "asks Acme for a card of its own; Acme has none"
+    },
+    "evals_banking77/b77-086": {
+      "scope_label": "out_of_scope",
+      "reason": "asks Acme for a card of its own; Acme has none"
+    },
+    "evals/cmp-006": {
+      "scope_label": "no_issue",
+      "reason": "only thanks us for a solved issue"
+    },
+    "evals_banking77/b77-108": {
+      "scope_label": "in_scope",
+      "reason": "can I top up with a cheque? (using Acme; answer is no)"
+    },
+    "evals_banking77/b77-111": {
+      "scope_label": "in_scope",
+      "reason": "can I top up with Apple Pay? (using Acme)"
+    },
+    "evals_banking77/b77-116": {
+      "scope_label": "in_scope",
+      "reason": "asks about an Acme top-up feature"
+    },
+    "evals_cfpb/cfpb-236": {
+      "scope_label": "in_scope",
+      "reason": "complaint about Acme's interest accounts"
+    },
+    "evals_cfpb/cfpb-247": {
+      "scope_label": "in_scope",
+      "reason": "Acme wallet hacked"
+    },
+    "evals_cfpb/cfpb-261": {
+      "scope_label": "in_scope",
+      "reason": "scam via Acme RTGS transfers"
+    },
+    "evals_cfpb/cfpb-289": {
+      "scope_label": "in_scope",
+      "reason": "Acme locked the account (PAN)"
+    },
+    "evals_cfpb/cfpb-323": {
+      "scope_label": "in_scope",
+      "reason": "Acme staking rewards not received"
+    },
+    "evals_cfpb/cfpb-334": {
+      "scope_label": "in_scope",
+      "reason": "cheque from Acme not received"
+    },
+    "evals_cfpb/cfpb-335": {
+      "scope_label": "in_scope",
+      "reason": "money deducted from the Acme account for a cheque"
+    },
+    "evals_cfpb/cfpb-337": {
+      "scope_label": "in_scope",
+      "reason": "dispute with Acme over transactions"
+    },
+    "evals_cfpb/cfpb-339": {
+      "scope_label": "in_scope",
+      "reason": "Acme tax P&L statement"
+    },
+    "evals_cfpb/cfpb-340": {
+      "scope_label": "in_scope",
+      "reason": "Acme withholding tax documents, account locked"
+    },
+    "evals_cfpb/cfpb-344": {
+      "scope_label": "in_scope",
+      "reason": "Acme vault change"
+    },
+    "evals_banking77/b77-098": {
+      "scope_label": "ambiguous",
+      "reason": "cash withdrawal: ATM (out) or INR withdrawal (in)?"
+    },
+    "evals_banking77/b77-101": {
+      "scope_label": "ambiguous",
+      "reason": "cash withdrawal fees: ATM or INR?"
+    },
+    "evals_banking77/b77-107": {
+      "scope_label": "ambiguous",
+      "reason": "holding currencies: forex or crypto?"
+    },
+    "evals_banking77/b77-109": {
+      "scope_label": "ambiguous",
+      "reason": "unknown direct debit: on which statement?"
+    },
+    "evals_banking77/b77-114": {
+      "scope_label": "ambiguous",
+      "reason": "what is arriving? no context"
+    },
+    "evals_cfpb/cfpb-328": {
+      "scope_label": "ambiguous",
+      "reason": "account restricted, company not named"
+    }
+  }
+}

@@ -1,0 +1,527 @@
+SOP_ID: CMP
+TITLE: Complaints, Grievances and Escalations
+CATEGORY: complaint
+VERSION: 1.0
+LAST_REVIEWED: 2026-09-27
+OWNER: Grievance Officer
+NOTE: Fictional sample SOP for the Acme Invest demo. Policy values live in data_dictionary.txt
+      (DD-09). Values marked "(sample value)" are not in DD-09 and are placeholders only.
+
+======================================================================
+## CMP-00: Scope and escalation ladder
+======================================================================
+Covers: general dissatisfaction, repeated follow-ups and SLA breaches, requests for a
+manager or call-back, legal/police/regulator threats, abusive customers, media and social
+media, deceased customers, compensation requests, and praise/feedback.
+
+A complaint is usually about another problem (a deposit, a KYC rejection). Always:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Find and fix (or re-check) the underlying issue using its category SOP.
+  3. Handle the complaint itself using this SOP.
+
+Escalation ladder (sample timelines; Level 1 targets are the DD-09 SLAs):
+  Level 1  Support (AI agent + support team)
+           First response and resolution per DD-09 (P1 1h/24h, P2 4h/48h, P3 24h/5 working
+           days, P4 48h/7 working days).
+  Level 2  Support Lead
+           When: customer unhappy with the Level 1 answer, SLA breached, 3+ contacts on the
+           same issue (support_guidelines_sop SUP-07), manager requested, abusive customer.
+           Target: acknowledgement within 24 hours, resolution within 3 working days
+           (sample value).
+  Level 3  Grievance Officer
+           When: customer is not satisfied with the Level 2 outcome, formal grievance, or
+           compensation request for a confirmed platform error. Target: acknowledgement within
+           48 hours, final written response within 15 days (sample value).
+  Special  Legal (with Grievance Officer): legal notices, police/court/regulator/consumer
+           court/ombudsman/cybercrime portal mentions (CMP-04), deceased customer (CMP-07),
+           media (CMP-06, with Comms).
+
+Customers can raise a formal grievance in the app under Help > Raise a Grievance or by
+writing to grievance@acmeinvest.example (sample values).
+
+Complaint ticket fields: tickets.category = 'complaint', subcategory = the CMP topic (e.g.
+'sla_breach', 'legal_threat'), priority per section, assigned_team per section.
+
+Never auto-answer (support_guidelines_sop SUP-05): self-harm/violence, legal/regulator
+threats, media, deceased customer, messages from banks/police/courts/government. Only the
+SUP-05 holding reply may be sent in those cases.
+
+======================================================================
+## CMP-01: General complaint / dissatisfied with service
+======================================================================
+CUSTOMER MAY SAY:
+  - "Worst app ever, my problem is not solved"
+  - "Very disappointed with your service, nobody helps"
+  - "Bahut bekaar service hai, 4 din se paisa atka hai"
+  - "I want to file a formal complaint"
+  - "Your replies are copy-paste, nobody reads my email"
+INFO NEEDED FROM CUSTOMER:
+  - What the underlying problem is (if not clear from the thread), related IDs (UTR, order
+    ID), what outcome they want
+TOOLS: get_tickets
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02). Read the whole thread.
+  2. Find related tickets:
+     Call get_tickets(). Look at the latest 10.
+  3. Identify the underlying issue and re-run that SOP's checks now (the issue may have
+     resolved itself, or the previous answer may have been wrong).
+     - Underlying issue now resolved: tell the customer the outcome clearly. Resolve.
+     - Still in progress within SLA: give status and time frame. Resolve (wait).
+     - SLA breached or 3+ contacts -> CMP-02.
+     - Previous answer was wrong: apologise once, correct it, escalate if needed per that SOP.
+  4. Complaint has no specific issue (general unhappiness, UI, policy): acknowledge, explain
+     the policy briefly if relevant, log as feedback (CMP-10 / app_technical_sop APP-09).
+  5. Customer explicitly asks for a formal grievance or is unhappy with a Level 1 answer
+     already given twice: escalate to Level 2 Support Lead (P3, or the underlying issue's
+     priority if higher). Share the grievance path.
+RESOLUTION:
+  Fix or re-check the actual problem, give a concrete status and next step; escalate per the
+  ladder when the customer is not satisfied.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I'm sorry that your experience with us has been frustrating, and thank you for telling us.
+  I've gone through your earlier messages and checked your <issue> again: <what we found in
+  plain words>. <next step and time frame>.
+  If you are not satisfied with this, you can raise a formal grievance in the app under
+  Help > Raise a Grievance, and a senior team member will review it.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Customer not satisfied after a correct Level 1 answer, or asks for a formal complaint ->
+    Support Lead (Level 2), P3 (or higher if the underlying issue is higher), include:
+    user_id, ticket_ids, summary of the issue, what was already told to the customer.
+DO NOT:
+  - Do not argue or defend at length; one short explanation of policy is enough.
+  - Do not send a generic apology without checking the underlying issue.
+
+======================================================================
+## CMP-02: Repeated follow-ups / SLA breached
+======================================================================
+CUSTOMER MAY SAY:
+  - "This is my 5th email, still no resolution"
+  - "You said 48 hours, it's been a week"
+  - "Koi reply nahi karta, ticket kab close hoga?"
+  - "Escalate this now, I'm tired of waiting"
+INFO NEEDED FROM CUSTOMER:
+  - Ticket number if they have one (otherwise find by user)
+TOOLS: get_tickets
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Open tickets and SLA check:
+     Call get_tickets(open_only=true).
+     Compare against DD-09: P1 1h/24h, P2 4h/48h, P3 24h/5 working days, P4 48h/7 working days.
+     - first_response_at IS NULL and past the first-response target: first-response breach.
+     - created_at + resolution target < now() and not resolved: resolution breach.
+  3. Count contacts on the same issue:
+     Call get_tickets(category=<category>, days=30). Count the tickets.
+     - 3 or more: escalate per support_guidelines_sop SUP-07 even if SLA not breached.
+  4. Re-run the underlying SOP's checks (support_guidelines_sop SUP-09 step 2).
+     - Resolved now: tell the customer, close the ticket(s), merge duplicates. Resolve.
+     - Still open, within SLA, fewer than 3 contacts: give status and remaining time. Wait.
+     - SLA breached: apologise, raise priority by one level (P4->P3, P3->P2, P2->P1; P1 stays
+       P1 and goes to Support Lead immediately), escalate to the owning team and notify
+       Support Lead (Level 2).
+     - Status PENDING_CUSTOMER: we are waiting for something from the customer; clearly
+       restate what is needed (one message). Wait.
+     - Status PENDING_INTERNAL with a team: chase that team with the breach flagged.
+  5. Merge duplicate tickets on the same issue into the oldest ticket so the customer gets
+     one owner.
+RESOLUTION:
+  Honest status, apology for the delay, a raised priority, and a firm next update time.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I'm sorry you've had to follow up so many times - that shouldn't happen. I've checked your
+  request from <date> again: <current status in plain words>.
+  I have now escalated it on priority to the team handling it, and you will get an update
+  from us by <date/time IST based on the new priority's first-response target>. You don't need
+  to send another email - all your messages are linked to the same request.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - SLA breached -> owning team at priority raised by one level + Support Lead (Level 2),
+    include: user_id, ticket_ids, original priority, breach type, underlying checks.
+  - Breached again after Level 2 escalation -> Grievance Officer (Level 3), P2 or higher.
+DO NOT:
+  - Do not give a new time frame shorter than the team can meet; use the DD-09 SLA.
+  - Do not blame another team or name it.
+
+======================================================================
+## CMP-03: Request to speak to a manager / call-back
+======================================================================
+CUSTOMER MAY SAY:
+  - "I want to talk to your manager"
+  - "Give me a phone number, I want to speak to someone"
+  - "Please call me back on my number"
+  - "Senior se baat karao"
+  - "Why doesn't Acme have customer care number?"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone (for P1/P2 call-back), preferred time window, the underlying issue
+TOOLS: get_tickets
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Find the underlying issue and its ticket priority:
+     Call get_tickets(open_only=true).
+  3. Policy (sample): Acme has no inbound phone support. Call-backs are offered only for P1/P2
+     issues, within 24 hours, to the registered phone number only.
+     - Issue is P1 or P2: arrange a call-back -> Support Lead, same priority. Tell the
+       customer the call will come from Acme within 24 hours to their registered number and
+       that the caller will never ask for OTP/password.
+     - Issue is P3/P4: explain email/chat is the channel; give the concrete status of the
+       issue. If they insist on a manager: escalate in writing to Support Lead (Level 2).
+  4. Customer asks for a call on a number that is not registered: do not call it; only the
+     registered number (support_guidelines_sop SUP-01).
+  5. Warn about fake "Acme customer care" numbers found on search engines/social media
+     (support_guidelines_sop SUP-06). Acme does not publish a helpline number (sample value).
+RESOLUTION:
+  Call-back within 24h for P1/P2 via Support Lead; written Level 2 escalation otherwise.
+CUSTOMER REPLY TEMPLATE (P1/P2):
+  Hi <first name>,
+  I understand you'd like to speak with someone about <issue>. I've arranged a call-back from
+  a senior member of our team to your registered mobile number ending <last 4 digits> within
+  24 hours. Our team will never ask for your OTP, password or ask you to install any app.
+  Best regards,
+  Acme Invest Support
+CUSTOMER REPLY TEMPLATE (P3/P4):
+  Hi <first name>,
+  I understand you'd like to speak with someone. We don't offer phone support for this type
+  of request, but I've shared your case with a senior team member, who will review it and
+  reply to you by email within 24 hours. Current status: <status>.
+  Please be careful of fake "Acme customer care" numbers online - we do not have a helpline
+  number, and we never ask for OTPs or payments.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - P1/P2 issue with call-back requested -> Support Lead, same priority, include: user_id,
+    registered phone (masked), preferred time, ticket_ids.
+  - P3/P4 with manager request -> Support Lead (Level 2), P3.
+DO NOT:
+  - Do not share personal phone numbers or names of staff.
+  - Do not promise a call for P3/P4 issues.
+
+======================================================================
+## CMP-04: Legal action, police complaint, consumer court, regulator or ombudsman mentioned
+======================================================================
+Covers any message that threatens or reports: legal action, a lawyer's/legal notice, FIR or
+police complaint, cyber cell or cybercrime portal complaint, consumer court / consumer forum
+/ consumer helpline, a regulator or ministry, an ombudsman, or a court case.
+CUSTOMER MAY SAY:
+  - "I will file a case in consumer court if my money is not returned in 24 hours"
+  - "I have filed a complaint on the cybercrime portal against Acme"
+  - "My lawyer will send you a legal notice"
+  - "I'll complain to the regulator and the finance ministry"
+  - "Police mein complaint kar dunga, FIR number attached hai"
+  - "This is a notice under the Consumer Protection Act"
+INFO NEEDED FROM CUSTOMER:
+  - Nothing from the AI. Do not ask questions; the senior team will contact them.
+TOOLS: get_tickets
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02) for the internal note only.
+  2. DO NOT send any reply other than the SUP-05 holding reply. Do not explain policy, give
+     status, apologise for fault, admit liability, or respond to the threat.
+  3. Internally, gather context for the escalation note:
+     - the underlying issue and its current status (run the category SOP's read-only checks)
+     - Call get_tickets().
+     - attachments present (legal notice, FIR copy, court order): list them, do not
+       summarise their legal content to the customer.
+  4. If the underlying issue is money missing (P1), escalate that to the owning team as well
+     at P1 - the legal mention does not pause fixing a real problem.
+  5. If the sender is not the customer but a lawyer, police officer, court or agency -> Legal
+     only (support_guidelines_sop SUP-05); no account information in any reply.
+  6. If the account has a risk hold (especially LAW_ENFORCEMENT source): never confirm or
+     deny anything; Legal handles it (fraud_risk_sop RSK-01).
+RESOLUTION:
+  Holding reply only; route to Grievance Officer + Legal with full context.
+CUSTOMER REPLY TEMPLATE (holding reply, exactly as in SUP-05):
+  Thank you for writing to us. Your message has been passed to a senior member of our
+  team, who will get back to you within 24 hours.
+ESCALATE WHEN:
+  - Always -> Grievance Officer AND Legal, P2 (P1 if a court order/notice with a deadline is
+    attached or the underlying issue is P1), include: user_id, the exact words of the
+    threat/mention, attachments, underlying issue status, ticket_ids, prior replies sent.
+DO NOT:
+  - Do not reply with anything except the holding reply.
+  - Do not admit fault, offer compensation, or say "we will resolve before you file".
+  - Do not discourage the customer from approaching any authority.
+  - Do not share or confirm any account information with third parties.
+
+======================================================================
+## CMP-05: Abusive or threatening customer
+======================================================================
+CUSTOMER MAY SAY:
+  - Messages with profanity or insults directed at staff
+  - "You people are thieves, I will make sure you suffer"
+  - "I know where your office is, I'll come there and see"
+  - Repeated all-caps messages with abuse
+INFO NEEDED FROM CUSTOMER:
+  - The underlying issue (often money-related) - identify it from the thread
+TOOLS: none
+DEBUGGING STEPS:
+  1. Classify the message:
+     - Threat of violence against people/property, or any mention of self-harm/suicide ->
+       support_guidelines_sop SUP-05: no AI reply beyond the holding reply; P1 to Support
+       Lead immediately. Stop here.
+     - Abuse/insults without threats: continue.
+  2. Identify the user (support_guidelines_sop SUP-02) and re-check the underlying issue.
+     Frustration is often from a real delay; fix or escalate that first.
+  3. First abusive message: reply factually to the underlying issue and include ONE polite
+     warning line (template below). Do not mirror tone.
+  4. Continued abuse after a warning (check prior replies in the thread/tickets):
+     escalate to Support Lead (Level 2, P3) to decide on handling. Keep replies factual and
+     short; do not repeat the warning more than once.
+  5. Abuse includes a legal threat -> also CMP-04. Mentions posting publicly -> CMP-09.
+RESOLUTION:
+  Stay factual, solve the underlying issue, one warning, escalate if it continues.
+CUSTOMER REPLY TEMPLATE (first abusive message):
+  Hi <first name>,
+  I understand you're upset about <issue>, and I want to help sort it out. I checked your
+  request: <status in plain words and next step with time frame>.
+  To help us assist you, please keep the conversation respectful. We may not be able to
+  continue responding to messages that contain abusive language.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Threats of violence or self-harm -> Support Lead, P1 (SUP-05), include: full message,
+    user_id, any location or time mentioned.
+  - Abuse continues after one warning -> Support Lead, P3, include: user_id, thread,
+    underlying issue status.
+DO NOT:
+  - Do not respond with sarcasm, threats or account restrictions.
+  - Do not stop working on a genuine money issue because the customer is rude.
+  - Do not send more than one warning.
+
+======================================================================
+## CMP-06: Media, journalist, influencer or viral social media post
+======================================================================
+CUSTOMER MAY SAY:
+  - "I am a journalist with <publication>, I want Acme's comment on frozen accounts"
+  - "I have 200k followers, fix my issue or I'll make a video exposing Acme"
+  - "My tweet about you has gone viral, 10,000 people have seen it"
+  - "We are writing a story about crypto scams and your platform"
+  - "Video bana ke daalunga agar paisa nahi aaya"
+INFO NEEDED FROM CUSTOMER:
+  - Nothing from the AI. Do not ask questions.
+TOOLS: none
+DEBUGGING STEPS:
+  1. Classify:
+     - Journalist / media organisation / request for comment -> no AI reply beyond the
+       holding reply (support_guidelines_sop SUP-05). Route to Legal + Comms. Do not look up
+       or discuss any account.
+     - Customer who is (or claims to be) an influencer threatening a post, or whose post has
+       gone viral: identify the user (support_guidelines_sop SUP-02), check the underlying
+       issue internally, send only the holding reply, route to Legal + Comms and to Support
+       Lead for the underlying issue.
+  2. If a real P1 issue exists (money missing, unauthorized access) escalate it at P1 to the
+     owning team in parallel - media involvement never delays a fix.
+  3. For posts already public: also see CMP-09 for the public-reply rules (handled by the
+     social/Comms team, not the AI).
+RESOLUTION:
+  Holding reply only; Legal/Comms decide the response. No comment on any matter.
+CUSTOMER REPLY TEMPLATE (holding reply, exactly as in SUP-05):
+  Thank you for writing to us. Your message has been passed to a senior member of our
+  team, who will get back to you within 24 hours.
+ESCALATE WHEN:
+  - Always -> Legal (and Comms), P2 (P1 if a viral post alleges a security breach or
+    widespread loss of funds), include: sender, outlet/handle, link to post, follower count
+    if stated, user_id if a customer, underlying issue status.
+DO NOT:
+  - Do not give any statement, comment, figures or "off the record" information.
+  - Do not confirm whether a person is an Acme customer.
+  - Do not offer anything to have a post removed.
+
+======================================================================
+## CMP-07: Customer has died - legal heir / nominee request
+======================================================================
+CUSTOMER MAY SAY:
+  - "My father passed away last month, he had crypto in Acme, how do we claim it?"
+  - "I am the nominee of my late husband's account"
+  - "Papa ka death ho gaya, unke account ka paisa kaise milega?"
+  - "Please close my deceased brother's account and transfer his funds to me"
+  - "What documents are required for transmission of a deceased person's holdings?"
+INFO NEEDED FROM CUSTOMER:
+  - Nothing from the AI in the first reply (SUP-05). Legal will request documents securely.
+    For internal routing only: the deceased's registered phone or email if the sender gave it.
+TOOLS: find_user, get_auth_events
+DEBUGGING STEPS:
+  1. Send only the SUP-05 holding reply. Do not confirm whether the deceased had an account,
+     and do not share any balance or transaction information by email with anyone until
+     Legal has verified the claimant.
+  2. Internally, find the account if details were given (support_guidelines_sop SUP-02
+     lookups by phone/email), for the escalation note only:
+     Call find_user(email=<email>, phone=<phone>).
+  3. Protect the account: recent logins after the stated date of death may indicate misuse:
+     Call get_auth_events(from_time=<date_of_death>).
+     - Any activity after the date of death -> flag in the escalation as urgent (P1) so Legal
+       /Risk & Compliance can restrict the account.
+  4. Escalate to Legal. Legal (not support) then contacts the claimant and requests documents
+     via the secure in-app/portal channel (sample policy), typically:
+       - Death certificate (issued by the local authority)
+       - Claimant's KYC: PAN and Aadhaar (or passport)
+       - Proof of relationship with the deceased
+       - If registered as nominee: nominee claim form (sample value) + the above
+       - If total holdings exceed Rs 5,00,000 (sample value) and there is no nominee, or if
+         there is a dispute between heirs: succession certificate or legal heir certificate
+         from a competent court/authority; below the threshold, an indemnity bond and
+         no-objection from other legal heirs may be accepted (sample value)
+       - Claimant's own bank account details in their name for payout
+  5. The support team may answer general "what documents are usually needed" questions only
+     AFTER Legal takes over, using Legal's wording; the AI's first reply remains the holding
+     reply.
+RESOLUTION:
+  Holding reply; Legal verifies the claimant and handles transmission of holdings. Nothing
+  about the account is shared by email before verification.
+CUSTOMER REPLY TEMPLATE (holding reply, exactly as in SUP-05):
+  Thank you for writing to us. Your message has been passed to a senior member of our
+  team, who will get back to you within 24 hours.
+ESCALATE WHEN:
+  - Always -> Legal, P2 (P1 if there is account activity after the date of death), include:
+    user_id (if found), claimant's name and stated relationship, date of death as stated,
+    whether a nominee is mentioned, auth_events after date of death.
+DO NOT:
+  - Do not express condolences in a way that confirms an account exists (the holding reply
+    is enough; Legal will personalise).
+  - Do not share balances, holdings, statements or transaction history.
+  - Do not ask for the deceased's OTP, password or device.
+  - Do not close the account or move funds on email instruction.
+
+======================================================================
+## CMP-08: Compensation request
+======================================================================
+CUSTOMER MAY SAY:
+  - "I lost Rs 20,000 because the app was down, compensate me"
+  - "Your delay cost me profit, I want interest for 5 days"
+  - "Give me some bonus for this bad experience"
+  - "Refund my trading fees as compensation"
+  - "Mera loss aap bharo, aapki galti hai"
+INFO NEEDED FROM CUSTOMER:
+  - What happened, when (IST), which orders/transactions, the loss they are claiming and how
+    they calculated it
+TOOLS: get_price_incidents, get_orders
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Policy: support never promises or offers compensation, credits, fee refunds, interest or
+     goodwill rewards (support_guidelines_sop SUP-04). Compensation is decided only by the
+     Grievance Officer, and only for a confirmed platform error.
+  3. Check whether a platform error is on record:
+     Call get_price_incidents(at_time=<event_time>).
+     Call get_orders(from_time=<from>, to_time=<to>).
+     - Recorded incident AND the customer's orders/transactions were affected (e.g.
+       reject_reason = SYSTEM_ERROR during the window): possible platform error -> escalate
+       to Grievance Officer (Level 3) with Trading Ops context, P2.
+     - No incident and orders behaved normally (market movement, slippage, their own error):
+       explain what happened with facts; no compensation. Resolve. If they insist -> Level 2.
+     - Money delay within SLA (e.g. deposit 5 minutes late): explain SLA; no compensation.
+       Resolve.
+     - Money delay beyond SLA: fix the underlying issue first (CMP-02), note the claim for
+       Grievance Officer (P3).
+  4. Tell the customer the claim will be reviewed (if escalated) without implying an outcome.
+RESOLUTION:
+  No compensation from support. Explain facts; escalate confirmed/possible platform errors to
+  the Grievance Officer, whose decision is final at Level 3.
+CUSTOMER REPLY TEMPLATE (escalated):
+  Hi <first name>,
+  I'm sorry for the trouble you faced on <date>. I checked your <orders/transaction>, and I
+  have passed your request, with the details of what happened, to our Grievance Officer for
+  review. You will receive a written response within 15 days. I'm not able to confirm any
+  outcome at this stage.
+  Best regards,
+  Acme Invest Support
+CUSTOMER REPLY TEMPLATE (no platform error):
+  Hi <first name>,
+  Thanks for explaining what happened. I checked your <order/transaction> on <date>: <plain
+  facts, e.g. "the market order was filled at Rs X because the price moved quickly at that
+  time; our systems were working normally">. As this was not caused by an error on our
+  platform, we are not able to offer compensation. If you'd like a senior review, you can
+  raise a grievance under Help > Raise a Grievance.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Possible platform error affecting the customer -> Grievance Officer, P2, include:
+    user_id, incident_id, affected order/transaction IDs, customer's claimed amount and
+    calculation.
+  - Customer disputes a "no error" finding -> Support Lead (Level 2), P3.
+DO NOT:
+  - Do not offer or hint at compensation, cashback, fee waivers or rewards.
+  - Do not agree with the customer's loss calculation.
+  - Do not admit fault before the Grievance Officer's review.
+
+======================================================================
+## CMP-09: Complaint on social media
+======================================================================
+Applies when a complaint is posted publicly (tickets.channel = 'SOCIAL') or a customer
+emails a link to their public post. Public replies are posted by the social team; the AI
+drafts them using this template.
+CUSTOMER MAY SAY:
+  - "@AcmeInvest my withdrawal pending for 3 days, is this a scam?"
+  - "Posted on your page, nobody responds there either"
+  - "Sharing my UTR and phone here so you can check fast: ..."
+  - "Acme is looting people, don't use it"
+INFO NEEDED FROM CUSTOMER:
+  - Nothing publicly. Move to DM/email to identify and verify the customer.
+TOOLS: none
+DEBUGGING STEPS:
+  1. Never look up or discuss account details based on a public post alone.
+  2. Classify the post:
+     - Mentions legal/police/regulator -> CMP-04 handling (public reply: none; Legal decides).
+     - Journalist or high-reach/viral post -> CMP-06 (Legal/Comms).
+     - Threats of violence or self-harm -> SUP-05, P1 Support Lead.
+     - Customer posted personal data (phone, UTR, PAN, bank number): advise them publicly to
+       delete it; ask the social team to hide the post if the platform allows.
+     - Scam claims about Acme or impersonation accounts -> Legal (P3).
+     - Normal complaint -> public reply template, then handle privately via the right SOP.
+  3. Once the customer DMs/emails: identify them (support_guidelines_sop SUP-02), verify
+     (SUP-01), check tickets, and follow the underlying SOP. Link the social ticket to the
+     existing ticket to avoid duplicates.
+RESOLUTION:
+  Short, polite public reply with no account details; move to private channel; resolve there.
+CUSTOMER REPLY TEMPLATE (public reply):
+  Hi <handle>, we're sorry to hear about this and want to help. For your security, please
+  don't share account details, phone numbers or transaction IDs publicly. Please send us a
+  direct message or write to support@acmeinvest.example from your registered email, and
+  we'll look into it right away. - Acme Invest Support
+CUSTOMER REPLY TEMPLATE (private, after they contact us):
+  Hi <first name>,
+  Thanks for getting in touch privately after your post. I checked your <issue>: <status in
+  plain words and next step with time frame>.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Viral post, influencer or media -> CMP-06 (Legal/Comms), P2.
+  - Legal/regulator mention -> CMP-04, P2.
+  - Personal data posted publicly -> social team to hide, P3.
+DO NOT:
+  - Never include names, balances, transaction status, KYC status or any account detail in a
+    public reply, even if the customer posted it first.
+  - Do not argue publicly or reply more than once or twice in public.
+  - Do not ask the customer to post more information publicly.
+
+======================================================================
+## CMP-10: Feedback and praise
+======================================================================
+CUSTOMER MAY SAY:
+  - "Thanks, the issue is solved, great support!"
+  - "Loving the app, very smooth"
+  - "Bahut accha app hai, keep it up"
+  - "Your SIP feature is excellent, thank you"
+INFO NEEDED FROM CUSTOMER:
+  - None
+TOOLS: none
+DEBUGGING STEPS:
+  1. Check the message has no hidden request or issue (e.g. "thanks, but one more thing...").
+     - Contains a question/issue: handle it with the right SOP.
+  2. Positive feedback on a resolved ticket: mark the ticket RESOLVED/CLOSED if still open.
+  3. Log praise/feedback: tickets.category = 'complaint', subcategory = 'feedback_praise',
+     priority P4 (DD-09). Product suggestions -> app_technical_sop APP-09.
+RESOLUTION:
+  Thank the customer briefly; log the feedback.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thank you so much for your kind words - it really makes our day! I've shared your feedback
+  with the team. If you ever need anything, we're here to help.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Not needed. Log as P4 feedback (Support Operations), include: user_id, feature or team
+    praised.
+DO NOT:
+  - Do not ask for app store ratings or reviews in exchange for anything.
+  - Do not offer rewards for feedback.

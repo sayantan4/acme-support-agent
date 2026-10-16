@@ -1,0 +1,739 @@
+SOP_ID: TRD
+TITLE: Trading (orders, fills, slippage, SIPs, portfolio values)
+CATEGORY: trading
+VERSION: 1.0
+LAST_REVIEWED: 2026-09-27
+OWNER: Trading Ops
+NOTE: Fictional sample SOP for the Acme Invest demo. Policy values live in data_dictionary.txt.
+
+======================================================================
+## TRD-00: Scope and quick triage
+======================================================================
+Covers buy/sell orders on Acme Invest (MARKET, LIMIT, STOP_LIMIT), fills, rejections,
+cancellations, SIPs, holdings and portfolio values, and trade reversal requests.
+Not covered here: INR deposits (payment_sop), INR withdrawals (withdrawal_sop), crypto
+transfers (crypto_transfers_sop), fee disputes (fees_charges_sop), TDS and statements
+(tax_statements_sop), frozen accounts (fraud_risk_sop RSK-01).
+
+Quick triage (after identifying the user per support_guidelines_sop SUP-02):
+  - "Order failed / rejected"                         -> TRD-01
+  - "Limit order not executing / still open"          -> TRD-02
+  - "Only part of my order filled"                    -> TRD-03
+  - "Got a worse price than shown"                    -> TRD-04
+  - "Money deducted but no coins / order missing"     -> TRD-05
+  - "Cancelled but it still executed / cannot cancel" -> TRD-06
+  - "Portfolio value / coin balance wrong"            -> TRD-07
+  - "Coin halted / delisted / cannot buy"             -> TRD-08
+  - "SIP failed or skipped"                           -> TRD-09
+  - "Pause / stop / change my SIP"                    -> TRD-10
+  - "Trade I did not place"                           -> TRD-11 (P1, security first)
+  - "Reverse / undo my trade"                         -> TRD-12
+  - "Average price / P&L looks wrong"                 -> TRD-13
+  - "Stop-limit did not trigger / order expired"      -> TRD-14
+
+Key rules for every trading conversation:
+  - Executed trades are final. Never promise a reversal, refund or compensation (TRD-12).
+  - Never give investment advice ("should I buy/sell/hold", "will the price go up").
+  - All timestamps are UTC in the tables; convert to IST for the customer.
+  - Fees: 0.2% of order value plus 18% GST on the fee. TDS: 1% of sale value on sells
+    (data_dictionary DD-09). Fee disputes -> fees_charges_sop; TDS -> tax_statements_sop.
+  - If the user's status is FROZEN or a TRADE_RESTRICTION hold exists, go to fraud_risk_sop RSK-01
+    and do not disclose the reason.
+
+TOOLS: get_orders
+Common lookup used by many sections:
+  Call get_orders(days=7).
+
+======================================================================
+## TRD-01: Order was rejected
+======================================================================
+CUSTOMER MAY SAY:
+  - "My buy order failed, it says order rejected"
+  - "Why is my order getting rejected again and again?"
+  - "Sell order not going through, showing error"
+  - "Order reject ho gaya, balance toh tha account mein"
+  - "Tried to buy ETH for Rs 50, it did not place"
+INFO NEEDED FROM CUSTOMER:
+  - Coin/pair, side (buy/sell), approximate amount and time, screenshot of the error if available
+TOOLS: get_orders, check_wallet_balance, get_instrument, get_risk_holds, get_order_error_count, get_ledger_entries
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02) and check the user's status and kyc_status.
+  2. Find the rejected order(s):
+     Call get_orders(status="REJECTED", days=7).
+     - No REJECTED order found: the order never reached us (app/network error) ->
+       app_technical_sop; ask the customer for the time and a screenshot.
+  3. Branch on reject_reason:
+     - INSUFFICIENT_BALANCE:
+       Call check_wallet_balance().
+       -> available (not locked) was below order value + fee (buy) or below quantity (sell).
+          If locked is high, explain funds are reserved by open orders or pending withdrawals
+          (list them, see TRD-07). Resolve: customer can cancel open orders or add funds.
+     - BELOW_MIN_ORDER_VALUE:
+       Call get_instrument(symbol=<symbol>).
+       -> order value was below min_order_value (Rs 100 for INR pairs). Resolve: ask the
+          customer to place an order of at least that value.
+     - ABOVE_MAX_ORDER_VALUE:
+       Call get_instrument(symbol=<symbol>).
+       -> Resolve: split into smaller orders, each below max_order_value.
+     - PRICE_OUT_OF_BAND: limit price was too far from the current market price (price band
+       protects against typing errors). Resolve: place the limit closer to the market price.
+     - INSTRUMENT_HALTED: Call get_instrument(symbol=<symbol>). Check status.
+       -> go to TRD-08.
+     - KYC_NOT_VERIFIED: the user's kyc_status is not VERIFIED -> kyc_sop; tell the customer trading
+       unlocks after KYC is verified.
+     - ACCOUNT_RESTRICTED:
+       Call get_risk_holds(active_only=true).
+       -> fraud_risk_sop RSK-01. Never disclose reason_code or source.
+     - SELF_TRADE_PREVENTION: the order would have matched against the customer's own open
+       order on the other side. Resolve: cancel or modify the opposite open order.
+     - SYSTEM_ERROR: check for other rejects at the same time:
+       Call get_order_error_count(around_time=<created_at>, minutes=15).
+       -> system_errors is 1 (single isolated case): ask the customer to retry; if it repeats,
+          escalate P2.
+          Many cases: platform incident -> escalate to Tech On-call (P2) and tell the customer
+          we are aware; no funds were debited for a rejected order (verify in step 4).
+  4. Confirm nothing was debited for the rejected order:
+     Call get_ledger_entries(order_id=<order_id>).
+     -> No entries or a matching REVERSAL: fine. A debit with no reversal -> escalate (P1).
+RESOLUTION:
+  Explain the reason in plain words and the exact fix (amount, minimum, retry). A rejected order
+  never executes and does not charge a fee.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Sorry your <coin> order did not go through. I checked it, and it was not placed because
+  <plain reason, e.g. "the order value was below the minimum of Rs 100" / "your available
+  balance was lower than the order amount because Rs <x> is reserved for an open order">.
+  No money was deducted for this order. You can place it again <fix>.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - SYSTEM_ERROR repeating or affecting many users -> Tech On-call, P2, include: order_ids, times, count
+  - Rejected order but a ledger debit without reversal -> Trading Ops, P1, include: order_id, entry_id
+  - reject_reason does not match balances (e.g. INSUFFICIENT_BALANCE but available was enough) -> Trading Ops, P2
+DO NOT:
+  - Do not reveal risk hold reasons or the exact price band percentage logic beyond "too far from market price".
+  - Do not place, modify or retry orders for the customer.
+
+======================================================================
+## TRD-02: Limit order stuck OPEN / not executing
+======================================================================
+CUSTOMER MAY SAY:
+  - "I placed a limit order yesterday and it is still open"
+  - "Price touched my limit but order did not execute"
+  - "Why is my buy order pending for so long?"
+  - "Limit order laga diya tha, abhi tak execute nahi hua"
+INFO NEEDED FROM CUSTOMER:
+  - Coin/pair, limit price, time placed (or order id)
+TOOLS: get_orders, get_market_price_range, get_instrument, check_wallet_balance
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Find the order:
+     Call get_orders(statuses=["OPEN", "NEW", "PARTIALLY_FILLED"]).
+  3. Explain how a limit order works: a BUY limit executes only at the limit price or LOWER;
+     a SELL limit executes only at the limit price or HIGHER. It also needs a matching seller/buyer
+     at that price; orders at the same price fill in time order (first come, first served).
+  4. Check whether the market actually traded at or through the limit since the order was placed:
+     Call get_market_price_range(symbol=<symbol>, from_time=<order_created_at>).
+     - BUY: low > limit price -> the price never reached the limit. Resolve: explain; the order
+       stays open until filled or cancelled by the customer.
+     - SELL: high < limit price -> the price never reached the limit. Resolve as above.
+     - Price traded exactly AT the limit only briefly (low = limit for BUY, high = limit for SELL):
+       other orders at the same price were ahead in the queue. Resolve: explain queue priority.
+     - Price traded clearly THROUGH the limit (e.g. BUY low well below limit) and the order is
+       still OPEN with filled_quantity = 0 -> abnormal -> escalate to Trading Ops (P2).
+     - Price the customer saw on a chart/another platform differs from Acme trades: prices differ
+       across platforms; only Acme's order book fills Acme orders. Resolve: explain.
+  5. Call get_instrument(symbol=<symbol>). If status is not TRADING -> TRD-08.
+  6. Funds for an open order are locked; confirm with locked from
+     Call check_wallet_balance() (TRD-07).
+RESOLUTION:
+  Explain that the order is working normally and will fill only if the market reaches the limit
+  price with matching volume. The customer may keep it, cancel it, or place a new order at a
+  different price. Do not suggest a price.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for checking on your <coin> order. Your limit order to <buy/sell> at Rs <price> is still
+  open. A limit order only executes when the market price reaches your price (or better) and
+  there is a matching order on the other side. Since you placed it on <date, IST>, the price on
+  Acme Invest has ranged between Rs <low> and Rs <high>, so it has not reached your price yet.
+  The funds for this order are reserved until it fills or you cancel it. You can cancel or change
+  the order anytime from the Orders section of the app.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Market traded through the limit and the order did not fill -> Trading Ops, P2, include: order_id,
+    limit price, created_at, low/high from trades since then
+DO NOT:
+  - Do not advise which price to set or whether to wait.
+  - Do not compare with or name other exchanges' prices.
+
+======================================================================
+## TRD-03: Order PARTIALLY_FILLED
+======================================================================
+CUSTOMER MAY SAY:
+  - "I ordered 1 ETH but got only 0.4 ETH"
+  - "Order shows partially filled, where is the rest?"
+  - "Half coins aaye, baaki paisa kahan gaya?"
+  - "My order is partially executed, will the remaining happen?"
+INFO NEEDED FROM CUSTOMER:
+  - Coin/pair and order time or order id
+TOOLS: check_order, check_wallet_balance, get_ledger_entries
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call check_order(order_id=<order_id>). Check order.user_id is the customer's user_id.
+  3. List the fills: use fills returned by check_order.
+     Confirm the sum of fills quantity = order.filled_quantity. Mismatch -> escalate Trading Ops (P2).
+  4. Branch on status:
+     - PARTIALLY_FILLED (LIMIT order): only part of the quantity found a match at the limit price.
+       The rest stays open and its funds stay locked. Resolve: explain; customer may wait or
+       cancel the remaining part (unfilled funds return to available balance immediately).
+     - CANCELLED with filled_quantity > 0: the filled part is final; the unfilled part was
+       cancelled (by the customer or on expiry). Check the unfilled amount was released:
+       Call check_wallet_balance(asset=<quote_asset>).
+       -> If locked still includes the unfilled amount after 15 minutes (sample value) -> escalate P2.
+     - MARKET order partly filled then CANCELLED/EXPIRED: not enough liquidity within the
+       price protection band; the remainder was cancelled and funds released. Resolve: explain.
+  5. Verify ledger for the filled part, for each trade_id in fills:
+     Call get_ledger_entries(reference_type="TRADE", reference_id=<trade_id>).
+     -> TRADE_BUY/TRADE_SELL + FEE (+ TDS for sells) present: fine. Missing -> escalate P1.
+RESOLUTION:
+  Explain what filled (quantity, average price), what happened to the rest, and that the unfilled
+  amount is either still working (open) or back in the available balance.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I checked your <coin> order from <date, IST>. <filled qty> of <total qty> <coin> was bought/sold
+  at an average price of Rs <avg>. <"The remaining <qty> is still open at your price of Rs <price>
+  and will fill only if the market reaches it; the money for this part stays reserved until it
+  fills or you cancel it." / "The remaining part was cancelled and Rs <x> has been returned to your
+  available balance.">
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Fills do not add up to filled_quantity, or ledger entries missing -> Trading Ops, P1/P2, include: order_id, trade_ids
+  - Unfilled funds still locked after the order is closed -> Trading Ops, P2
+DO NOT:
+  - Do not promise the remaining quantity will fill.
+
+======================================================================
+## TRD-04: Market order executed at a worse price than shown (slippage)
+======================================================================
+CUSTOMER MAY SAY:
+  - "App showed Rs 2,10,000 for ETH but I got it at Rs 2,14,500"
+  - "I sold at market and got much lower price than displayed"
+  - "Price dikhaya kuch aur, execute hua kuch aur. This is cheating"
+  - "Huge slippage on my BTC buy, please refund the difference"
+  - "Why is my average price higher than the price on the screen?"
+INFO NEEDED FROM CUSTOMER:
+  - Coin/pair, order time or order id, the price they saw (screenshot if possible)
+TOOLS: check_order, get_market_price_range, get_price_incidents
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call check_order(order_id=<order_id>). Check order.user_id is the customer's user_id.
+     - order_type is LIMIT: a limit order can never fill worse than the limit price. If
+       avg_fill_price is worse than price (higher for BUY, lower for SELL) -> escalate P1.
+  3. Compare the individual fills returned by check_order with avg_fill_price:
+     - A MARKET order fills against the best available orders in the book; a large order can
+       consume several price levels, so later fills are at worse prices. The weighted average of
+       fills should equal avg_fill_price. Mismatch -> escalate Trading Ops (P2).
+  4. Calculate slippage = (avg_fill_price - price_seen) / price_seen x 100 (sign depends on side).
+     Check market trades around the order time:
+     Call get_market_price_range(symbol=<symbol>, from_time=<created_at - 1 minute>,
+          to_time=<created_at + 1 minute>).
+     - Fills are within the market range at that minute: normal slippage in a fast market or thin
+       order book -> resolve with explanation.
+     - Fills are outside the market range at that time -> possible system error -> step 5.
+  5. Check for a known incident:
+     Call get_price_incidents(symbol=<symbol>, at_time=<created_at>).
+     - Incident found: tell the customer we are aware of an issue during that period and it is
+       being reviewed; follow the incident's compensation_policy exactly (do not add to it).
+       Escalate to Trading Ops (P2) with the order linked to the incident_id.
+     - No incident and fills outside the market range -> escalate Trading Ops (P2).
+     - No incident, fills within range -> resolve (normal market movement).
+RESOLUTION:
+  Explain market orders and slippage. Suggest (as product education, not advice) that limit
+  orders let the customer control the maximum/minimum price. No refund of the difference unless a
+  confirmed incident's compensation_policy says so (TRD-12).
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I understand the price you got was different from what you saw, and I checked your order.
+  Your market order for <qty> <coin> was filled in <n> parts at prices between Rs <min> and Rs <max>,
+  giving an average of Rs <avg>. A market order buys/sells immediately at the best prices available
+  in the order book at that moment; when prices move fast or the order is large, part of it can fill
+  at the next available prices. The prices you received match the market on Acme Invest at that time.
+  If you want to control the exact price, you can use a limit order, which only fills at your price
+  or better.
+  Best regards,
+  Acme Invest Support
+  (Incident variant: "We have identified a pricing issue for <coin> between <time> and <time> IST that
+  may have affected your order. Our team is reviewing affected orders and we will update you within
+  48 hours.")
+ESCALATE WHEN:
+  - LIMIT order filled worse than its limit -> Trading Ops, P1, include: order_id, limit, fills
+  - Fills outside the market range or linked to a price_incidents row -> Trading Ops, P2, include:
+    order_id, incident_id (if any), fills, price the customer saw
+  - Customer threatens legal/regulatory action -> complaints_escalation_sop CMP-04
+DO NOT:
+  - Do not promise a refund or "price correction".
+  - Do not call it "manipulation" or speculate about causes.
+
+======================================================================
+## TRD-05: Order placed but not visible / money deducted but no coins
+======================================================================
+CUSTOMER MAY SAY:
+  - "Money got deducted from my INR wallet but I didn't get any BTC"
+  - "I placed an order but it is not showing in my orders"
+  - "Paisa kat gaya par coins nahi aaye"
+  - "Bought SOL, INR balance reduced, holdings not updated"
+INFO NEEDED FROM CUSTOMER:
+  - Coin, amount, approximate time, screenshot of the order confirmation if any
+TOOLS: get_orders, get_ledger_entries, check_wallet_balance, check_order
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Find orders near the reported time:
+     Call get_orders(from_time=<reported_time - 2 hours>,
+          to_time=<reported_time + 2 hours>).
+     - No order found: check whether the INR went somewhere else (withdrawal, another asset):
+       Call get_ledger_entries(from_time=<reported_time - 2 hours>).
+       -> Debit with no matching order/withdrawal -> escalate Trading Ops (P1).
+       -> No debit: the order was never placed (app/network error) -> app_technical_sop; tell the
+          customer no money was deducted.
+  3. Order found, branch on status:
+     - OPEN / NEW / PARTIALLY_FILLED: INR is LOCKED for the order, not deducted. Check:
+       Call check_wallet_balance().
+       -> Explain the order is waiting to fill (TRD-02 / TRD-03).
+     - FILLED: check trades and ledger:
+       Call check_order(order_id=<order_id>). Then for each trade_id in fills:
+       Call get_ledger_entries(reference_type="TRADE", reference_id=<trade_id>).
+       -> TRADE_BUY credit of the coin present and check_wallet_balance shows the coin: coins are in
+          the account; likely a display/refresh issue (TRD-07).
+       -> INR debit present but coin credit missing -> escalate Trading Ops (P1).
+     - CANCELLED / REJECTED / EXPIRED with filled_quantity = 0: funds should be back in available.
+       If locked (check_wallet_balance) still holds the amount after 15 minutes (sample value) or a
+       debit exists without a REVERSAL entry -> escalate Trading Ops (P1).
+  4. The order exists but the customer cannot see it in the app: check the app filter (open vs
+     history tab) and app version; if it is still missing on the latest app -> app_technical_sop.
+RESOLUTION:
+  Either (a) funds are locked for an open order, (b) coins were credited and are visible after
+  refresh, (c) funds were released after cancel/reject, or (d) a genuine ledger gap, escalated P1.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Sorry for the worry. I checked your account: <"your order to buy <coin> worth Rs <x> placed at
+  <time IST> is still open, so the amount is reserved (not deducted) until it fills or you cancel it"
+  / "your order was completed and <qty> <coin> has been added to your holdings; please refresh the
+  app or pull down on the portfolio screen" / "we found an issue with this order and have escalated
+  it as urgent. You will hear from us within 24 hours">.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - INR debited but no coin credit, or debit without order/reversal -> Trading Ops, P1, include:
+    user_id, order_id, entry_ids, wallet_balances snapshot
+DO NOT:
+  - Do not manually promise to "add the coins".
+  - Do not tell the customer money is lost.
+
+======================================================================
+## TRD-06: Cancel failed / order filled after I cancelled
+======================================================================
+CUSTOMER MAY SAY:
+  - "I cancelled my order but it still got executed"
+  - "Cancel button not working, order got filled at a bad price"
+  - "Maine cancel kiya tha phir bhi order execute ho gaya"
+  - "Unable to cancel my limit order"
+INFO NEEDED FROM CUSTOMER:
+  - Order id or coin + time, the time they pressed cancel (IST), screenshot if any
+TOOLS: check_order, get_instrument
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call check_order(order_id=<order_id>). Check order.user_id is the customer's user_id.
+     Use the order and its fills (executed_at).
+  3. Compare fill times with the cancel time (order.updated_at for CANCELLED orders; for FILLED
+     orders, use the time the customer reports):
+     - status FILLED and all executed_at are BEFORE the reported cancel time: the order had already
+       filled when the cancel was sent (race condition; cancel requests cannot stop a fill that has
+       already happened). Resolve: explain; the trade is final (TRD-12).
+     - status CANCELLED with filled_quantity > 0: the part filled before the cancel is final; the rest
+       was cancelled. Resolve: explain (TRD-03).
+     - Any executed_at is AFTER order.updated_at of a CANCELLED status, or AFTER the cancel time by
+       more than 2 seconds (sample value) with evidence (screenshot) -> possible system issue ->
+       escalate Trading Ops (P2).
+     - status still OPEN and customer cannot cancel: Call get_instrument(symbol=<symbol>).
+       Check status; if HALTED, cancels may be queued (TRD-08). If TRADING -> app_technical_sop;
+       if it persists, escalate Tech On-call (P2).
+RESOLUTION:
+  Explain the race condition clearly, with times. If a genuine system fault is found, escalate;
+  any outcome is decided by Trading Ops.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I understand how frustrating this is. I checked the timing: your order was filled at <time IST>
+  and the cancel request reached us at <time IST>, <x> seconds after the order had already been
+  completed. Once an order is filled it cannot be cancelled, so the cancel had no effect.
+  The trade was executed at the market price at that time.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Fills recorded after a confirmed cancel -> Trading Ops, P2, include: order_id, updated_at, executed_at list, customer screenshot
+  - Cancel repeatedly failing on a TRADING instrument -> Tech On-call, P2
+DO NOT:
+  - Do not promise reversal of the filled quantity.
+
+======================================================================
+## TRD-07: Coins or portfolio value wrong / not updated
+======================================================================
+CUSTOMER MAY SAY:
+  - "My portfolio value is showing wrong"
+  - "BTC balance is less than what I bought"
+  - "Holdings not updated after trade"
+  - "Portfolio mein value kam dikh raha hai, coins gayab?"
+  - "Why can't I sell all my coins, it says insufficient"
+INFO NEEDED FROM CUSTOMER:
+  - Which coin, what they expected vs what they see, screenshot
+TOOLS: check_wallet_balance, get_orders, get_withdrawals, get_trades
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call check_wallet_balance(asset=<asset>).
+  3. Recompute from the ledger (source of truth): use ledger_total and matches_ledger from step 2.
+     - matches_ledger is true (ledger_total = available + locked): balance is correct -> step 4.
+     - matches_ledger is false -> escalate Trading Ops (P1), do not guess.
+  4. Explain locked vs available:
+     Call get_orders(statuses=["OPEN", "NEW", "PARTIALLY_FILLED"]).
+     Call get_withdrawals(statuses=["REQUESTED", "PENDING_APPROVAL", "PROCESSING", "ON_HOLD"]).
+     -> Locked coins are reserved for open SELL orders or pending withdrawals and cannot be sold
+        again until released.
+  5. Check fees and TDS explaining a smaller quantity:
+     Call get_trades(). Look at the latest 20 trades.
+     -> The coin quantity received on a buy is net of fees (sample: fee taken from the bought
+        amount); on a sell, INR received is net of fee, GST and TDS (tax_statements_sop TAX-01).
+  6. Portfolio VALUE (not quantity) wrong: value = quantity x latest price. Prices update
+     continuously and may lag by a few seconds; values differ from other platforms. If prices are
+     not loading at all -> app_technical_sop. If quantity is right, no action is needed.
+RESOLUTION:
+  Confirm the quantities from the ledger, explain locked amounts, fees/TDS and price-based value.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I checked your <coin> holdings. You hold <total> <coin> in total: <available> is available and
+  <locked> is reserved for <an open sell order / a pending withdrawal>. <"The quantity you received
+  is slightly lower than the order amount because the trading fee is deducted from it."> Your
+  portfolio value is calculated from the live market price, so it changes as the price moves.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Ledger sum does not match wallet_balances -> Trading Ops, P1, include: user_id, asset, ledger sum, balances
+DO NOT:
+  - Do not comment on whether the value will rise or fall.
+
+======================================================================
+## TRD-08: Instrument HALTED / DELISTED / POST_ONLY
+======================================================================
+CUSTOMER MAY SAY:
+  - "Why can't I buy XYZ coin, it says trading paused"
+  - "Coin delisted, what happens to my holdings?"
+  - "Only limit orders allowed on this coin, market order option gone"
+  - "Mera coin delist ho gaya, paisa wapas milega?"
+INFO NEEDED FROM CUSTOMER:
+  - Coin/pair
+TOOLS: get_instrument, check_wallet_balance, get_price_incidents, get_supported_networks
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_instrument(symbol=<symbol>).
+     Call check_wallet_balance(asset=<asset>).
+  3. Branch on status:
+     - HALTED: trading is temporarily paused (maintenance, network upgrade, extreme volatility).
+       Check for an incident: Call get_price_incidents(symbol=<symbol>).
+       Open orders stay in the book but do not match until trading resumes; holdings are safe.
+       -> Resolve: tell the customer trading will resume automatically; no fixed ETA unless
+          announced. If halted for more than 24 hours (sample value) with no announcement ->
+          escalate Trading Ops (P3) for an update.
+     - POST_ONLY: only limit orders that add to the order book are accepted; market orders and
+       limit orders that would match immediately are not accepted. Usually before full trading
+       starts or resumes. -> Resolve: explain; customer can place limit orders.
+     - DELISTED: the pair is no longer tradable on Acme. Holdings remain in the account.
+       Check whether withdrawal of the coin is possible:
+       Call get_supported_networks(asset=<asset>).
+       -> withdrawals_enabled: customer can withdraw to their own external wallet before the
+          announced deadline (crypto_transfers_sop). Otherwise follow the delisting announcement;
+          escalate to Trading Ops (P3) for the customer's options.
+     - TRADING: the coin is tradable now; the issue is elsewhere (TRD-01 / app_technical_sop).
+RESOLUTION:
+  Explain the status and what the customer can still do. Never say holdings are lost.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Trading in <coin> is <temporarily paused / currently limited to limit orders / no longer
+  available on Acme Invest>. Your <qty> <coin> is safe in your account. <"Trading will resume
+  automatically and any open orders will then continue." / "You can place limit orders at your
+  chosen price." / "You can withdraw it to your own external wallet from the app until <date>.">
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Halt longer than 24 hours (sample value) without an announcement -> Trading Ops, P3
+  - Delisted coin with withdrawals disabled and customer holding a balance -> Trading Ops, P3, include: asset, quantity
+DO NOT:
+  - Do not speculate on why a coin was delisted or on its future price.
+  - Do not advise selling or buying ahead of a halt/delisting.
+
+======================================================================
+## TRD-09: SIP failed or skipped
+======================================================================
+CUSTOMER MAY SAY:
+  - "My SIP didn't run this week"
+  - "SIP failed, I got a notification"
+  - "Why was my BTC SIP skipped?"
+  - "SIP ka paisa nahi kata aur coins bhi nahi aaye"
+INFO NEEDED FROM CUSTOMER:
+  - Which SIP (coin, amount), expected date
+TOOLS: get_sip_plans, check_wallet_balance, get_instrument, get_ledger_entries, check_order
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_sip_plans().
+  3. Use recent_runs of the SIP (last 10 runs) returned by get_sip_plans.
+     - No run on the expected date and the plan's status = PAUSED or CANCELLED: the SIP was not
+       active -> TRD-10.
+     - No run on the expected date and plan ACTIVE: check next_run_at (dates are UTC; a run at
+       00:30 UTC is 06:00 IST). If next_run_at is in the past and no run exists -> escalate
+       Trading Ops (P3).
+  4. Branch on the run's status / failure_reason:
+     - FAILED, INSUFFICIENT_BALANCE: INR available was below the SIP amount at run time.
+       Call check_wallet_balance(asset="INR").
+       -> Resolve: add funds before the next run; the missed run is not retried (sample value).
+     - FAILED, INSTRUMENT_HALTED: trading was paused -> TRD-08; next run proceeds normally.
+     - FAILED, BELOW_MIN_ORDER_VALUE: SIP amount below min_order_value from
+       Call get_instrument(symbol=<symbol>). -> ask the
+       customer to edit the SIP amount to at least that value.
+     - FAILED, SYSTEM_ERROR: check other SIP failures in the same run window; escalate Trading Ops (P2)
+       if repeated or widespread. Confirm no money was debited:
+       Call get_ledger_entries(order_id=<order_id>) (the run's order_id).
+     - SKIPPED: the run was intentionally not executed (e.g. SIP paused at run time, or the previous
+       run's order still open - sample rules). Read failure_reason if present; otherwise check
+       the plan's status history with the customer. Unclear -> escalate Trading Ops (P3).
+     - SUCCESS: check the order: Call check_order(order_id=<order_id>).
+       -> FILLED: coins credited (show quantity). Other -> TRD-05.
+RESOLUTION:
+  Explain why the run failed/skipped and what to do before the next run date (IST).
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I checked your <coin> SIP of Rs <amount>. The instalment on <date> did not go through because
+  <"your INR balance was lower than the SIP amount at that time" / "trading in <coin> was
+  temporarily paused" / "the SIP amount is below the minimum order value of Rs <min>">.
+  No money was deducted for this instalment. Your next instalment is scheduled for <date, IST>;
+  <what to do>.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - ACTIVE plan with a missed run and no sip_runs row -> Trading Ops, P3, include: sip_id, next_run_at
+  - SYSTEM_ERROR repeated or money debited without coins -> Trading Ops, P2 (P1 if money missing)
+DO NOT:
+  - Do not promise a manual catch-up purchase for missed runs.
+
+======================================================================
+## TRD-10: Pause, cancel or change a SIP
+======================================================================
+CUSTOMER MAY SAY:
+  - "How do I stop my SIP?"
+  - "Please pause my SIP for 2 months"
+  - "SIP band karna hai"
+  - "I cancelled my SIP but money still got used"
+INFO NEEDED FROM CUSTOMER:
+  - Which SIP (coin, amount)
+TOOLS: get_sip_plans
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_sip_plans().
+  3. Branch:
+     - How-to request: explain the self-service steps (sample path: App > Portfolio > SIPs > select
+       SIP > Pause / Cancel / Edit). Support does not change SIPs on the customer's behalf by email.
+       Resolve.
+     - "Cancelled but it still ran": compare the run time with when the plan changed:
+       use the latest 3 recent_runs of the SIP returned by get_sip_plans in step 2.
+       -> Run happened before the customer's pause/cancel time: normal; the order is final (TRD-12).
+       -> the plan's status is PAUSED/CANCELLED and a SUCCESS run happened after the customer says
+          they changed it: escalate Trading Ops (P2) with run_id and order_id.
+     - Customer cannot pause/cancel in the app (error) -> app_technical_sop; if urgent (next_run_at
+       within 24 hours), escalate Trading Ops (P3) to assist.
+RESOLUTION:
+  Give the self-service steps; paused SIPs can be resumed anytime, cancelled SIPs cannot be
+  restarted (create a new SIP) (sample rule). Coins already bought stay in holdings.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  You can pause, change or cancel your SIP anytime from the app: go to Portfolio > SIPs, select
+  your <coin> SIP and choose Pause, Edit or Cancel. A paused SIP can be resumed later; a cancelled
+  SIP stops permanently. Coins already bought through the SIP stay in your holdings. Your next
+  instalment is currently scheduled for <date, IST>, so please make the change before then.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - SIP ran after it was paused/cancelled -> Trading Ops, P2, include: sip_id, run_id, order_id, times
+DO NOT:
+  - Do not pause or cancel a SIP based only on an email request.
+
+======================================================================
+## TRD-11: Trade I did not place
+======================================================================
+CUSTOMER MAY SAY:
+  - "There is a trade in my account that I never made"
+  - "Someone sold all my coins"
+  - "Maine ye order nahi kiya, account hack ho gaya kya?"
+  - "Unknown buy orders in my history"
+INFO NEEDED FROM CUSTOMER:
+  - Which orders (coin, time), whether they shared OTP/password or installed any remote app
+TOOLS: get_orders, get_auth_events, get_user_devices, get_withdrawals
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02). This is P1: go to account_security_sop SEC-01
+     immediately for securing the account; the steps below only add trading context.
+  2. Call get_orders(days=7).
+     - source = SIP: the order came from the customer's own SIP -> show the SIP (TRD-10); if the
+       customer did not create the SIP, continue as unauthorized.
+     - source = API: check whether the customer created API keys; unknown -> unauthorized.
+  3. Call get_auth_events(days=7).
+     Call get_user_devices().
+     -> New device/IP shortly before the orders: likely unauthorized access -> SEC-01, P1.
+  4. Check for pending withdrawals (money may be moving out):
+     Call get_withdrawals(statuses=["REQUESTED", "PENDING_APPROVAL", "PROCESSING"]).
+     -> Any found: flag in the escalation as urgent.
+RESOLUTION:
+  Secure the account per SEC-01; Risk & Compliance and Trading Ops investigate. No reversal or
+  compensation is promised.
+CUSTOMER REPLY TEMPLATE:
+  Use account_security_sop SEC-01 template. Add: "We have noted the orders you mentioned and they
+  are part of our investigation."
+ESCALATE WHEN:
+  - Always -> Risk & Compliance, P1 (per SEC-01), cc Trading Ops, include: order_ids, source, auth
+    events, new devices, pending withdrawals
+DO NOT:
+  - Do not tell the customer the trades will be reversed.
+  - Do not share IP addresses or device details beyond "a login from a new device".
+
+======================================================================
+## TRD-12: Request to reverse or undo a trade
+======================================================================
+CUSTOMER MAY SAY:
+  - "I placed the order by mistake, please reverse it"
+  - "Fat finger, I typed wrong quantity, cancel this trade"
+  - "Price dropped right after I bought, refund my money"
+  - "Galti se sell ho gaya, please undo karo"
+INFO NEEDED FROM CUSTOMER:
+  - Order id or coin + time, and why they want it reversed
+TOOLS: check_order, get_price_incidents
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call check_order(order_id=<order_id>). Check order.user_id is the customer's user_id.
+     Use the order and its fills.
+  3. Branch:
+     - Customer says they did not place it -> TRD-11 (P1).
+     - Order still OPEN / PARTIALLY_FILLED: the unfilled part can be cancelled by the customer
+       in the app. Resolve.
+     - Executed, and the customer's reason is a mistake, regret or price movement: executed trades
+       are final and cannot be reversed. Resolve with the policy reply. The customer can place a new
+       opposite order if they wish (not advice).
+     - Executed during a confirmed incident:
+       Call get_price_incidents(symbol=<symbol>, at_time=<executed_at>).
+       -> Follow compensation_policy exactly; escalate to Trading Ops (P2). Tell the customer the
+          order is under review, without promising the outcome.
+     - Customer claims a system error (app showed wrong price/quantity) but no incident exists:
+       go to TRD-04 checks; escalate Trading Ops (P3) with evidence only if the checks disagree.
+RESOLUTION:
+  Policy: executed trades cannot be reversed, except where Trading Ops confirms a system error
+  covered by a price_incidents compensation_policy.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I understand this order was not what you intended. I checked it: your order to <buy/sell> <qty>
+  <coin> was executed at <time IST> at an average price of Rs <avg>. Once a trade is executed on
+  the exchange it is final and cannot be reversed or cancelled, because the other side of the trade
+  has also been completed. If you wish, you can place a new order from the app at any time.
+  To avoid accidental orders, you can review the order summary before confirming.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Trade falls within a price_incidents window -> Trading Ops, P2, include: order_id, incident_id
+  - Customer threatens legal action -> complaints_escalation_sop CMP-04
+DO NOT:
+  - Do not promise reversal, refund, goodwill credit or fee waiver.
+  - Do not advise the customer to buy back or sell.
+
+======================================================================
+## TRD-13: How to read average buy price and P&L
+======================================================================
+CUSTOMER MAY SAY:
+  - "My average buy price is wrong"
+  - "P&L shows loss but I am in profit"
+  - "How is invested value calculated?"
+  - "Avg price itna high kaise aaya?"
+INFO NEEDED FROM CUSTOMER:
+  - Coin, screenshot of the portfolio screen
+TOOLS: get_trades, get_ledger_entries
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. List the customer's trades in the coin:
+     Call get_trades(symbol=<symbol>).
+  3. Recompute (sample method, weighted average cost):
+     avg buy price = sum(price x quantity of buys) / sum(quantity of buys), recalculated only when
+     buying; selling reduces quantity but does not change the average (sample rule). Fees and GST
+     are shown separately and are not included in the average (sample rule).
+     Worked example: buy 0.01 BTC at Rs 50,00,000 and 0.01 BTC at Rs 60,00,000 ->
+     average = (50,000 + 60,000) / 0.02 = Rs 55,00,000.
+     Unrealised P&L = (current price - average) x quantity held.
+     Realised P&L on a sell = (sell price - average) x quantity sold.
+  4. Also check non-trade credits that have zero cost (rewards, crypto deposits):
+     Call get_ledger_entries(asset=<asset>, entry_types=["REWARD", "DEPOSIT"]).
+     -> Coins deposited from outside or received as rewards may have no purchase price on Acme
+        (sample: shown at zero/unknown cost), which changes the average and P&L.
+  5. - Recomputed average matches the app: explain the method. Resolve.
+     - Mismatch that deposits/rewards do not explain -> escalate Trading Ops (P3) with the calculation.
+RESOLUTION:
+  Explain the calculation with the customer's own numbers. For tax purposes, refer to the P&L
+  statement (tax_statements_sop TAX-03); the app's P&L view is indicative.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Happy to explain. Your average buy price for <coin> is the weighted average of all your buys:
+  you bought <qty1> at Rs <p1> and <qty2> at Rs <p2>, so the average is Rs <avg>. Selling does
+  not change the average. Your profit or loss shown in the app is (current price - average price)
+  x quantity held, so it moves with the live price. <"Coins you deposited from outside Acme Invest
+  do not have a purchase price here, which affects the average.">
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Unexplained mismatch between trades and the displayed average -> Trading Ops, P3, include: trade list, recomputed values
+DO NOT:
+  - Do not tell the customer whether to book profit or loss.
+  - Do not present the app P&L as a tax computation.
+
+======================================================================
+## TRD-14: Stop-limit did not trigger / order EXPIRED
+======================================================================
+CUSTOMER MAY SAY:
+  - "My stop loss did not work, price went below my trigger"
+  - "Stop limit triggered but did not execute"
+  - "Order shows expired, why?"
+  - "SL laga tha phir bhi loss ho gaya"
+INFO NEEDED FROM CUSTOMER:
+  - Coin, trigger price, limit price, time
+TOOLS: check_order, get_market_price_range, check_wallet_balance
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call check_order(order_id=<order_id>). Check order.user_id is the customer's user_id.
+  3. Explain: a STOP_LIMIT becomes a LIMIT order at `price` once the market trades at `trigger_price`.
+     It then fills only at the limit price or better; if the market moves past the limit quickly,
+     it may stay unfilled.
+  4. Check the market since placement:
+     Call get_market_price_range(symbol=<symbol>, from_time=<created_at>).
+     - Trigger never reached (SELL stop: low > trigger_price): not triggered. Resolve: explain.
+     - Trigger reached, limit not reached (SELL: low < trigger but market jumped below limit):
+       triggered, now waiting as a limit order (status OPEN) or expired. Resolve: explain gap risk.
+     - Trigger and limit both clearly traded through and the order stayed untriggered/unfilled
+       -> escalate Trading Ops (P2).
+  5. status EXPIRED: the order reached its validity end (sample: open orders expire after 30 days)
+     or was cancelled by the system when the instrument was delisted (TRD-08). Funds/coins locked
+     for it are released; confirm with Call check_wallet_balance().
+RESOLUTION:
+  Explain trigger vs limit and expiry with the customer's numbers. No compensation.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I checked your stop-limit order for <coin>. A stop-limit order places a limit order at Rs <limit>
+  only after the price reaches Rs <trigger>. <"Since you placed it, the lowest price on Acme Invest
+  was Rs <low>, so the trigger was not reached." / "The price reached your trigger, but moved past
+  your limit price too quickly, so the order could not fill at Rs <limit> or better.">
+  <Expiry: "The order expired on <date> and the reserved amount is back in your available balance.">
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Market traded through both trigger and limit without the order acting -> Trading Ops, P2, include: order_id, prices
+DO NOT:
+  - Do not recommend stop or limit levels.

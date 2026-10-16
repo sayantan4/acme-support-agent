@@ -1,0 +1,957 @@
+{
+  "scope_prompt": "scope-v1",
+  "summary": {
+    "cases": 41,
+    "passed": 37,
+    "pass_rate": 0.902,
+    "wrongly_rejected": 0,
+    "wrongly_rejected_rate": 0.0,
+    "out_of_scope_caught_rate": 1.0,
+    "no_issue_caught_rate": 0.867,
+    "gate_failures": 0,
+    "pass_rate_by_category": {
+      "small_talk": 0.833,
+      "thanks": 0.667,
+      "noise": 1.0,
+      "out_of_scope": 0.909,
+      "mixed": 1.0,
+      "in_scope_tricky": 1.0
+    },
+    "confusion": {
+      "in_scope -> in_scope": 12,
+      "mixed -> mixed": 3,
+      "no_issue -> in_scope": 2,
+      "no_issue -> no_issue": 13,
+      "out_of_scope -> out_of_scope": 11
+    },
+    "seconds_p50": 1.57,
+    "seconds_p95": 2.48,
+    "tokens_per_case_avg": 1079
+  },
+  "cases": [
+    {
+      "id": "greeting-new-thread",
+      "category": "small_talk",
+      "passed": true,
+      "problems": [],
+      "expected": "no_issue",
+      "decision": "no_issue",
+      "no_issue_kind": "greeting",
+      "out_of_scope_topics": [],
+      "reply_sent": true,
+      "reason": "The customer only sent a greeting/small talk with no account issue or request.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.94,
+      "tokens": {
+        "input": 978,
+        "cached": 0,
+        "output": 60
+      },
+      "message": "Hi, how are you?"
+    },
+    {
+      "id": "greeting-good-morning",
+      "category": "small_talk",
+      "passed": true,
+      "problems": [],
+      "expected": "no_issue",
+      "decision": "no_issue",
+      "no_issue_kind": "greeting",
+      "out_of_scope_topics": [],
+      "reply_sent": true,
+      "reason": "Customer only sent a greeting with no account issue or request.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 2.21,
+      "tokens": {
+        "input": 975,
+        "cached": 0,
+        "output": 56
+      },
+      "message": "Good morning!"
+    },
+    {
+      "id": "greeting-hinglish",
+      "category": "small_talk",
+      "passed": true,
+      "problems": [],
+      "expected": "no_issue",
+      "decision": "no_issue",
+      "no_issue_kind": "greeting",
+      "out_of_scope_topics": [],
+      "reply_sent": true,
+      "reason": "The customer only sent a greeting/small talk without an account or transaction issue.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.93,
+      "tokens": {
+        "input": 980,
+        "cached": 0,
+        "output": 60
+      },
+      "message": "Hello bhai, kaise ho?"
+    },
+    {
+      "id": "greeting-repeated",
+      "category": "small_talk",
+      "passed": true,
+      "problems": [],
+      "expected": "no_issue",
+      "decision": "no_issue",
+      "no_issue_kind": "greeting",
+      "out_of_scope_topics": [],
+      "reply_sent": false,
+      "reason": "The customer only asks how you are, with no account issue or request mentioned.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 2.91,
+      "tokens": {
+        "input": 1004,
+        "cached": 0,
+        "output": 57
+      },
+      "message": "How are you?"
+    },
+    {
+      "id": "greeting-third-time",
+      "category": "small_talk",
+      "passed": true,
+      "problems": [],
+      "expected": "no_issue",
+      "decision": "no_issue",
+      "no_issue_kind": "greeting",
+      "out_of_scope_topics": [],
+      "reply_sent": false,
+      "reason": "The customer is only responding with a greeting/small talk and no account issue is mentioned.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.37,
+      "tokens": {
+        "input": 1006,
+        "cached": 0,
+        "output": 61
+      },
+      "message": "hi again, how are u"
+    },
+    {
+      "id": "are-you-a-bot",
+      "category": "small_talk",
+      "passed": false,
+      "problems": [
+        "kind noise, expected greeting",
+        "silent, expected a reply"
+      ],
+      "expected": "no_issue",
+      "decision": "no_issue",
+      "no_issue_kind": "noise",
+      "out_of_scope_topics": [],
+      "reply_sent": false,
+      "reason": "The customer is asking generally if you are a bot, with no Acme Invest issue or request.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.89,
+      "tokens": {
+        "input": 981,
+        "cached": 0,
+        "output": 75
+      },
+      "message": "Are you a bot or a real person?"
+    },
+    {
+      "id": "thanks-after-answer",
+      "category": "thanks",
+      "passed": true,
+      "problems": [],
+      "expected": "no_issue",
+      "decision": "no_issue",
+      "no_issue_kind": "thanks_solved",
+      "out_of_scope_topics": [],
+      "reply_sent": true,
+      "reason": "The customer only thanks after our answer, with no further issue or request.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.75,
+      "tokens": {
+        "input": 1032,
+        "cached": 0,
+        "output": 75
+      },
+      "message": "Thanks!"
+    },
+    {
+      "id": "got-it-after-answer",
+      "category": "thanks",
+      "passed": true,
+      "problems": [],
+      "expected": "no_issue",
+      "decision": "no_issue",
+      "no_issue_kind": "thanks_solved",
+      "out_of_scope_topics": [],
+      "reply_sent": true,
+      "reason": "Customer confirms they understood and thanks us after the issue was explained.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.62,
+      "tokens": {
+        "input": 1037,
+        "cached": 0,
+        "output": 86
+      },
+      "message": "Got it, thank you so much"
+    },
+    {
+      "id": "thanks-again-after-closing",
+      "category": "thanks",
+      "passed": true,
+      "problems": [],
+      "expected": "no_issue",
+      "decision": "no_issue",
+      "no_issue_kind": "thanks_solved",
+      "out_of_scope_topics": [],
+      "reply_sent": false,
+      "reason": "Customer only says thanks after the issue was resolved.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.3,
+      "tokens": {
+        "input": 1019,
+        "cached": 0,
+        "output": 85
+      },
+      "message": "Thanks"
+    },
+    {
+      "id": "ok-wait-escalated",
+      "category": "thanks",
+      "passed": true,
+      "problems": [],
+      "expected": "no_issue",
+      "decision": "no_issue",
+      "no_issue_kind": "thanks_open",
+      "out_of_scope_topics": [],
+      "reply_sent": true,
+      "reason": "Customer indicates they will wait after being asked not to retry; no new issue raised.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 2.01,
+      "tokens": {
+        "input": 1054,
+        "cached": 0,
+        "output": 70
+      },
+      "message": "Ok, I will wait."
+    },
+    {
+      "id": "thanks-pending-deposit",
+      "category": "thanks",
+      "passed": false,
+      "problems": [
+        "decision in_scope, expected no_issue",
+        "kind None, expected thanks_open"
+      ],
+      "expected": "no_issue",
+      "decision": "in_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [],
+      "reply_sent": null,
+      "reason": "Customer acknowledged the guidance and indicates they will check tomorrow, which is tied to the pending deposit issue.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.49,
+      "tokens": {
+        "input": 1054,
+        "cached": 0,
+        "output": 92
+      },
+      "message": "ok thanks, will check tomorrow"
+    },
+    {
+      "id": "ok-after-holding-reply",
+      "category": "thanks",
+      "passed": false,
+      "problems": [
+        "decision in_scope, expected no_issue"
+      ],
+      "expected": "no_issue",
+      "decision": "in_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [],
+      "reply_sent": null,
+      "reason": "The customer’s reply “ok” is a follow-up acknowledgment to the open withdrawal case we’re handling.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.95,
+      "tokens": {
+        "input": 1023,
+        "cached": 0,
+        "output": 73
+      },
+      "message": "ok"
+    },
+    {
+      "id": "empty-body",
+      "category": "noise",
+      "passed": true,
+      "problems": [],
+      "expected": "no_issue",
+      "decision": "no_issue",
+      "no_issue_kind": "noise",
+      "out_of_scope_topics": [],
+      "reply_sent": false,
+      "reason": "The newest message is empty/no actionable content.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.15,
+      "tokens": {
+        "input": 974,
+        "cached": 0,
+        "output": 52
+      },
+      "message": ""
+    },
+    {
+      "id": "signature-only",
+      "category": "noise",
+      "passed": true,
+      "problems": [],
+      "expected": "no_issue",
+      "decision": "no_issue",
+      "no_issue_kind": "noise",
+      "out_of_scope_topics": [],
+      "reply_sent": false,
+      "reason": "The message contains only a device/signature line with no customer request or issue details.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.64,
+      "tokens": {
+        "input": 978,
+        "cached": 0,
+        "output": 68
+      },
+      "message": "--\nSent from my iPhone"
+    },
+    {
+      "id": "test-message",
+      "category": "noise",
+      "passed": true,
+      "problems": [],
+      "expected": "no_issue",
+      "decision": "no_issue",
+      "no_issue_kind": "noise",
+      "out_of_scope_topics": [],
+      "reply_sent": false,
+      "reason": "The message is just a test with no support-related issue.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.5,
+      "tokens": {
+        "input": 973,
+        "cached": 0,
+        "output": 62
+      },
+      "message": "test"
+    },
+    {
+      "id": "credit-card-declined",
+      "category": "out_of_scope",
+      "passed": true,
+      "problems": [],
+      "expected": "out_of_scope",
+      "decision": "out_of_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [
+        "credit cards",
+        "card payments",
+        "ATM/debit/credit card declines"
+      ],
+      "reply_sent": true,
+      "reason": "The customer asks about a declined credit card at a mall, which Acme Invest does not offer or control.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.63,
+      "tokens": {
+        "input": 983,
+        "cached": 0,
+        "output": 82
+      },
+      "message": "Why was my credit card declined at the mall yesterday?"
+    },
+    {
+      "id": "personal-loan",
+      "category": "out_of_scope",
+      "passed": true,
+      "problems": [],
+      "expected": "out_of_scope",
+      "decision": "out_of_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [
+        "personal loans",
+        "loan/credit products",
+        "borrowing/lending"
+      ],
+      "reply_sent": true,
+      "reason": "The customer is asking for personal loans, which Acme Invest does not offer.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.5,
+      "tokens": {
+        "input": 985,
+        "cached": 0,
+        "output": 78
+      },
+      "message": "Do you give personal loans? I need 2 lakh urgently."
+    },
+    {
+      "id": "loan-against-crypto",
+      "category": "out_of_scope",
+      "passed": true,
+      "problems": [],
+      "expected": "out_of_scope",
+      "decision": "out_of_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [
+        "loans against crypto holdings",
+        "crypto collateral loans",
+        "lending/borrowing"
+      ],
+      "reply_sent": true,
+      "reason": "The customer is asking for a loan or borrowing against bitcoin, which Acme Invest does not offer.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.53,
+      "tokens": {
+        "input": 982,
+        "cached": 0,
+        "output": 83
+      },
+      "message": "Can I take a loan against my bitcoin holdings?"
+    },
+    {
+      "id": "forex-usd",
+      "category": "out_of_scope",
+      "passed": true,
+      "problems": [],
+      "expected": "out_of_scope",
+      "decision": "out_of_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [
+        "sending money abroad",
+        "USD to INR exchange rate for international remittances",
+        "international money transfers/forex"
+      ],
+      "reply_sent": true,
+      "reason": "Acme Invest is an Indian crypto investing app and does not offer USD-to-INR exchange rates for sending money abroad.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.38,
+      "tokens": {
+        "input": 985,
+        "cached": 0,
+        "output": 96
+      },
+      "message": "What is your USD to INR exchange rate for sending money abroad?"
+    },
+    {
+      "id": "insurance",
+      "category": "out_of_scope",
+      "passed": true,
+      "problems": [],
+      "expected": "out_of_scope",
+      "decision": "out_of_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [
+        "term insurance",
+        "insurance products",
+        "financial advice on insurance plans"
+      ],
+      "reply_sent": true,
+      "reason": "The customer is asking for insurance plan recommendations, which Acme Invest does not offer.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.53,
+      "tokens": {
+        "input": 985,
+        "cached": 0,
+        "output": 79
+      },
+      "message": "I want to buy term insurance, which plan do you suggest?"
+    },
+    {
+      "id": "fixed-deposit",
+      "category": "out_of_scope",
+      "passed": true,
+      "problems": [],
+      "expected": "out_of_scope",
+      "decision": "out_of_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [
+        "fixed deposits (FD)",
+        "interest rates on deposits",
+        "savings/interest products"
+      ],
+      "reply_sent": true,
+      "reason": "The customer is asking for FD interest rates, which Acme Invest does not offer.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.57,
+      "tokens": {
+        "input": 983,
+        "cached": 0,
+        "output": 87
+      },
+      "message": "What is your FD interest rate for 1 year?"
+    },
+    {
+      "id": "mutual-funds",
+      "category": "out_of_scope",
+      "passed": true,
+      "problems": [],
+      "expected": "out_of_scope",
+      "decision": "out_of_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [
+        "SIP in mutual funds",
+        "mutual funds investing",
+        "stocks/ETFs/F&O"
+      ],
+      "reply_sent": true,
+      "reason": "Acme Invest does not offer mutual funds or SIPs; this request is for an investment product we don’t support.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.37,
+      "tokens": {
+        "input": 985,
+        "cached": 0,
+        "output": 92
+      },
+      "message": "How do I start a SIP in mutual funds on your app?"
+    },
+    {
+      "id": "stocks",
+      "category": "out_of_scope",
+      "passed": true,
+      "problems": [],
+      "expected": "out_of_scope",
+      "decision": "out_of_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [
+        "Reliance shares / stocks",
+        "stock trading / mutual funds / ETFs / derivatives"
+      ],
+      "reply_sent": true,
+      "reason": "Acme Invest does not offer stock or share trading.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.36,
+      "tokens": {
+        "input": 982,
+        "cached": 0,
+        "output": 74
+      },
+      "message": "Can I buy Reliance shares on Acme?"
+    },
+    {
+      "id": "other-bank-atm",
+      "category": "out_of_scope",
+      "passed": true,
+      "problems": [],
+      "expected": "out_of_scope",
+      "decision": "out_of_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [
+        "debit cards",
+        "ATM cash withdrawals",
+        "card payment/ATM disputes with SBI"
+      ],
+      "reply_sent": true,
+      "reason": "The customer reports an SBI ATM swallowing a debit card and asks what to do; Acme Invest does not provide debit/ATM services or manage SBI ATM incidents.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.58,
+      "tokens": {
+        "input": 985,
+        "cached": 0,
+        "output": 98
+      },
+      "message": "SBI ATM swallowed my debit card, what should I do?"
+    },
+    {
+      "id": "hinglish-loan",
+      "category": "out_of_scope",
+      "passed": true,
+      "problems": [],
+      "expected": "out_of_scope",
+      "decision": "out_of_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [
+        "loans",
+        "EMI",
+        "credit/borrowing"
+      ],
+      "reply_sent": true,
+      "reason": "Customer is asking whether they can get a loan on EMI, which Acme Invest does not offer.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 2.64,
+      "tokens": {
+        "input": 984,
+        "cached": 0,
+        "output": 92
+      },
+      "message": "Bhai loan milega kya? EMI pe chahiye"
+    },
+    {
+      "id": "oos-again-same-topic",
+      "category": "out_of_scope",
+      "passed": false,
+      "problems": [
+        "replied, expected silence"
+      ],
+      "expected": "out_of_scope",
+      "decision": "out_of_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [
+        "loans",
+        "loan products/eligibility"
+      ],
+      "reply_sent": true,
+      "reason": "The customer is asking whether Acme Invest offers loans, which is outside Acme Invest’s services.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.33,
+      "tokens": {
+        "input": 1047,
+        "cached": 0,
+        "output": 84
+      },
+      "message": "So no loans at all?"
+    },
+    {
+      "id": "deposit-and-loan",
+      "category": "mixed",
+      "passed": true,
+      "problems": [],
+      "expected": "mixed",
+      "decision": "mixed",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [
+        "loans",
+        "credit/borrowing"
+      ],
+      "reply_sent": null,
+      "reason": "Customer reports a stuck UPI deposit (in scope) and also asks for a loan (not offered).",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.32,
+      "tokens": {
+        "input": 994,
+        "cached": 0,
+        "output": 89
+      },
+      "message": "My UPI deposit of Rs 3,000 is stuck since morning. Also can I get a loan?"
+    },
+    {
+      "id": "withdrawal-and-card",
+      "category": "mixed",
+      "passed": true,
+      "problems": [],
+      "expected": "mixed",
+      "decision": "mixed",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [
+        "debit cards",
+        "credit cards",
+        "ATM cash withdrawals",
+        "card payments"
+      ],
+      "reply_sent": null,
+      "reason": "Customer reports a failed withdrawal (in scope) and asks whether Acme Invest offers a debit card (out of scope).",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.62,
+      "tokens": {
+        "input": 988,
+        "cached": 0,
+        "output": 92
+      },
+      "message": "Withdrawal to my HDFC account failed. And do you have a debit card?"
+    },
+    {
+      "id": "kyc-and-mutual-fund",
+      "category": "mixed",
+      "passed": true,
+      "problems": [],
+      "expected": "mixed",
+      "decision": "mixed",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [
+        "mutual funds"
+      ],
+      "reply_sent": null,
+      "reason": "Customer is asking about another KYC rejection (in-scope), and also requests mutual funds investing (not offered).",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.57,
+      "tokens": {
+        "input": 987,
+        "cached": 0,
+        "output": 77
+      },
+      "message": "KYC rejected again, why? Also want to invest in mutual funds."
+    },
+    {
+      "id": "greeting-plus-issue",
+      "category": "in_scope_tricky",
+      "passed": true,
+      "problems": [],
+      "expected": "in_scope",
+      "decision": "in_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [],
+      "reply_sent": null,
+      "reason": "The customer reports a failed INR deposit with debit and is seeking account/deposit support.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.5,
+      "tokens": {
+        "input": 987,
+        "cached": 0,
+        "output": 71
+      },
+      "message": "Hi, how are you? My deposit failed but money got debited."
+    },
+    {
+      "id": "ok-answers-our-question",
+      "category": "in_scope_tricky",
+      "passed": true,
+      "problems": [],
+      "expected": "in_scope",
+      "decision": "in_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [],
+      "reply_sent": null,
+      "reason": "Customer confirms they want the ticket raised for the failed IMPS withdrawal.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.41,
+      "tokens": {
+        "input": 1029,
+        "cached": 0,
+        "output": 77
+      },
+      "message": "Ok, yes please"
+    },
+    {
+      "id": "thanks-but-still-missing",
+      "category": "in_scope_tricky",
+      "passed": true,
+      "problems": [],
+      "expected": "in_scope",
+      "decision": "in_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [],
+      "reply_sent": null,
+      "reason": "Customer is following up on the same pending UPI deposit that is still not credited.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.35,
+      "tokens": {
+        "input": 1060,
+        "cached": 0,
+        "output": 86
+      },
+      "message": "Thanks, but the money is still not in my wallet."
+    },
+    {
+      "id": "sarcastic-thanks",
+      "category": "in_scope_tricky",
+      "passed": true,
+      "problems": [],
+      "expected": "in_scope",
+      "decision": "in_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [],
+      "reply_sent": null,
+      "reason": "Customer is chasing a pending UPI deposit that is still not credited after several days.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 2.48,
+      "tokens": {
+        "input": 1060,
+        "cached": 0,
+        "output": 95
+      },
+      "message": "Thanks for nothing. Still no money after 4 days."
+    },
+    {
+      "id": "chase-question-marks",
+      "category": "in_scope_tricky",
+      "passed": true,
+      "problems": [],
+      "expected": "in_scope",
+      "decision": "in_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [],
+      "reply_sent": null,
+      "reason": "The customer message '??' is likely a follow-up/chase on the pending deposit case.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.89,
+      "tokens": {
+        "input": 1049,
+        "cached": 0,
+        "output": 89
+      },
+      "message": "??"
+    },
+    {
+      "id": "any-update",
+      "category": "in_scope_tricky",
+      "passed": true,
+      "problems": [],
+      "expected": "in_scope",
+      "decision": "in_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [],
+      "reply_sent": null,
+      "reason": "Customer is following up/chasing the status of the already-escalated pending UPI deposit.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.45,
+      "tokens": {
+        "input": 1051,
+        "cached": 0,
+        "output": 91
+      },
+      "message": "Any update?"
+    },
+    {
+      "id": "bank-mentioned-deposit",
+      "category": "in_scope_tricky",
+      "passed": true,
+      "problems": [],
+      "expected": "in_scope",
+      "decision": "in_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [],
+      "reply_sent": null,
+      "reason": "Customer reports an INR deposit/transfer mismatch between their bank and the Acme wallet, which Acme Invest supports.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.7,
+      "tokens": {
+        "input": 987,
+        "cached": 0,
+        "output": 74
+      },
+      "message": "ICICI says the money left my account but Acme wallet shows nothing."
+    },
+    {
+      "id": "card-word-but-kyc",
+      "category": "in_scope_tricky",
+      "passed": true,
+      "problems": [],
+      "expected": "in_scope",
+      "decision": "in_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [],
+      "reply_sent": null,
+      "reason": "The customer is asking about KYC document requirements for their Acme Invest account.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.33,
+      "tokens": {
+        "input": 987,
+        "cached": 0,
+        "output": 64
+      },
+      "message": "Which ID card do I need for KYC, PAN or Aadhaar?"
+    },
+    {
+      "id": "crypto-price-question",
+      "category": "in_scope_tricky",
+      "passed": true,
+      "problems": [],
+      "expected": "in_scope",
+      "decision": "in_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [],
+      "reply_sent": null,
+      "reason": "Customer is asking about BTC pricing differences, which Acme Invest can address under trade/pricing info.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.21,
+      "tokens": {
+        "input": 985,
+        "cached": 0,
+        "output": 68
+      },
+      "message": "Why is BTC price on Acme higher than on other apps?"
+    },
+    {
+      "id": "hinglish-deposit",
+      "category": "in_scope_tricky",
+      "passed": true,
+      "problems": [],
+      "expected": "in_scope",
+      "decision": "in_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [],
+      "reply_sent": null,
+      "reason": "Customer reports INR was deducted but not credited to the wallet and asks what to do, which Acme Invest handles.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.28,
+      "tokens": {
+        "input": 987,
+        "cached": 0,
+        "output": 73
+      },
+      "message": "Paise kat gaye par wallet mein nahi aaye, kya karu?"
+    },
+    {
+      "id": "close-account",
+      "category": "in_scope_tricky",
+      "passed": true,
+      "problems": [],
+      "expected": "in_scope",
+      "decision": "in_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [],
+      "reply_sent": null,
+      "reason": "Customer requests to close their Acme Invest account and withdraw funds, which Acme Invest supports.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.71,
+      "tokens": {
+        "input": 984,
+        "cached": 0,
+        "output": 68
+      },
+      "message": "I want to close my account and take my money out."
+    },
+    {
+      "id": "police-threat",
+      "category": "in_scope_tricky",
+      "passed": true,
+      "problems": [],
+      "expected": "in_scope",
+      "decision": "in_scope",
+      "no_issue_kind": null,
+      "out_of_scope_topics": [],
+      "reply_sent": null,
+      "reason": "Customer is threatening police due to money not being returned, which relates to an account/deposit/withdrawal issue Acme Invest can help with.",
+      "gate_failed": false,
+      "wrongly_rejected": false,
+      "seconds": 1.64,
+      "tokens": {
+        "input": 985,
+        "cached": 0,
+        "output": 76
+      },
+      "message": "If my money is not returned I will go to the police."
+    }
+  ],
+  "rescored_with_current_labels": true
+}

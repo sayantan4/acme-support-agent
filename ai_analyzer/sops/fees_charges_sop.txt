@@ -1,0 +1,545 @@
+SOP_ID: FEE
+TITLE: Fees and Charges (trading fee, GST, withdrawal and network fees)
+CATEGORY: fees
+VERSION: 1.0
+LAST_REVIEWED: 2026-09-27
+OWNER: Trading Ops
+NOTE: Fictional sample SOP for the Acme Invest demo. Policy values live in data_dictionary.txt
+      (DD-09). Values marked "(sample value)" are not in the data dictionary yet.
+
+======================================================================
+## FEE-00: Scope and quick triage
+======================================================================
+SCOPE:
+  Every charge a customer may see on Acme Invest: trading fee and GST on it, INR withdrawal
+  fee, crypto network (withdrawal) fee, fee disputes, fees on cancelled or partially filled
+  orders, unexplained ledger deductions, GST invoices and fee refund requests.
+  NOT in scope:
+    - TDS (1% tax on crypto sales) -> tax_statements_sop (see FEE-05 for the short answer)
+    - Crypto deposit recovery fee for wrong network / missing memo -> crypto_transfers_sop
+    - Price, slippage and order fills -> trade_sop
+
+FEE SCHEDULE (DD-09 unless marked):
+  Charge                     Amount                                  Where it shows
+  Trading fee                0.2% of trade value (maker and taker)   trades.fee; ledger FEE
+  GST on trading fee         18% of the trading fee                  trades.gst; ledger FEE
+  TDS (tax, not a fee)       1% of sale value on crypto sells        trades.tds; ledger TDS
+  INR withdrawal fee         Rs 10 per withdrawal                    withdrawals.fee; ledger FEE
+  Crypto withdrawal fee      per asset + network                     supported_networks.withdrawal_fee;
+                                                                     withdrawals.fee
+  INR deposit                no fee (sample value)                   -
+  Account opening / AMC      no fee (sample value)                   -
+
+HOW FEES SIT IN THE DATA (sample conventions):
+  - Fees are charged per trade (per fill), not per order. One order can have several trades.
+  - Trade fees are charged in the quote currency of the pair (INR for BTC-INR, USDT for SOL-USDT).
+  - Rounding: fee and GST are rounded to 2 decimals for INR pairs (sample value).
+  - Ledger: a trade creates TRADE_BUY or TRADE_SELL, one FEE entry equal to fee + gst, and on
+    sells a TDS entry. All use reference_type = 'TRADE' and reference_id = trade_id (sample
+    convention). An INR withdrawal fee uses reference_type = 'WITHDRAWAL'.
+
+QUICK TRIAGE:
+  Customer question                                         Go to
+  "How is the fee calculated?"                              FEE-01
+  "This trade's fee is wrong"                               FEE-02
+  "Rs 10 cut on withdrawal"                                 FEE-03
+  "Network fee is too high / changed" (crypto withdrawal)   FEE-04
+  "1% deducted on sell"                                     FEE-05
+  "Fee charged but order cancelled"                         FEE-06
+  "Unknown deduction in my balance / statement"             FEE-07
+  "Refund my fee"                                           FEE-08
+  "Charged fee many times on one order"                     FEE-09
+  "Any hidden charges? deposit fee?"                        FEE-10
+  "Need GST invoice for fees"                               FEE-11
+
+======================================================================
+## FEE-01: How the trading fee is calculated
+======================================================================
+CUSTOMER MAY SAY:
+  - "What is the brokerage/trading fee on Acme?"
+  - "How much fee will I pay if I buy Rs 10,000 of BTC?"
+  - "Why is GST charged on crypto trading?"
+  - "Fee kitna lagta hai buy sell pe?"
+  - "Are maker and taker fees different?"
+INFO NEEDED FROM CUSTOMER:
+  - None (general question). For a specific trade, use FEE-02.
+TOOLS: none
+DEBUGGING STEPS:
+  1. Answer from the fee schedule in FEE-00 and the worked example below. Resolve.
+  2. If the customer quotes a specific trade or amount that "does not match", identify the
+     user (support_guidelines_sop SUP-02) and go to FEE-02.
+WORKED EXAMPLE (use real numbers in replies):
+  BUY 0.01 BTC on BTC-INR at Rs 50,00,000 per BTC
+    Trade value   = 0.01 x 50,00,000          = Rs 50,000.00
+    Trading fee   = 0.2% of 50,000            = Rs 100.00
+    GST           = 18% of 100                = Rs 18.00
+    Total fee     = 100 + 18                  = Rs 118.00
+    Total paid    = 50,000 + 118              = Rs 50,118.00  (from INR balance)
+  SELL 0.01 BTC on BTC-INR at Rs 50,00,000 per BTC
+    Trade value   = Rs 50,000.00
+    Trading fee   = Rs 100.00, GST = Rs 18.00
+    TDS (tax)     = 1% of 50,000              = Rs 500.00  (not a fee, see FEE-05)
+    INR received  = 50,000 - 100 - 18 - 500   = Rs 49,382.00
+  Effective fee rate including GST = 0.2% x 1.18 = 0.236% of trade value.
+  Small order: BUY Rs 100 (minimum order value) -> fee Rs 0.20 + GST Rs 0.04 = Rs 0.24.
+RESOLUTION:
+  Explain 0.2% + 18% GST on the fee with an example at the customer's amount.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for your question. Acme Invest charges a trading fee of 0.2% of the trade value on
+  every buy and sell (the same for all order types), plus 18% GST on that fee, as required
+  by law.
+  For example, if you buy Rs <amount> of <coin>:
+  - Trading fee: 0.2% of Rs <amount> = Rs <fee>
+  - GST: 18% of Rs <fee> = Rs <gst>
+  - Total charges: Rs <fee + gst>
+  When you sell, the same fee applies, and 1% TDS (a tax, not a fee) is also deducted.
+  You can see the exact charges for every trade in the order details in the app.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Not needed for a how-to question.
+DO NOT:
+  - Do not quote fee rates other than DD-09 or promise discounts or special rates.
+
+======================================================================
+## FEE-02: Customer disputes the fee on a trade
+======================================================================
+CUSTOMER MAY SAY:
+  - "You charged me Rs 250 fee on a Rs 50,000 trade, that is not 0.2%"
+  - "Fee on my ETH sell is too high"
+  - "Zyada fee kaat li aapne, check karo"
+  - "Order details show different fee than what you advertise"
+  - "Why is the fee more than 0.2%?"
+INFO NEEDED FROM CUSTOMER:
+  - Order ID or the coin, side, date/time and amount of the trade
+TOOLS: check_order, get_ledger_entries
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02). If they quote an order_id,
+     confirm it belongs to them (order.user_id from check_order in step 2).
+  2. Get the order and its trades:
+     Call check_order(order_id=<order_id>). Use order and fills (trade_value, fee, gst, tds,
+     expected_fee, expected_gst per fill).
+  3. Compare, per trade (fill):
+     - fee = expected_fee and gst = expected_gst (allow +/- Rs 0.01 per trade for rounding):
+       fee is correct. Usually the customer is:
+         a) counting GST as part of the fee (0.236% total), or
+         b) counting TDS on a sell as a fee (-> FEE-05), or
+         c) comparing to the order amount rather than the filled amount (partial fill), or
+         d) adding fees of several fills (-> FEE-09).
+       -> Explain with the numbers. Resolve.
+     - fee or gst differs by more than Rs 0.01 on any trade: possible fee error ->
+       escalate Trading Ops, P3 (P2 if the total excess is above Rs 1,000 (sample value)).
+  4. Check the ledger matches the fills, for each trade_id:
+     Call get_ledger_entries(reference_type="TRADE", reference_id=<trade_id>).
+     - FEE entries equal -(fee + gst) per trade: consistent.
+     - FEE entries larger than the fill's fee + gst, or duplicated (also listed in check_order
+       fee_charged_twice): ledger error ->
+       escalate Trading Ops, P2.
+  5. For USDT pairs, the fee is in USDT; convert only if the customer asks, and say it is
+     approximate.
+RESOLUTION:
+  Show the calculation per trade. Escalate only a confirmed mismatch.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for asking us to check. I recalculated the charges on your <buy/sell> of <coin> on
+  <date>:
+  - Trade value: Rs <value>
+  - Trading fee (0.2%): Rs <fee>
+  - GST (18% of the fee): Rs <gst>
+  <- TDS (1% tax on the sale, not a fee): Rs <tds>>
+  Total charges: Rs <total>. <These match our fee of 0.2% plus GST, so the amount charged is
+  correct. / We found a difference of Rs <x> and have passed it to our trading team to
+  review; we will update you within 5 working days.>
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Confirmed mismatch between trades.fee/gst and 0.2%/18% -> Trading Ops, P3 (P2 if excess
+    > Rs 1,000), include: user_id, order_id, trade_ids, expected vs actual fee and gst.
+  - Ledger FEE differs from trades -> Trading Ops, P2, include ledger rows.
+DO NOT:
+  - Do not promise a refund before Trading Ops confirms (FEE-08).
+  - Do not show internal column names in the reply.
+
+======================================================================
+## FEE-03: INR withdrawal fee
+======================================================================
+CUSTOMER MAY SAY:
+  - "Why Rs 10 deducted when I withdrew?"
+  - "Withdrawal fee charged twice"
+  - "Withdrawal failed but fee was taken"
+  - "10 rupees kaat liye withdraw pe"
+INFO NEEDED FROM CUSTOMER:
+  - Amount and date of the withdrawal
+TOOLS: get_withdrawals, check_withdrawal
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call get_withdrawals(asset="INR"). Look at the 10 most recent.
+     Call check_withdrawal(withdrawal_id=<withdrawal_id>). Use withdrawal.fee, withdrawal.status,
+     ledger_entries and reversed.
+  3. Branch:
+     - fee = 10, one FEE entry of -10, status SUCCESS/PROCESSING: correct per DD-09. Resolve.
+     - Two FEE entries for one withdrawal_id: duplicate charge -> escalate Trading Ops, P3.
+     - Status FAILED: the fee should be returned with the amount (REVERSAL entry, see
+       withdrawal_sop WDR-03). reversed is true -> explain it was returned. Missing after
+       5 working days -> withdrawal_sop WDR-03 escalation.
+     - Status CANCELLED before sending: no fee should be charged; FEE entry present ->
+       escalate Trading Ops, P3.
+     - fee <> 10 on an INR withdrawal: wrong fee -> escalate Trading Ops, P3.
+     - Several withdrawals on the same day: Rs 10 applies to each withdrawal. Resolve.
+RESOLUTION:
+  Explain the flat Rs 10 fee per withdrawal, returned if the withdrawal fails.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for checking. Each INR withdrawal on Acme Invest has a flat fee of Rs 10. For your
+  withdrawal of Rs <amount> on <date>, Rs 10 was charged from your wallet and the full
+  Rs <amount> was sent to your bank. <If a withdrawal fails, the fee is returned to your
+  wallet along with the amount; for your failed withdrawal on <date>, the Rs 10 was returned
+  on <date>.>
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Duplicate, wrong, or not-returned fee -> Trading Ops, P3, include withdrawal_id, ledger rows.
+DO NOT:
+  - Do not waive or refund the standard Rs 10 fee.
+
+======================================================================
+## FEE-04: Crypto network (withdrawal) fee
+======================================================================
+CUSTOMER MAY SAY:
+  - "Why is the fee to withdraw USDT so high?"
+  - "Network fee changed since yesterday"
+  - "I sent 100 USDT but only 99 reached"
+  - "TRC20 vs ERC20 fee difference?"
+  - "Crypto withdraw pe itni fee kyu?"
+INFO NEEDED FROM CUSTOMER:
+  - Asset, network and the withdrawal (date or tx hash)
+TOOLS: get_supported_networks, get_withdrawals
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Current fee for the asset/network:
+     Call get_supported_networks(asset=<asset>).
+  3. The customer's withdrawal:
+     Call get_withdrawals(asset=<asset>). Look at the 5 most recent.
+  4. Branch:
+     - The withdrawal's fee equals the network's current withdrawal_fee: correct. Explain
+       that the fee pays the blockchain network, differs by network, and can change with
+       network congestion (sample note). Suggest a cheaper network if the receiving platform
+       supports it (e.g. compare the rows returned in step 2). Resolve.
+     - The withdrawal's fee differs from today's fee: the fee may have changed since the
+       withdrawal. get_supported_networks shows only today's fee; if the difference is large (more than
+       2x, sample value) -> escalate Crypto Ops, P3 to confirm the fee at that time.
+     - Received amount lower than amount - fee: the receiving exchange may charge a deposit
+       fee, or the customer entered the amount after fee -> explain; if on-chain amount (by
+       tx_hash) differs from amount minus fee -> crypto_transfers_sop / escalate Crypto Ops, P3.
+     - Customer used the wrong network -> crypto_transfers_sop.
+RESOLUTION:
+  Explain the network fee and alternatives.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for your question. When you withdraw crypto, a network fee is charged to send the
+  coins on the blockchain. It depends on the coin and the network you choose, and it is shown
+  on the withdrawal screen before you confirm. For your <asset> withdrawal on <network> on
+  <date>, the fee was <fee> <asset>. <Today the fee for <asset> on <other network> is
+  <fee2> <asset>, which may be cheaper if the receiving platform supports that network. Please
+  always check that the receiving platform supports the network before sending.>
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Fee charged far from the published fee -> Crypto Ops, P3, include withdrawal_id, asset,
+    network, fee charged, current withdrawal_fee.
+DO NOT:
+  - Do not advise a network the customer's receiving platform may not support.
+  - Do not refund network fees.
+
+======================================================================
+## FEE-05: TDS is not a fee
+======================================================================
+CUSTOMER MAY SAY:
+  - "Extra 1% deducted when I sold, what is this charge?"
+  - "Hidden charge on sell order"
+  - "TDS kyu kaata? I am in loss"
+  - "You are charging 1% extra fee on selling"
+INFO NEEDED FROM CUSTOMER:
+  - Which sell trade (order ID or date)
+TOOLS: check_order
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call check_order(order_id=<order_id>). Use order.side and each fill's tds and trade_value
+     (expected_tds = 1% of trade_value, rounded to 2 decimals).
+     - side SELL and tds = expected_tds: correct; TDS is 1% of the sale value under Section
+       194S, deducted even if the trade is at a loss. Explain and point to tax_statements_sop
+       for claiming it. Resolve.
+     - side BUY with tds > 0, or tds differs from 1% by more than Rs 0.01: escalate Trading
+       Ops, P3.
+  3. Questions about TDS certificates, Form 16A or claiming TDS -> tax_statements_sop.
+RESOLUTION:
+  Explain TDS as a tax deducted on behalf of the government, not an Acme fee.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for asking. The 1% deducted on your sale of <coin> on <date> (Rs <tds>) is not an
+  Acme Invest fee. It is TDS (tax deducted at source), which the Income Tax Act requires on
+  every crypto sale, whether it is in profit or loss. We deposit it with the government
+  against your PAN, and you can claim it when you file your income tax return. Your TDS
+  details are available in the app under Reports.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - TDS on a buy or wrong amount -> Trading Ops, P3, include trade_id, expected vs actual.
+DO NOT:
+  - Do not give personal tax advice; point to tax_statements_sop and a tax adviser.
+
+======================================================================
+## FEE-06: Fee charged on a cancelled order
+======================================================================
+CUSTOMER MAY SAY:
+  - "I cancelled my order but still got charged fee"
+  - "Order cancelled, why is fee deducted?"
+  - "Cancel kiya tha, fir bhi charges lage"
+  - "Expired order but fee taken"
+INFO NEEDED FROM CUSTOMER:
+  - Order ID or coin, date/time
+TOOLS: check_order, get_ledger_entries, check_wallet_balance
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call check_order(order_id=<order_id>). Check order.user_id is the customer's; use order
+     and fills.
+  3. Branch:
+     - status CANCELLED / EXPIRED with filled_quantity > 0 and fills exist: part of the
+       order filled before cancellation. The fee is only on the filled part. Explain. Resolve.
+     - status CANCELLED / EXPIRED / REJECTED with filled_quantity = 0 and no fills: there
+       should be no fee. Check the ledger for FEE entries around the order time:
+       Call get_ledger_entries(entry_type="FEE", from_time=<order created_at>,
+            to_time=<order updated_at + 1 hour>).
+       -> A FEE linked to this order or a trade with no fill: system error -> escalate Trading
+          Ops, P2.
+       -> No FEE: nothing was charged. The customer is probably seeing funds that were locked
+          for the order and are now released (Call check_wallet_balance().
+          Look at available), or a fee from
+          another trade -> explain. Resolve.
+     - Funds still locked after cancel for more than 15 minutes (sample value) -> escalate
+       Trading Ops, P2 (withdrawal_sop WDR-10 explains locked funds).
+RESOLUTION:
+  Fee only on filled quantity; an unfilled cancelled order with a fee is a bug to escalate.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for flagging this. I checked your <buy/sell> order for <coin> on <date>. <Before you
+  cancelled it, <filled quantity> of <total quantity> had already been bought/sold, and the
+  fee of Rs <fee + gst> applies only to that filled part. Nothing was charged for the part
+  you cancelled. / No part of the order was filled, so no fee should apply. We found a charge
+  of Rs <x> and have passed it to our trading team to correct; we will update you within
+  48 hours.>
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Fee on an unfilled order -> Trading Ops, P2, include order_id, ledger entry_id, amount.
+DO NOT:
+  - Do not reverse the fee yourself; Trading Ops corrects it.
+
+======================================================================
+## FEE-07: Unexpected deduction in the ledger / balance
+======================================================================
+CUSTOMER MAY SAY:
+  - "Rs 523 deducted from my wallet, I did nothing"
+  - "Unknown debit in my transaction history"
+  - "My balance reduced without any trade"
+  - "Bina kuch kiye paisa kam ho gaya"
+  - "What is this adjustment entry?"
+INFO NEEDED FROM CUSTOMER:
+  - Approximate date and amount, asset (INR or coin)
+TOOLS: get_ledger_entries, check_order, get_tickets
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call get_ledger_entries(from_time=<from>, to_time=<to>) (the customer's
+     date range). Look at entries with amount < 0.
+  3. Explain each debit by entry_type (plain words in brackets):
+     - TRADE_BUY  (money used to buy a coin) -> Call check_order(order_id=<order_id>) and check
+                  order.source; source = 'SIP' means an automatic SIP purchase (see sip_run:
+                  sip_id, status, run_at). Customer forgot the SIP -> trade_sop.
+     - TRADE_SELL (coin sold; the coin balance goes down, INR goes up)
+     - FEE        (trading fee + GST, or Rs 10 withdrawal fee) -> FEE-02 / FEE-03
+     - TDS        (1% tax on a sale) -> FEE-05
+     - WITHDRAWAL (money sent to bank or crypto sent out) -> withdrawal_sop / crypto_transfers_sop
+     - REVERSAL   (a credit that was undone, e.g. a deposit or withdrawal return corrected)
+                  -> check reference_id; if the customer disputes it -> Payments Ops, P2
+     - ADJUSTMENT (manual correction by Acme) -> check for a related ticket
+                  (Call get_tickets().). Explain if a ticket explains it; otherwise
+                  escalate Trading Ops (trade) or Payments Ops (INR), P2.
+     - REWARD negative (reward revoked) -> rewards_sop.
+  4. The customer says they did not place the trade or withdrawal -> account_security_sop
+     SEC-01, P1. Stop here.
+  5. No debit matches the amount: the customer may be looking at the value of their holdings
+     (price change), not a deduction -> explain portfolio value vs balance (trade_sop).
+RESOLUTION:
+  Map every debit to its cause in plain language.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for asking us to check. I looked at your account for <date range>. The Rs <amount>
+  on <date> was <a trading fee and GST on your sale of <coin> / an automatic purchase from
+  your SIP for <coin> / the Rs 10 fee on your withdrawal / 1% TDS on your sale>.
+  <Here is the breakdown: ...>
+  If you do not recognise any of these, please reply right away so we can secure your account.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - ADJUSTMENT or REVERSAL with no explanation -> Trading Ops / Payments Ops, P2, include entry_id.
+  - Customer denies an activity -> account_security_sop SEC-01, P1.
+DO NOT:
+  - Do not use internal entry type names in the reply.
+
+======================================================================
+## FEE-08: Fee refund requests
+======================================================================
+CUSTOMER MAY SAY:
+  - "Please refund the fees, the app was lagging"
+  - "Waive my fee, I am a loyal customer"
+  - "Refund my trading fee, the order was placed by mistake"
+  - "Fee wapas karo, galti se order lag gaya"
+  - "Other apps have zero fee, refund me"
+INFO NEEDED FROM CUSTOMER:
+  - Order IDs / dates and why they think the fee should be refunded
+TOOLS: get_price_incidents
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. POLICY: fees are not refunded unless a system error is confirmed by Trading Ops.
+     Mistaken orders, market moves, change of mind or comparisons with other apps do not
+     qualify.
+  3. Check for a possible system error:
+     - Fee calculation wrong -> FEE-02.
+     - Fee on an unfilled/cancelled order -> FEE-06.
+     - Duplicate fees -> FEE-03 / FEE-09.
+     - Platform incident during the trade:
+       Call get_price_incidents(symbol=<symbol>, at_time=<executed_at>).
+       -> Incident found: escalate Trading Ops, P3, with the order; Trading Ops applies the
+          incident's compensation_policy. Do not promise anything.
+     - Order rejected with SYSTEM_ERROR yet charged -> FEE-06 path, Trading Ops, P2.
+  4. None of the above: politely decline. Resolve.
+RESOLUTION:
+  Decline standard fees; escalate only possible system errors.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for writing to us. I checked your <order/trades> on <date>. The trading fee of
+  Rs <amount> was calculated correctly at 0.2% plus GST, and the order was processed as
+  placed. Fees are refunded only when a trade is affected by an error on our side, and we did
+  not find one here, so we are unable to refund this fee.
+  <We found that there was a platform issue during your trade and have passed it to our
+  trading team to review; we will update you within 5 working days.>
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Possible system error or matching price incident -> Trading Ops, P3 (P2 if also money
+    missing), include order_id, trade_ids, incident_id, fee amounts.
+DO NOT:
+  - Do not promise or give a refund, credit, coupon or compensation yourself.
+  - Do not reverse trades.
+
+======================================================================
+## FEE-09: Fee charged many times on one order (partial fills)
+======================================================================
+CUSTOMER MAY SAY:
+  - "I placed one order but fee was charged 5 times"
+  - "Multiple fee entries for a single buy"
+  - "Ek order pe baar baar fee kat rahi hai"
+  - "Why are there so many transactions for one order?"
+INFO NEEDED FROM CUSTOMER:
+  - Order ID or coin and time
+TOOLS: check_order
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call check_order(order_id=<order_id>). Use fills and totals (fills, value, fee, gst).
+  3. Branch:
+     - fee_charged_twice is empty and totals.fee is about 0.2% of totals.value: the order
+       was filled in several parts; each part has its own fee, and together they equal 0.2% of
+       the total. Explain. Resolve.
+     - More FEE ledger entries than trades (same reference_id twice): fee_charged_twice from
+       check_order lists each trade_id with its fee_entries count.
+       -> Duplicates found: escalate Trading Ops, P2.
+     - totals.fee noticeably above 0.2% of totals.value (beyond rounding of Rs 0.01 per fill):
+       -> FEE-02 escalation.
+RESOLUTION:
+  Show that the fees across fills add up to 0.2% + GST of the total.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for checking. Your order for <coin> on <date> was filled in <n> parts at slightly
+  different prices, which is normal for larger orders. Each part shows its own small fee, and
+  together they add up to Rs <total fee + gst> on a total trade value of Rs <total value>,
+  which is our standard 0.2% plus GST. You were not charged more than once for the same part.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Duplicate FEE entries for a trade -> Trading Ops, P2, include order_id and duplicate reference_ids.
+DO NOT:
+  - Do not describe order-matching internals.
+
+======================================================================
+## FEE-10: Hidden charges / deposit fee questions
+======================================================================
+CUSTOMER MAY SAY:
+  - "Are there any hidden charges?"
+  - "Do you charge for adding money?"
+  - "My bank charged Rs 5 for IMPS to Acme"
+  - "Koi annual charge hai kya?"
+INFO NEEDED FROM CUSTOMER:
+  - None (general question)
+TOOLS: none
+DEBUGGING STEPS:
+  1. General question: answer from the fee schedule in FEE-00. Resolve.
+  2. Customer reports a charge on a deposit: identify the user (support_guidelines_sop SUP-02)
+     and check the ledger for the deposit (payment_sop PAY-09).
+     - Wallet credited with the full deposit amount: any charge came from their bank (IMPS/NEFT
+       charges or UPI app charges). Explain. Resolve.
+     - Wallet credited less than deposited -> payment_sop PAY-09.
+RESOLUTION:
+  List the only charges: trading fee + GST, Rs 10 INR withdrawal fee, crypto network fee.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for your question. Acme Invest has no account opening, maintenance or deposit
+  charges. The only charges are:
+  - Trading fee: 0.2% of the trade value, plus 18% GST on the fee
+  - INR withdrawal: Rs 10 per withdrawal
+  - Crypto withdrawal: a network fee that depends on the coin and network, shown before you confirm
+  On every sale, 1% TDS is also deducted as a tax (not a fee). Some banks charge their own
+  fee for IMPS or NEFT transfers; that is charged by the bank, not by Acme Invest.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Not needed for a how-to question.
+DO NOT:
+  - Do not state that "all" charges are zero; list them exactly.
+
+======================================================================
+## FEE-11: GST invoice / fee statement request
+======================================================================
+CUSTOMER MAY SAY:
+  - "I need a GST invoice for the fees I paid"
+  - "Please send a statement of all charges for FY2025-26"
+  - "Company ke liye GST bill chahiye"
+  - "How much total fee did I pay this year?"
+INFO NEEDED FROM CUSTOMER:
+  - Period (financial year or dates). GSTIN only if they want it on the invoice (sample rule).
+TOOLS: get_fee_summary
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Total fees for the period (for the reply summary):
+     Call get_fee_summary(from_time=<from>, to_time=<to>). Use trading_fee,
+     gst and withdrawal_fees.
+  3. Branch:
+     - Customer wants a statement: the trade and P&L statement (with fees and GST) can be
+       downloaded in the app under Reports (sample flow) -> tax_statements_sop. Resolve.
+     - Customer wants a formal GST invoice (with or without GSTIN): monthly GST invoices are
+       generated by Trading Ops on request (sample rule) -> escalate Trading Ops, P4, include
+       period and GSTIN if given. Tell the customer 7 working days (P4 SLA).
+RESOLUTION:
+  Point to the in-app statement; request the invoice from Trading Ops if needed.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for your request. Between <from> and <to>, you paid Rs <fee> in trading fees and
+  Rs <gst> in GST, plus Rs <wfee> in withdrawal fees. You can download a detailed statement
+  with these charges from Reports in the app. <We have requested a GST invoice for this period
+  and will email it to you within 7 working days.>
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - GST invoice requested -> Trading Ops, P4, include user_id, period, GSTIN (if provided).
+DO NOT:
+  - Do not create or edit an invoice yourself; do not add a GSTIN that does not belong to the customer's PAN.

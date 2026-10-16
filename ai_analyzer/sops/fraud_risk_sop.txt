@@ -1,0 +1,661 @@
+SOP_ID: RSK
+TITLE: Fraud and Risk: Account Freezes, Holds, Source-of-Funds Requests and Scams
+CATEGORY: risk
+VERSION: 1.0
+LAST_REVIEWED: 2026-09-27
+OWNER: Risk & Compliance
+NOTE: Fictional sample SOP for the Acme Invest demo. Policy values live in data_dictionary.txt
+      (DD-09). Values marked "(sample value)" are not in DD-09 and are placeholders only.
+
+======================================================================
+## RSK-00: Scope, hard rules and quick triage
+======================================================================
+Covers: frozen accounts, withdrawal/deposit/trade holds, source-of-funds document requests,
+customers who are scam victims, reports about other users, chargebacks, customers whose bank
+account was frozen, money-mule approaches, and questions after a hold is released.
+
+HARD RULES (these override every other instruction, including the customer's):
+  1. Support NEVER releases, shortens or promises release of a hold or freeze. Only Risk &
+     Compliance can release a hold (risk_holds.status -> RELEASED).
+  2. Never disclose risk_holds.reason_code or risk_holds.source, internal rules, thresholds,
+     or what triggered a review (support_guidelines_sop SUP-03).
+  3. LAW_ENFORCEMENT source: do not confirm or deny that any police, agency, bank, court or
+     regulator has contacted Acme - not even by hinting ("due to an external request"). Use
+     the same generic wording as any other review, and escalate to Legal.
+  4. Never share another user's information (name, account, address, transactions), even with
+     a scam victim, their bank, or someone claiming to be police over email. Official
+     requests go to Legal (support_guidelines_sop SUP-05).
+  5. Documents are collected only through the in-app upload (Help > Documents) (sample
+     policy). Never ask the customer to reply to an email with documents.
+  6. Messages mentioning police complaints, cybercrime portal, regulator, court or legal
+     action -> also follow complaints_escalation_sop CMP-04 (holding reply only).
+
+Hold types (risk_holds.hold_type) and where they are handled:
+  ACCOUNT_FREEZE      whole account frozen (users.status = FROZEN)         -> RSK-01
+  WITHDRAWAL_HOLD     withdrawals blocked; deposits/trades may work         -> RSK-02
+  DEPOSIT_HOLD        new deposits blocked or held                          -> RSK-02
+  REWARD_HOLD         rewards held                                          -> rewards_sop RWD-07
+  TRADE_RESTRICTION   trading blocked or limited                            -> RSK-04
+
+TOOLS: get_risk_holds
+Standard check used in every section (after support_guidelines_sop SUP-02):
+  Call get_risk_holds(active_only=false).
+  You may look at reason_code and source internally to choose the right branch; never
+  quote them.
+
+Sample review SLA (not in DD-09): Risk review of a hold: 7 working days (sample value) from
+the later of hold creation or the customer's last document upload. Priority for customer
+contacts about holds: P2 (cannot trade or withdraw, DD-09).
+
+======================================================================
+## RSK-01: Account FROZEN / "my account is frozen, why?"
+======================================================================
+CUSTOMER MAY SAY:
+  - "My account is frozen, why? I have not done anything wrong"
+  - "Account freeze ho gaya hai, paise nikalne nahi de raha"
+  - "App says your account is under review, cannot trade or withdraw"
+  - "Unfreeze my account immediately, I need my money for a medical emergency"
+  - "Is my account frozen because of the police? Tell me who complained"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone (if not the sender). Do not ask for any documents by email.
+TOOLS: get_risk_holds, get_tickets
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02). Confirm users.status.
+     - status = BLOCKED (not FROZEN): this is a temporary login block -> onboarding_sop
+       ONB-05. Resolve there.
+     - status = ACTIVE: the account is not frozen. Check for a narrower hold (step 2) and go
+       to RSK-02 / RSK-04; if none, the issue is likely technical or a specific transaction
+       (withdrawal_sop, app_technical_sop).
+     - status = FROZEN: continue.
+  2. Call get_risk_holds().
+     - No ACTIVE ACCOUNT_FREEZE hold but users.status = FROZEN: data inconsistency ->
+       escalate to Risk & Compliance (P2). Send the generic reply meanwhile.
+  3. Branch on source (INTERNAL use only):
+     - LAW_ENFORCEMENT: do NOT confirm any agency involvement. Send only the generic reply.
+       Escalate to Legal (P2) with a copy to Risk & Compliance. If the customer mentions a
+       police case, FIR or court, send only the SUP-05 holding reply (CMP-04).
+     - COMPLIANCE / RISK_ENGINE / MANUAL: send the generic reply. Risk & Compliance decides
+       whether documents are needed; if they are, the customer is notified in the app (see
+       RSK-03). Do not pre-emptively request documents.
+  4. Check whether documents were already requested/uploaded (the customer may mention it):
+     Call get_tickets(category="risk").
+     - Customer says they uploaded documents: confirm the review is ongoing; the review SLA
+       (7 working days, sample value) runs from the last upload. Wait.
+     - Open ticket past 7 working days (sample value): escalate to Risk & Compliance (P2),
+       note SLA breach (support_guidelines_sop SUP-07).
+  5. Customer states hardship (medical, wedding, education) and asks for partial release:
+     acknowledge, record it in the escalation note for Risk & Compliance. Do not promise
+     anything.
+  6. Customer asks to close the account to get money out: closure is blocked while a hold is
+     active (account_closure_requests.status = BLOCKED_BY_HOLD). Explain generically.
+RESOLUTION:
+  Generic explanation that the account is under a routine review, funds remain safe in the
+  account, the team will contact them in the app if anything is needed, and an update is
+  expected within the review timeline.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thank you for writing to us, and I understand how worrying this is. Your account is
+  currently under a routine review, and some actions are paused while the review is in
+  progress. Your balances remain safely in your account.
+  We are not able to share the details of the review. If we need any information from you,
+  you will receive a request in the Acme Invest app under Help > Documents - please only
+  submit documents there. We aim to complete reviews within 7 working days, and we will let
+  you know as soon as there is an update.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Every FROZEN contact -> Risk & Compliance, P2, include: user_id, hold_id, customer's
+    stated context (hardship, documents uploaded, dates), ticket IDs.
+  - source = LAW_ENFORCEMENT -> Legal, P2 (plus Risk & Compliance). Internal note only.
+  - Customer mentions police/court/regulator/legal action -> complaints_escalation_sop CMP-04.
+  - Review past the 7-working-day SLA (sample value) -> raise priority by one level to P1
+    (support_guidelines_sop SUP-09) and note the breach.
+DO NOT:
+  - Do not reveal reason_code, source, "flag", "suspicious", "AML", "police", "cyber cell",
+    "lien", "bank complaint" or anything that hints at the trigger.
+  - Do not say "your account was frozen on request of ..." under any circumstances.
+  - Do not ask for documents over email or accept documents by email reply.
+  - Do not give a firm unfreeze date.
+
+======================================================================
+## RSK-02: Withdrawal hold or deposit hold
+======================================================================
+CUSTOMER MAY SAY:
+  - "My withdrawal is on hold for 3 days, what is going on?"
+  - "Why can I deposit but not withdraw?"
+  - "Deposit is showing on hold, paise account mein nahi aaye"
+  - "Withdrawal button disabled, says restricted"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone, withdrawal/deposit amount and date, UTR if a deposit
+TOOLS: get_auth_events, get_risk_holds, get_withdrawals, get_deposits
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02). If FROZEN -> RSK-01.
+  2. First rule out non-risk holds:
+     - Security cooldown: 24-hour withdrawal cooldown after a password reset, phone, email or
+       2FA change (DD-09):
+       Call get_auth_events(event_types=["PASSWORD_RESET", "PHONE_CHANGED",
+       "EMAIL_CHANGED", "TWO_FA_RESET"], days=1). Use only events from the last 24 hours.
+       -> Event found: explain the cooldown and when it ends (IST). Resolve (withdrawal_sop).
+     - New crypto address cooldown -> crypto_transfers_sop.
+     - Large INR withdrawal (> Rs 5,00,000) in PENDING_APPROVAL up to 48 hours -> withdrawal_sop.
+  3. Call get_risk_holds().
+     Branch on hold_type:
+     - WITHDRAWAL_HOLD:
+       Call get_withdrawals(statuses=["ON_HOLD", "PENDING_APPROVAL"]).
+       -> Withdrawal ON_HOLD: funds are reserved (wallet_balances.locked) and safe. Send the
+          generic hold reply. Escalate to Risk & Compliance (P2).
+       -> Customer may cancel a held withdrawal only if the app allows it; support does not
+          cancel it for them while a hold is active.
+     - DEPOSIT_HOLD:
+       Call get_deposits(statuses=["ON_HOLD", "PENDING"]).
+       -> Deposit ON_HOLD: money received but not yet credited pending review. Generic reply;
+          escalate to Risk & Compliance (P2). If Risk later rejects it, it is refunded to
+          source in 5-7 working days (DD-09) - payment_sop.
+       -> failure_reason = THIRD_PARTY_ACCOUNT: not a risk hold; third-party deposits are
+          refunded to source (payment_sop). Resolve there.
+     - Both WITHDRAWAL_HOLD and DEPOSIT_HOLD: treat as RSK-01-level review; generic reply,
+       P2 to Risk & Compliance.
+     - No ACTIVE hold, but withdrawal ON_HOLD: hold_reason may be operational -> withdrawal_sop.
+  4. If source = LAW_ENFORCEMENT on any hold: same generic reply, escalate to Legal (P2);
+     never confirm an agency request.
+  5. Hold older than 7 working days (sample value) with no update to the customer: escalate
+     as SLA breach (P2, note breach).
+RESOLUTION:
+  Explain that the specific transaction or feature is paused for a routine review, the money
+  is safe, and the next update timeline. Offer the in-app document path only if Risk has
+  requested documents.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for reaching out about your <withdrawal/deposit> of Rs <amount> on <date>. I checked
+  it: it is currently paused for a routine review. The amount is safely held in your account
+  and has not been lost.
+  We are not able to share details of the review. If any information is needed, you will get
+  a request in the app under Help > Documents. We aim to complete reviews within 7 working
+  days and will update you as soon as it is done.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Any ACTIVE WITHDRAWAL_HOLD or DEPOSIT_HOLD with a customer contact -> Risk & Compliance,
+    P2, include: user_id, hold_id, withdrawal_id/deposit_id, amount, dates.
+  - LAW_ENFORCEMENT source -> Legal, P2.
+  - Money debited from bank but no deposit row at all -> payment_sop, P1.
+DO NOT:
+  - Do not tell the customer the hold "will be released after X".
+  - Do not suggest the customer withdraw via crypto to get around an INR hold.
+
+======================================================================
+## RSK-03: Request for source-of-funds or other documents
+======================================================================
+CUSTOMER MAY SAY:
+  - "You asked for source of funds, what should I submit?"
+  - "Which documents do you need to unfreeze my account?"
+  - "Can I just email you my bank statement?"
+  - "Kya salary slip chalega source of funds ke liye?"
+  - "I uploaded everything a week ago, no response"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone. Documents are NOT collected by email.
+TOOLS: get_risk_holds, get_tickets
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Confirm a document request is valid - only Risk & Compliance raises them:
+     Call get_risk_holds().
+     Call get_tickets(category="risk").
+     - No ACTIVE hold and no risk ticket: Acme has not requested documents. The request the
+       customer received may be phishing. Warn them (support_guidelines_sop SUP-06); ask them
+       not to send documents and to forward the message to support. Resolve.
+     - ACTIVE hold and a Risk ticket exists: continue.
+  3. Explain what is typically accepted (sample list; the in-app request lists the exact
+     items and always wins):
+       - Bank statements for the last 6 months (sample value) for the account used to deposit,
+         as downloaded from net banking (PDF), not photos or screenshots
+       - Proof of income: salary slips (last 3 months, sample value), ITR acknowledgement,
+         or Form 16
+       - For business income: GST registration or business bank statements
+       - For proceeds of a sale (property, gold, FD): sale deed / maturity advice
+       - A short written explanation of the source of the funds deposited
+  4. Explain the channel: upload in the app under Help > Documents (sample policy), PDF/JPG,
+     up to 10 MB per file (sample value). If the upload fails, see app_technical_sop APP-03.
+  5. If the customer already emailed documents: do not open, forward or process them by
+     email. Tell them to upload in the app instead. Flag the ticket so the email attachment
+     is deleted per data handling policy.
+  6. Uploaded already:
+     - Less than 7 working days (sample value) since upload: ask them to wait; give the date.
+     - More than 7 working days: escalate to Risk & Compliance (P2, SLA breach).
+RESOLUTION:
+  Tell the customer which kinds of documents are usually needed, that the exact list is in
+  the in-app request, and that the only channel is Help > Documents.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for getting in touch about the document request. To keep your information safe,
+  please upload documents only in the Acme Invest app under Help > Documents - please do not
+  send them by email.
+  The request in the app lists exactly what is needed. Usually this is:
+  - bank statements (PDF from net banking) for the account you deposited from
+  - proof of income, such as salary slips, ITR acknowledgement or Form 16
+  - a short note explaining the source of the funds
+  Once you upload, our team reviews them within 7 working days and will update you in the app.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Documents uploaded more than 7 working days ago with no outcome -> Risk & Compliance,
+    P2, include: user_id, hold_id, upload date as stated by the customer.
+  - Customer received a document request that Acme did not send -> Risk & Compliance, P3
+    (possible phishing), include: the forwarded message headers.
+DO NOT:
+  - Do not accept, open or review documents sent by email.
+  - Do not tell the customer which document will "clear" the review or hint at thresholds.
+  - Do not ask for Aadhaar/PAN numbers in full by email.
+
+======================================================================
+## RSK-04: Trade restriction
+======================================================================
+CUSTOMER MAY SAY:
+  - "My orders are getting rejected saying account restricted"
+  - "I can only sell, buy button is disabled"
+  - "Trading block kyun hai mere account pe?"
+  - "Why can't I trade but I can withdraw?"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone, order ID or time of the failed order, screenshot
+TOOLS: get_orders, get_instrument, get_risk_holds
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02). If FROZEN -> RSK-01.
+  2. Rule out non-risk causes:
+     Call get_orders(). Look at the latest 10 orders.
+     - reject_reason = KYC_NOT_VERIFIED -> kyc_sop.
+     - INSTRUMENT_HALTED / PRICE_OUT_OF_BAND / BELOW_MIN_ORDER_VALUE / INSUFFICIENT_BALANCE ->
+       trade_sop. Resolve there.
+     - Call get_instrument(symbol=<symbol>).
+       -> HALTED / POST_ONLY / DELISTED: market-level, not a user restriction -> trade_sop.
+     - reject_reason = ACCOUNT_RESTRICTED: continue.
+  3. Call get_risk_holds(hold_type="TRADE_RESTRICTION").
+     - Hold found: generic reply; escalate to Risk & Compliance (P2). Existing holdings are
+       safe; open orders placed before the restriction may have been cancelled (check with
+       Call get_orders(status="CANCELLED") around the hold's created_at)
+       - tell the customer which ones.
+     - No hold but ACCOUNT_RESTRICTED rejections: inconsistency -> Trading Ops (P2) and Risk
+       & Compliance.
+  4. LAW_ENFORCEMENT source: generic reply, escalate to Legal (P2).
+RESOLUTION:
+  Explain that trading is paused for a routine review; holdings are safe; update timeline.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for writing in. I checked your account: placing new orders is currently paused as
+  part of a routine review. Your existing holdings remain safely in your account.
+  <If orders were cancelled: "Your open order(s) from <date> were cancelled when the pause
+  started, and the reserved amount is back in your available balance.">
+  We are not able to share details of the review. We aim to complete it within 7 working days
+  and will notify you in the app once it is done.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - ACTIVE TRADE_RESTRICTION with customer contact -> Risk & Compliance, P2, include: user_id,
+    hold_id, rejected order_ids.
+  - ACCOUNT_RESTRICTED rejections with no hold row -> Trading Ops, P2.
+DO NOT:
+  - Do not tell the customer how to trade via API or another route to avoid the restriction.
+  - Do not reveal why trading was restricted.
+
+======================================================================
+## RSK-05: Customer is a scam victim
+======================================================================
+Covers: investment scams, "pig-butchering" (online friend/romance who pushes a fake trading
+platform), fake tipster / "VIP signals" groups on Telegram/WhatsApp, fake Acme support
+numbers, task/job scams, and "pay a fee to unlock your withdrawal" scams, where the customer
+has sent INR or crypto to a scammer.
+CUSTOMER MAY SAY:
+  - "I sent USDT from Acme to an address given by a trading group, now they are asking for
+    more tax to release my profit"
+  - "Someone on WhatsApp said he is Acme support and I transferred money to him"
+  - "Maine ek Telegram group ke kehne pe crypto bheja, ab woh block kar diya, help karo"
+  - "I met a girl on a dating app who taught me crypto trading, I lost Rs 8 lakh"
+  - "Please block the scammer's account and return my money"
+  - "Scammer is sending money to my Acme account, please stop it"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone; date, amount and asset of each transfer; transaction hash or UTR;
+    the destination address / UPI ID they paid; whether they have filed a cybercrime
+    complaint (acknowledgement number, if yes); whether any funds are still in their Acme
+    account; whether anyone has access to their Acme account now (screen-share app, OTP shared)
+TOOLS: get_auth_events, get_user_devices, check_wallet_balance, get_withdrawals
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Check whether the account itself is compromised (scammer may have control):
+     Call get_auth_events(days=30).
+     Call get_user_devices().
+     - Customer shared OTP / installed a screen-sharing app / unknown device or login:
+       -> account_security_sop SEC-01 immediately (P1).
+  3. Check whether funds are STILL on Acme and at risk:
+     Call check_wallet_balance().
+     Call get_withdrawals(statuses=["REQUESTED", "PENDING_APPROVAL", "PROCESSING"]).
+     - Funds still on Acme, or a withdrawal to the scammer is not yet SUCCESS, and the customer
+       asks to block: P1 escalation to Risk & Compliance (they can place a hold). Tell the
+       customer not to make any further transfers and to change their password. Do not
+       promise that the pending withdrawal will be stopped.
+  4. Completed transfers to the scammer:
+     Call get_withdrawals(status="SUCCESS", days=90).
+     - Crypto withdrawals with status SUCCESS are final on the blockchain. Acme cannot reverse
+       them or recover them from an external wallet.
+     - INR paid directly to a scammer's bank/UPI (outside Acme): Acme is not in that payment
+       chain; the customer must go to their bank and the cybercrime helpline.
+  5. The customer asks Acme to block "the scammer's Acme account" or wants details of the
+     receiving account: never confirm whether the address/UPI belongs to an Acme user and
+     never share any details. Log the address/tx hash in the escalation for Risk & Compliance
+     (RSK-06 handles reports about other users).
+  6. Any message saying they filed a police/cybercrime complaint or asks Acme to "coordinate
+     with police": send the recovery advice below AND treat as CMP-04 (Legal/Grievance). Law
+     enforcement requests must come through official channels to Legal; the customer cannot
+     relay them.
+  7. "Pay tax/fee to release profit" messages: warn clearly that this is always a scam and
+     they must not send more money.
+RESOLUTION:
+  What Acme CAN do: secure the customer's Acme account (SEC-01), escalate funds still on Acme
+  for a possible hold (P1), record the scammer's address/details for Risk & Compliance, and
+  respond to official law-enforcement requests through Legal.
+  What Acme CANNOT do: reverse completed blockchain transfers, recover funds from external
+  wallets or other platforms, share any other user's details with the customer, or guarantee
+  recovery.
+  Advise: report immediately to the National Cybercrime Helpline 1930 and at
+  https://cybercrime.gov.in (the faster, the better chance banks can freeze funds), inform
+  their bank, keep all screenshots, chats, tx hashes and UTRs, and stop all contact with the
+  scammer.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I'm really sorry this has happened to you. Please do not send any more money or crypto to
+  anyone who promises returns, "unlock fees" or "tax" to release profits - these are always
+  scams.
+  Please act quickly:
+  - Call the National Cybercrime Helpline on 1930 and file a complaint at
+    https://cybercrime.gov.in. Keep your complaint number.
+  - Inform your bank about any payments you made from your bank account.
+  - Keep screenshots of chats, the wallet addresses or UPI IDs you paid, and transaction IDs.
+  - Change your Acme Invest password, and never share OTPs or install screen-sharing apps.
+  I have passed the details you shared to our specialist team. Transfers already completed on
+  the blockchain cannot be reversed by us, but we will cooperate fully with any official
+  request from the authorities. Acme Invest will never ask you to pay a fee to withdraw.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Funds still on Acme and customer asks to block, or a pending withdrawal to a scammer ->
+    Risk & Compliance, P1, include: user_id, withdrawal_ids, destination addresses, amounts.
+  - Account access shared / unknown login -> account_security_sop SEC-01, P1.
+  - Completed losses reported -> Risk & Compliance, P2, include: all addresses/UTRs/tx hashes,
+    dates, complaint acknowledgement number if given.
+  - Customer mentions police/cybercrime complaint or asks Acme to contact police ->
+    complaints_escalation_sop CMP-04 (Legal), plus the above.
+DO NOT:
+  - Do not say "your money will be recovered" or "we will get it back".
+  - Do not confirm whether a scammer's address belongs to an Acme customer.
+  - Do not blame the customer ("you should have known").
+  - Do not recommend paid "recovery agents" or "crypto recovery services" - these are
+    frequently scams themselves.
+
+======================================================================
+## RSK-06: Customer reports another user or a suspicious counterparty
+======================================================================
+CUSTOMER MAY SAY:
+  - "This person on your platform cheated me, here is his Acme referral code"
+  - "Someone is using Acme to run a Ponzi group, please take action"
+  - "I think this wallet address belongs to a fraudster, check it"
+  - "Is this Acme user genuine? He wants to buy my USDT via P2P"
+INFO NEEDED FROM CUSTOMER:
+  - What happened, dates, any identifiers they have (address, tx hash, referral code, phone,
+    screenshots). Whether they lost money (if yes -> also RSK-05).
+TOOLS: none
+DEBUGGING STEPS:
+  1. Identify the reporting user (support_guidelines_sop SUP-02) if they are a customer.
+     Non-customers can also report; do not confirm or deny they have an account.
+  2. Do NOT look up and discuss the reported person with the reporter. Support does not
+     investigate other users; any lookup is for the escalation note only and is done by Risk.
+  3. Classify:
+     - Reporter lost money -> RSK-05 as well.
+     - Report involves impersonation of Acme (fake app, fake support, fake offers) -> Legal
+       (P3) and warn the reporter (support_guidelines_sop SUP-06).
+     - "Is this user genuine / can I trade P2P with them": Acme does not verify or vouch for
+       other users; off-platform trades are at the customer's own risk and not supported.
+       Resolve with advice.
+     - General suspicious activity report -> Risk & Compliance (P3).
+  4. Acknowledge; explain that action taken (if any) is confidential.
+RESOLUTION:
+  Thank the reporter, log the report for Risk & Compliance, explain Acme cannot share the
+  outcome or any details about other users.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thank you for taking the time to report this. I have passed the details you shared to our
+  specialist team for review. For privacy and security reasons, we cannot share information
+  about other accounts or any action we take, but every report is reviewed.
+  Please do not trade or send money outside the Acme Invest app to people you meet online -
+  we cannot protect transactions made outside the app. If you have lost money, please report
+  it on 1930 or at https://cybercrime.gov.in.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Every report -> Risk & Compliance, P3 (P2 if the reporter says funds are actively being
+    collected now), include: reporter user_id (if any), identifiers supplied, screenshots.
+  - Impersonation of Acme -> Legal, P3.
+DO NOT:
+  - Do not confirm that the reported person, code or address is linked to an Acme account.
+  - Do not share what action was taken.
+
+======================================================================
+## RSK-07: Chargeback / bank dispute raised on a deposit
+======================================================================
+CUSTOMER MAY SAY:
+  - "I raised a dispute with my bank for the deposit, now my account is locked"
+  - "Bank reversed my UPI payment, why is my Acme balance negative?"
+  - "I didn't authorise this deposit, I raised a chargeback"
+  - "Bank ne paisa wapas kar diya, ab app kuch nahi karne de raha"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone, deposit date/amount/UTR, the reason they raised the dispute,
+    dispute reference from their bank if available
+TOOLS: find_deposits_by_reference, get_deposits, check_deposit, check_wallet_balance, get_risk_holds
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Find the deposit and gateway state:
+     If the customer gave a UTR: Call find_deposits_by_reference(utr=<utr>).
+     Otherwise: Call get_deposits(on_date=<deposit_date>).
+     Use only a deposit whose user_id is the customer's. Then:
+     Call check_deposit(deposit_id=<deposit_id>).
+     - gateway.gateway_status = REVERSED: the bank pulled the money back after Acme credited it.
+  3. Check reversal in the ledger and resulting balance:
+     Use the ledger_entries returned by check_deposit (all entries for this deposit).
+     Call check_wallet_balance().
+     - REVERSAL entry and negative/insufficient INR: the deposit was already used (e.g. to
+       buy crypto), so the account owes the reversed amount. Holds are typical until settled.
+  4. Check holds: Call get_risk_holds().
+  5. Branch on the customer's reason:
+     - Customer says the deposit was NOT made by them / account compromised ->
+       account_security_sop SEC-01 (P1).
+     - Customer raised dispute because the deposit was "pending" / not credited, but Acme did
+       credit it: explain it was credited (date/time IST) and ask them to withdraw the
+       dispute with their bank; Risk & Compliance decides on the hold after that. Escalate P2.
+     - Deposit genuinely failed/not credited and customer disputed: no REVERSAL impact on
+       Acme; payment_sop handles refund status. Resolve there.
+     - Customer regrets a trade and disputed to get money back: explain disputes cannot be
+       used to reverse trades; the balance owed must be settled; escalate to Risk &
+       Compliance (P2) and Payments Ops.
+RESOLUTION:
+  Explain what happened to the deposit in plain words, that the account is paused until the
+  dispute is resolved/settled, and that Risk & Compliance will contact them in the app.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for writing to us. I checked your deposit of Rs <amount> on <date>: it was added to
+  your Acme account on <date, time IST>, and later your bank reversed the payment after a
+  dispute was raised. Because the amount had already been used in your account, some actions
+  are paused until this is settled.
+  <If credited correctly: "If you raised the dispute because the deposit looked pending,
+  please contact your bank to withdraw the dispute.">
+  Our team will contact you in the app with the next steps.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Any REVERSED deposit with a customer contact -> Risk & Compliance, P2 (copy Payments Ops),
+    include: user_id, deposit_id, UTR, ledger entries, current balances.
+  - Customer says deposit was unauthorized -> SEC-01, P1.
+DO NOT:
+  - Do not tell the customer to raise or keep a dispute to "get money back faster".
+  - Do not waive or write off the negative balance.
+
+======================================================================
+## RSK-08: Customer's bank account frozen by their bank ("linked to a crypto transaction")
+======================================================================
+CUSTOMER MAY SAY:
+  - "My bank froze my account and says it is due to a transaction from Acme"
+  - "Cyber cell ne mera bank account freeze karwa diya, Acme withdrawal ki wajah se"
+  - "Bank says there is a lien on my account because of a complaint, give me an NOC"
+  - "Tell me who complained about the money I withdrew from Acme"
+  - "Please send a letter to my bank that my withdrawal was genuine"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone; which Acme withdrawal (date, amount, UTR); the complaint or
+    reference number their bank gave them (if any)
+TOOLS: get_withdrawals, get_risk_holds
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. For internal context only, confirm the withdrawal exists:
+     Call get_withdrawals(asset="INR"). Look at the latest 10.
+     - You may confirm to the verified customer the date, amount and UTR of THEIR OWN
+       withdrawal (their own data).
+  3. The freeze is on the customer's bank account, applied by their bank or on the direction
+     of an authority. Acme does not control it and cannot lift it.
+  4. Frequently the freeze relates to the source of funds of a counterparty in a trade, not
+     the customer. Acme must NEVER share counterparty, buyer or seller information with the
+     customer, their bank, or anyone over email.
+  5. Requests for an NOC, "genuine transaction letter", or account statement for the bank:
+     - Customer may download their own transaction statement from the app (sample: Profile >
+       Reports). Resolve that part.
+     - Any letter addressed to a bank, police or cyber cell -> escalate to Risk & Compliance
+       (P2); Legal decides. Do not promise a letter.
+  6. Check if there is an Acme-side hold as well: Call get_risk_holds().
+     Any ACTIVE hold -> also follow RSK-01/RSK-02.
+     If source = LAW_ENFORCEMENT, do not confirm or deny anything; generic wording; Legal (P2).
+  7. Customer mentions police complaint, FIR, court -> CMP-04 holding reply.
+RESOLUTION:
+  Information only: explain Acme cannot lift a freeze placed by their bank; advise them to ask
+  their bank branch for the complaint/reference details and the issuing authority, and to
+  contact that authority directly; they can download their own Acme statement. Route the case
+  to Risk & Compliance.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I'm sorry to hear about the trouble with your bank account. A freeze or lien on your bank
+  account is placed by your bank, so Acme Invest is not able to remove it.
+  What usually helps:
+  - Ask your bank branch for the complaint or reference number behind the freeze and which
+    authority raised it, then contact that authority directly.
+  - You can download a statement of your own Acme transactions in the app to share with them.
+  I have also shared your request with our specialist team. For privacy and legal reasons we
+  cannot share information about other parties to any transaction.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Every such contact -> Risk & Compliance, P2, include: user_id, withdrawal_ids/UTRs, the
+    bank reference the customer shared, whether they asked for a letter/NOC.
+  - Any Acme-side LAW_ENFORCEMENT hold or mention of police/court -> Legal, P2 / CMP-04.
+DO NOT:
+  - Never share counterparty names, accounts, UTRs or trade details.
+  - Do not confirm that Acme received or responded to any police or bank request.
+  - Do not issue or promise an NOC.
+
+======================================================================
+## RSK-09: Money mule - someone asked me to receive money into my Acme account
+======================================================================
+CUSTOMER MAY SAY:
+  - "A person offered me 5% commission to receive deposits in my Acme account and buy USDT"
+  - "Part-time job: they will send money to my bank, I have to buy crypto and send it to them"
+  - "My friend wants to use my Acme account because his KYC is not done, is it ok?"
+  - "Kisi ne bola apna account rent pe do, har mahine paisa milega"
+  - "I already did it twice, now my account is on hold"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone; whether they have already received/forwarded funds (dates,
+    amounts, addresses); who approached them and how (screenshots)
+TOOLS: get_user_devices, get_auth_events, get_deposits, get_withdrawals
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Has anyone else accessed the account?
+     Call get_user_devices().
+     Call get_auth_events(days=30).
+     - Customer shared login/OTP with the other person -> account_security_sop SEC-01 (P1).
+  3. Has it already happened? (internal context; do not quote patterns back)
+     Call get_deposits(days=30).
+     Call get_withdrawals(days=30).
+  4. Branch:
+     - Only asking / not done yet: clear warning; do not proceed. Log for Risk & Compliance
+       (P3). Resolve.
+     - Already done (funds received/forwarded): escalate to Risk & Compliance (P2). Advise the
+       customer to stop immediately, not to forward any further funds, and to report the
+       person on 1930 / cybercrime.gov.in. Do not advise on refunding third parties
+       themselves.
+     - Account already on hold -> generic RSK-01/RSK-02 reply plus the warning.
+     - Third-party deposits are refunded to source anyway (DD-09, payment_sop).
+RESOLUTION:
+  Explain clearly that letting others use your account or routing someone else's money
+  through it is not allowed under Acme's terms, can be illegal, and can lead to the account
+  and their bank account being frozen. Escalate.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thank you for checking with us before going ahead - please do NOT do this. Receiving money
+  from other people into your bank or Acme account and buying or sending crypto for them is
+  not allowed on Acme Invest, and it is a common way criminals move stolen money. People who
+  do this can have their bank and Acme accounts frozen and may face legal action.
+  Please do not share your login, OTP or account with anyone, and stop all contact with the
+  person who approached you. If you have already received or sent money for them, please
+  report it on 1930 or at https://cybercrime.gov.in and tell us the details.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Already received/forwarded funds -> Risk & Compliance, P2, include: user_id,
+    deposit/withdrawal IDs, amounts, addresses, screenshots of the approach.
+  - Only an approach, nothing done -> Risk & Compliance, P3.
+  - Login shared -> SEC-01, P1.
+DO NOT:
+  - Do not help the customer "return" money to anyone.
+  - Do not explain what patterns Acme monitors.
+
+======================================================================
+## RSK-10: Hold released - when can I withdraw?
+======================================================================
+CUSTOMER MAY SAY:
+  - "Got a message that the review is complete, when can I withdraw?"
+  - "Account unfrozen but withdrawal still not working"
+  - "Hold hat gaya kya? Withdrawal fail ho raha hai"
+  - "My old withdrawal that was on hold, will it process automatically?"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone; screenshot of any error
+TOOLS: get_risk_holds, get_user, get_withdrawals, check_wallet_balance
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_risk_holds(active_only=false).
+     - Any hold still ACTIVE: not fully released -> RSK-01 / RSK-02 / RSK-04 generic reply.
+     - All RELEASED: continue.
+  3. Call get_user(). Check status.
+     - Still FROZEN though all holds RELEASED: inconsistency -> Risk & Compliance (P2).
+  4. Held withdrawals after release:
+     Call get_withdrawals(). Use the ones with created_at on or before the
+     hold's released_at.
+     - Moved to PROCESSING/SUCCESS: tell the customer the status (INR normally within 24
+       hours, DD-09). Resolve.
+     - CANCELLED at release (funds back in available): customer must place a new withdrawal.
+       Resolve.
+     - Still ON_HOLD more than 24 hours (sample value) after released_at -> escalate to
+       Payments Ops (INR) / Crypto Ops (crypto), P2.
+  5. New withdrawal failing: check the usual causes - security cooldown (auth_events within
+     24 hours), unverified bank account, address cooldown -> withdrawal_sop /
+     crypto_transfers_sop.
+  6. Balance check: Call check_wallet_balance().
+     - Amount locked with no open order/withdrawal -> escalate (P2).
+RESOLUTION:
+  Confirm the review is complete (do not say what it found), state what happened to any held
+  withdrawal, and how/when they can withdraw now.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Good news - the review on your account is complete and withdrawals are available again.
+  <One of: "Your withdrawal of Rs <amount> from <date> is now being processed and should reach
+  your bank within 24 hours." / "Your earlier withdrawal request was cancelled and the amount
+  is back in your available balance, so please place a new withdrawal from the app.">
+  Thank you for your patience while we completed the review.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Released holds but users.status still FROZEN, or held withdrawal stuck 24+ hours after
+    release -> Risk & Compliance / Payments Ops / Crypto Ops, P2, include: user_id, hold_ids,
+    released_at, withdrawal_ids.
+DO NOT:
+  - Do not share the outcome or reason of the review.
+  - Do not suggest the account is "cleared" of anything specific.

@@ -1,0 +1,17 @@
+.venv
+.git
+**/__pycache__
+**/*.pyc
+**/.DS_Store
+.pytest_cache
+.redis-data
+logs
+data
+tests
+*.db
+*.db.bak*
+*.log
+.env
+client_secret*.json
+monitoring/data
+db_dumps

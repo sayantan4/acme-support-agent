@@ -1,0 +1,21 @@
+{
+  "_note": "USD per 1M tokens (OpenAI Standard tier), used by the Grafana dashboard to estimate cost. Source: https://developers.openai.com/api/docs/pricing, checked 2026-10-14. After editing, restart C1 or run: python -m ai_analyzer prices",
+  "gpt-5.4-mini": {
+    "input_per_1m": 0.75,
+    "cached_input_per_1m": 0.075,
+    "output_per_1m": 4.5,
+    "source": "OpenAI pricing page, Standard tier, 2026-10-14"
+  },
+  "text-embedding-3-small": {
+    "input_per_1m": 0.02,
+    "cached_input_per_1m": 0.02,
+    "output_per_1m": 0.0,
+    "source": "OpenAI pricing page, Standard tier, 2026-10-14"
+  },
+  "gpt-5.4-nano": {
+    "input_per_1m": 0.2,
+    "cached_input_per_1m": 0.02,
+    "output_per_1m": 1.25,
+    "source": "OpenAI pricing page, Standard tier, 2026-10-15"
+  }
+}

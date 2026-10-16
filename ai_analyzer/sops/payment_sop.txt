@@ -1,0 +1,709 @@
+SOP_ID: PAY
+TITLE: INR Deposits (UPI and bank transfer)
+CATEGORY: payments
+VERSION: 1.0
+LAST_REVIEWED: 2026-09-27
+OWNER: Payments Ops
+NOTE: Fictional sample SOP for the Acme Invest demo. Policy values live in data_dictionary.txt
+      (DD-09). Values marked "(sample value)" are not in the data dictionary yet.
+
+======================================================================
+## PAY-00: Scope and quick triage
+======================================================================
+SCOPE:
+  INR deposits into the Acme Invest wallet by UPI, IMPS, NEFT or RTGS: pending, failed,
+  failed-but-debited, refunds, third-party deposits, holds, duplicates, wrong amounts and
+  how-to questions about deposit methods and limits.
+  NOT in scope:
+    - Crypto deposits (coins sent from another wallet/exchange) -> crypto_transfers_sop
+    - INR withdrawals -> withdrawal_sop
+    - Adding, verifying or changing a bank account -> bank_account_sop
+    - Fees on trades -> fees_charges_sop (Acme charges no deposit fee, see PAY-11)
+    - Frozen accounts or risk holds on the whole account -> fraud_risk_sop RSK-01
+
+TOOLS: get_deposits
+QUICK TRIAGE (find the user first, see support_guidelines_sop SUP-02, then):
+  Call get_deposits(days=30).
+
+  deposit status           Meaning                                   Go to
+  INITIATED                user started, payment not completed yet   PAY-01 / PAY-10
+  PENDING                  waiting for bank/gateway confirmation     PAY-01 (UPI) / PAY-03 (bank transfer)
+  SUCCESS                  credited to wallet                         PAY-09 if amount looks wrong
+  FAILED                   not credited                               PAY-02, PAY-06, PAY-10, PAY-12
+  ON_HOLD                  held for review                            PAY-07
+  REFUND_INITIATED         money is being returned to source          PAY-05
+  REFUNDED                 money returned to source (refund_utr)      PAY-05
+  No deposit at all        deposit never reached us / not matched     PAY-03 (bank transfer) / PAY-02 (UPI)
+
+  failure_reason           Go to
+  THIRD_PARTY_ACCOUNT      PAY-04
+  AMOUNT_ABOVE_LIMIT       PAY-06
+  UNVERIFIED_BANK_ACCOUNT  PAY-12
+  BANK_DECLINED, TIMEOUT   PAY-02 / PAY-10
+  USER_CANCELLED           PAY-02 (if customer says money was debited) else explain and close
+
+GENERAL RULES:
+  - Timestamps are UTC in the tables; convert to IST before quoting a time.
+  - The ledger (ledger_entries) is the source of truth for whether money reached the wallet.
+  - Money debited from the customer's bank and not credited or refunded is P1 (SUP-07)
+    only once the auto-reconciliation window (72 hours) has passed, or when records conflict.
+    Inside the window, it is P2 and normally resolves by itself.
+
+======================================================================
+## PAY-01: UPI deposit is pending
+======================================================================
+CUSTOMER MAY SAY:
+  - "I added money through UPI but it's not showing in my wallet"
+  - "Deposit pending since morning, money deducted from bank"
+  - "UPI se 5000 dala, paisa kat gaya but wallet me nahi aaya"
+  - "Add funds stuck on processing for 2 hours"
+  - "My deposit is showing pending, when will it come?"
+INFO NEEDED FROM CUSTOMER:
+  - Registered phone or email (if writing from a different address)
+  - Amount, date and approximate time of payment
+  - UPI transaction ID / UTR (12-digit number shown in the UPI app), if available
+TOOLS: get_deposits, find_deposits_by_reference, check_deposit
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02). Stop if the account is
+     not ACTIVE and follow the linked SOP.
+  2. Find the deposit:
+     Call get_deposits(method="UPI", days=7).
+     If the customer gave a UTR: Call find_deposits_by_reference(utr=<utr>).
+     - No matching deposit: the payment never reached Acme or was not linked -> go to PAY-02
+       step 5.
+     - used_by_another_account is true: stop, do not share details, verify identity
+       (SUP-01).
+  3. Check the matching deposit: Call check_deposit(deposit_id=<deposit_id>). Then by deposit.status:
+     - SUCCESS: confirm ledger_credited.
+       -> true: tell the customer the money is in the wallet (they may need to refresh
+          or re-open the app). Resolve.
+       -> false: status and ledger disagree -> escalate to Payments Ops, P1.
+     - PENDING or INITIATED and age_minutes < 30: normal. Ask the customer
+       to wait 30 minutes from the payment time; UPI normally reflects within 5 minutes.
+     - PENDING and age_minutes > 30: check the gateway (step 4).
+     - FAILED: go to PAY-02 (failed but money debited) or PAY-10 (UPI app shows success).
+     - ON_HOLD: go to PAY-07.
+     - REFUND_INITIATED / REFUNDED: go to PAY-05.
+  4. Use the gateway record returned by check_deposit (gateway.gateway_status, bank_reference,
+     webhook_received_at, last_polled_at):
+     - CAPTURED but deposit still PENDING: the gateway received the money but our system has
+       not updated (missed confirmation) -> escalate to Payments Ops, P2 (P1 if older than
+       72 hours).
+     - PENDING at gateway and last_polled_at within the last 15 minutes: the bank has not
+       confirmed yet. Auto-reconciliation runs every 15 minutes for 72 hours -> tell the
+       customer it will update automatically; wait until 72 hours after payment.
+     - PENDING at gateway and last_polled_at older than 1 hour (sample value): reconciliation
+       is not running for this deposit -> escalate to Payments Ops, P2.
+     - FAILED at gateway: treat as failed -> PAY-02.
+     - REVERSED at gateway: the bank has reversed the debit -> PAY-05 (reversal usually
+       reaches the customer's bank within 5-7 working days).
+     - CREATED (customer never completed the payment): ask the customer to check whether the
+       money actually left their bank account; if not debited, nothing is lost -> resolve.
+  5. Deposit older than 72 hours and still PENDING: auto-reconciliation window is over ->
+     escalate to Payments Ops, P1 (money debited, not credited, not refunded).
+RESOLUTION:
+  - Within 30 minutes: reassure, ask to wait.
+  - 30 minutes to 72 hours, gateway PENDING: explain the bank has not confirmed, it updates
+    automatically; either credited to wallet or returned to their bank.
+  - Gateway CAPTURED or window passed: escalate and give the P1/P2 update SLA.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Sorry for the worry about your deposit of Rs <amount> made on <date> at <time IST>.
+  I checked it: we are still waiting for your bank to confirm the payment. Our system checks
+  with the bank automatically, and the deposit will either be added to your wallet or, if the
+  bank does not confirm it, returned to your bank account. You do not need to pay again.
+  Most such payments are updated within a few hours; in rare cases it can take up to 72 hours.
+  We will keep an eye on it and write to you once it is updated.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Gateway CAPTURED but deposit not SUCCESS -> Payments Ops, P2 (P1 after 72h), include:
+    user_id, deposit_id, gateway_txn_id, bank_reference, amount, created_at, webhook_received_at.
+  - deposit SUCCESS but no ledger credit -> Payments Ops, P1, include deposit_id and ledger query result.
+  - PENDING beyond 72 hours, or last_polled_at stale -> Payments Ops, P1 / P2 as above.
+DO NOT:
+  - Do not ask the customer to pay again while a deposit is pending (risk of double payment).
+  - Do not promise the money will be credited; it may be refunded instead.
+  - Do not mention the gateway, webhooks, polling or reconciliation by name.
+
+======================================================================
+## PAY-02: Deposit failed but money debited from bank
+======================================================================
+CUSTOMER MAY SAY:
+  - "Payment failed in the app but Rs 10,000 was debited from my SBI account"
+  - "Transaction failed, paisa kat gaya, refund kab aayega?"
+  - "App says deposit failed, bank says successful. Where is my money?"
+  - "Amount deducted but deposit failed, please credit or refund"
+  - "Money gone from bank, nothing in Acme"
+INFO NEEDED FROM CUSTOMER:
+  - Amount, date/time, UTR / bank reference number
+  - A screenshot of the bank statement or SMS showing the debit (only if no deposit row is found)
+TOOLS: find_deposits_by_reference, get_deposits, check_deposit
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Find the deposit (by UTR if given, else by amount and date):
+     If the customer gave a UTR: Call find_deposits_by_reference(utr=<utr>).
+     Otherwise: Call get_deposits(on_date=<payment date>) and match the amount.
+  3. For the FAILED deposit, check the gateway:
+     Call check_deposit(deposit_id=<deposit_id>). Use gateway.gateway_status:
+     - gateway_status FAILED or CREATED: the payment did not complete at the gateway. If the
+       bank still debited the customer, the bank reverses it on its own, normally within
+       5-7 working days (sample value, same as refund window). -> Tell the customer; ask them
+       to write back with a bank statement if it has not returned after 7 working days.
+     - gateway_status REVERSED: the gateway has already sent the money back -> PAY-05 to
+       give the timeline / reference.
+     - gateway_status CAPTURED: we did receive the money but the deposit is FAILED. Check
+       whether a refund was started (step 4).
+  4. Use the refunds returned by check_deposit (status, refund_utr, created_at, processed_at):
+     - Refund PROCESSED: give the refund_utr and processed date -> PAY-05 reply.
+     - Refund INITIATED: within 5-7 working days of created_at -> tell the customer to wait
+       until <created_at + 7 working days>.
+     - Refund FAILED, or no refund and gateway CAPTURED: money is with us and neither
+       credited nor refunded -> escalate to Payments Ops, P1.
+     - Also check the ledger in case it was credited later by reconciliation: look at
+       ledger_credited from check_deposit.
+       true -> the money is in the wallet; tell the customer and resolve.
+  5. No deposit at all but the customer insists money was debited:
+     - Look up by UTR at the gateway: Call find_deposits_by_reference(utr=<utr>). Use
+       gateway_records.
+       - Found with a deposit_id: continue from step 3 with that deposit (check it belongs to
+         this user).
+       - Not found: ask the customer for the UTR and a bank statement screenshot if not
+         already provided. If provided and still not found -> escalate to Payments Ops, P2,
+         for a bank-side search (P1 if the payment is older than 72 hours).
+RESOLUTION:
+  - Gateway failed / bank-side debit: bank auto-reverses within 5-7 working days.
+  - Captured and refund in progress: give the refund timeline.
+  - Captured, no refund, no credit: escalate P1.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I understand how worrying it is to see money leave your bank without reaching your wallet.
+  I checked your deposit of Rs <amount> on <date>: the payment did not complete on our side,
+  so it was not added to your wallet. <Your bank will return the amount to your account
+  automatically, usually within 5-7 working days. / We have started a refund of Rs <amount>
+  to your bank account on <date>; it usually reaches you within 5-7 working days.>
+  If you do not see it by <date>, please reply with a screenshot of your bank statement
+  showing the debit and we will trace it for you.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Gateway CAPTURED, deposit FAILED, no refund and no ledger credit -> Payments Ops, P1,
+    include: user_id, deposit_id, gateway_txn_id, bank_reference, amount, refund query result.
+  - Refund FAILED -> Payments Ops, P1, include refund_id.
+  - UTR not found anywhere after the customer sent proof -> Payments Ops, P2 (P1 if > 72h),
+    include UTR, amount, date, the customer's statement screenshot.
+DO NOT:
+  - Do not manually credit the wallet or promise a credit.
+  - Do not tell the customer "it's your bank's fault".
+  - Do not ask for full bank account number, card details or OTP.
+
+======================================================================
+## PAY-03: IMPS/NEFT/RTGS bank transfer deposit not reflecting (incl. wrong reference/UTR)
+======================================================================
+CUSTOMER MAY SAY:
+  - "I did NEFT of Rs 2,00,000 yesterday, still not in my wallet"
+  - "IMPS transfer done to the Acme account details, not showing"
+  - "I forgot to put the reference number / typed wrong remark in the transfer"
+  - "RTGS kiya tha 11 baje, abhi tak credit nahi hua"
+  - "Here is my UTR, please check my bank transfer"
+INFO NEEDED FROM CUSTOMER:
+  - Transfer method (IMPS / NEFT / RTGS), amount, date/time, UTR
+  - Which of their bank accounts it was sent from (bank name and last 4 digits)
+  - Screenshot of the bank's transfer confirmation showing UTR, beneficiary and remark
+TOOLS: find_deposits_by_reference, get_deposits, check_deposit, get_bank_accounts
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Check the expected credit time (DD-09): IMPS within 30 minutes; NEFT within 2 banking
+     hours; RTGS within 1 banking hour. NEFT/RTGS sent outside banking hours or on bank
+     holidays are processed on the next banking day.
+     - Still inside the window: ask the customer to wait until <expected time>. Resolve for now.
+  3. Search by UTR, then by amount:
+     Call find_deposits_by_reference(utr=<utr>).
+     Call get_deposits(method="IMPS", days=7).
+     Call get_deposits(method="NEFT", days=7).
+     Call get_deposits(method="RTGS", days=7).
+     For the deposit found: Call check_deposit(deposit_id=<deposit_id>).
+     - Found, SUCCESS: confirm ledger_credited is true. Credited -> resolve.
+     - Found, PENDING: inside 72 hours auto-reconciliation -> wait; beyond -> escalate P1.
+     - Found, FAILED with THIRD_PARTY_ACCOUNT -> PAY-04. UNVERIFIED_BANK_ACCOUNT -> PAY-12.
+       AMOUNT_ABOVE_LIMIT -> PAY-06.
+     - Found, REFUND_INITIATED / REFUNDED -> PAY-05.
+     - used_by_another_account is true: stop, verify identity (SUP-01).
+  4. Not found by UTR or amount (typical when the reference/remark was wrong or missing, or
+     the UTR was mistyped):
+     - Check that the sending account is one of the customer's verified accounts:
+       Call get_bank_accounts(). Ignore accounts with status REMOVED.
+       - Sent from an account not listed or not VERIFIED: the credit will be treated as a
+         third-party deposit and returned to source (PAY-04), after it is matched.
+     - Ask the customer for the bank transfer confirmation screenshot (if not already sent).
+     - With the screenshot: escalate to Payments Ops, P2, to search unmatched incoming bank
+       credits and link or refund it. Unmatched credits that cannot be linked are returned
+       to the source account within 5-7 working days (sample value) after identification.
+  5. Customer gave a UTR with the wrong number of characters or it does not look like the
+     screenshot: ask the customer to re-copy the UTR from the bank statement (IMPS UTR is
+     usually 12 digits; NEFT/RTGS references are 16-22 characters, often starting with the
+     bank code) -> ask customer.
+RESOLUTION:
+  - Inside the time window: wait.
+  - Matched and credited: confirm.
+  - Unmatched / wrong reference: collect proof, escalate for manual matching or refund to source.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for sharing the details of your <NEFT/IMPS/RTGS> transfer of Rs <amount> on <date>.
+  I could not yet link this transfer to your Acme account, which can happen when the
+  reference is missing or different. Please reply with a screenshot of the transfer
+  confirmation from your bank showing the reference number (UTR), amount and date. Once we
+  have it, our payments team will trace the transfer and either add it to your wallet or
+  return it to your bank account. We will update you within 48 hours of receiving it.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Transfer not found after proof received -> Payments Ops, P2 (P1 if older than 72 hours),
+    include: user_id, UTR, amount, method, date/time, sending bank and last 4 digits, screenshot.
+  - Found PENDING beyond 72 hours -> Payments Ops, P1, include deposit_id.
+DO NOT:
+  - Do not ask the customer to send the money again.
+  - Do not share Acme's receiving account details in a reply unless copied from the in-app
+    "Add funds" screen instructions (details can differ by user).
+  - Do not promise the transfer will be credited if it came from an unverified account.
+
+======================================================================
+## PAY-04: Deposit from a third-party / unregistered bank account refunded
+======================================================================
+CUSTOMER MAY SAY:
+  - "I paid from my wife's account and the money was sent back"
+  - "Why was my deposit refunded? It was my own money"
+  - "Paid via my father's UPI, deposit reversed"
+  - "Used my company account for NEFT, you returned it"
+  - "Deposit failed saying account not linked"
+INFO NEEDED FROM CUSTOMER:
+  - Amount, date, UTR; which bank account/UPI ID they paid from
+TOOLS: get_deposits, get_bank_accounts, check_deposit
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call get_deposits(failure_reason="THIRD_PARTY_ACCOUNT").
+     - No such deposit: the deposit failed for another reason -> use PAY-00 triage table.
+  3. List the customer's bank accounts:
+     Call get_bank_accounts(). Ignore accounts with status REMOVED.
+     - The paying account is not in the list: correct rejection (policy DD-09: deposits only
+       from a VERIFIED account in the user's own name). -> Explain, check refund (step 4),
+       and tell them how to add their own account (bank_account_sop BNK-01).
+     - The paying account IS in the list and VERIFIED, and the customer paid from that exact
+       account (same last 4 digits): possible wrong rejection -> escalate to Payments Ops, P2.
+     - The paying account is in the list but PENDING_VERIFICATION or FAILED -> PAY-12 /
+       bank_account_sop BNK-08.
+  4. Check the refund:
+     Call check_deposit(deposit_id=<deposit_id>). Use its refunds.
+     - PROCESSED: give refund_utr; the money went back to the account it came from. Resolve.
+     - INITIATED: inside 5-7 working days -> wait until <created_at + 7 working days>.
+     - Missing or FAILED -> escalate to Payments Ops, P1.
+  5. Joint account, NRE/NRO or business account used: not supported -> bank_account_sop BNK-07.
+RESOLUTION:
+  Explain the own-account rule, confirm the refund to the source account, and guide the
+  customer to deposit from their own verified bank account.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I checked your deposit of Rs <amount> on <date>. For your security and as required by
+  regulations, we can only accept money from a bank account in your own name that is
+  verified on your Acme account. This payment came from a different account, so it was
+  returned to the account it was sent from.
+  <The refund was processed on <date> with reference <refund UTR>. / The refund is in
+  progress and should reach that account by <date>.>
+  To add money, please use your own bank account linked in the app under Bank Accounts, or
+  add and verify it first.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Paid from the customer's own VERIFIED account but still flagged -> Payments Ops, P2,
+    include deposit_id, bank_account_id, masked account, UTR.
+  - Refund missing or FAILED -> Payments Ops, P1, include deposit_id, refund query result.
+DO NOT:
+  - Do not accept the deposit as an exception, even for close family.
+  - Do not tell the customer the refund went to a different account than the source.
+  - Do not share the other account holder's name.
+
+======================================================================
+## PAY-05: Refund status / refund not received after 7 working days
+======================================================================
+CUSTOMER MAY SAY:
+  - "You said refund initiated, 10 days ho gaye, still not received"
+  - "Where is my refund for the failed deposit?"
+  - "Please share refund reference number"
+  - "Bank says no money received from Acme"
+INFO NEEDED FROM CUSTOMER:
+  - Amount and date of the original deposit (or deposit reference)
+  - For "not received" after a PROCESSED refund: bank statement for the period
+TOOLS: get_refunds, check_deposit
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call get_refunds(source_type="DEPOSIT").
+  3. Branch on refund status:
+     - INITIATED and fewer than 7 working days since created_at: normal -> tell the customer
+       the expected date (created_at + 7 working days). Wait.
+     - INITIATED and more than 7 working days: stuck -> escalate to Payments Ops, P2
+       (P1 if more than 10 working days (sample value)).
+     - PROCESSED: give the refund_utr and processed_at date. Ask the customer to check the
+       statement of the SOURCE account (the account/UPI they paid from) and quote the
+       refund UTR to their bank if not visible. If still not visible 3 working days
+       (sample value) after processed_at with the bank confirming no credit -> escalate
+       Payments Ops, P2, with the customer's bank statement.
+     - FAILED: the refund did not go through (for example, source account closed) ->
+       escalate to Payments Ops, P1.
+     - No refund, deposit REFUND_INITIATED or REFUNDED: records conflict -> escalate P2.
+     - No refund, deposit FAILED: Call check_deposit(deposit_id=<deposit_id>) and check
+       gateway.gateway_status; REVERSED
+       means the gateway returned it directly (bank-side reversal, 5-7 working days from
+       the deposit date); otherwise see PAY-02.
+RESOLUTION:
+  Give the status, the refund reference if processed, and the expected date. Escalate if the
+  window is breached or the refund failed.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for following up on the refund of Rs <amount>. <The refund was processed on <date>
+  and the bank reference number is <refund UTR>. It was sent to the account you paid from
+  (<bank>, ending <last 4>). If you cannot see it, please share this reference number with
+  your bank, they can trace it. / The refund is still being processed; refunds normally reach
+  your bank within 5-7 working days, so you should receive it by <date>.>
+  If it has not arrived by then, reply to this email and we will trace it with priority.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - INITIATED beyond 7 working days -> Payments Ops, P2 (P1 beyond 10 working days), include
+    refund_id, deposit_id, amount, created_at.
+  - FAILED -> Payments Ops, P1, include refund_id and whether the source account is closed.
+  - PROCESSED but the bank confirms non-receipt -> Payments Ops, P2, include refund_utr and
+    the customer's bank statement.
+DO NOT:
+  - Do not offer to send the refund to a different bank account; refunds go to source.
+  - Do not credit the Acme wallet instead of refunding unless Payments Ops decides so.
+
+======================================================================
+## PAY-06: Deposit amount above limit or below minimum
+======================================================================
+CUSTOMER MAY SAY:
+  - "Trying to add Rs 2,00,000 via UPI but it fails"
+  - "Minimum amount error when adding Rs 50"
+  - "Deposit failed with limit exceeded"
+  - "UPI limit kitna hai? 1 lakh se zyada nahi ho raha"
+INFO NEEDED FROM CUSTOMER:
+  - Amount and method they tried; any error text shown
+TOOLS: get_deposits
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call get_deposits(). Look at the 10 most recent.
+  3. Branch:
+     - failure_reason AMOUNT_ABOVE_LIMIT and method UPI with amount > Rs 1,00,000: UPI limit
+       per transaction is Rs 1,00,000 (DD-09). -> Advise splitting into smaller UPI payments or
+       using IMPS/NEFT/RTGS bank transfer. Resolve.
+     - UPI failed at an amount below Rs 1,00,000 with BANK_DECLINED: the customer's own bank
+       or UPI app daily limit may be lower (many banks set Rs 1,00,000 per day across all UPI
+       payments, some lower for new UPI users) -> ask them to check with their bank or use
+       bank transfer. Resolve.
+     - Amount below Rs 100: minimum deposit is Rs 100 (DD-09). The app does not allow it, so
+       usually no deposit exists -> explain. Resolve.
+     - Amount is within limits but failure_reason AMOUNT_ABOVE_LIMIT: unexpected ->
+       escalate to Payments Ops, P3.
+     - Was money debited for a rejected amount? -> PAY-02.
+RESOLUTION:
+  Explain the limits and the alternatives.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for reaching out about adding Rs <amount>. UPI deposits on Acme Invest can be up to
+  Rs 1,00,000 per transaction, and the minimum deposit is Rs 100. Your bank may also set its
+  own daily UPI limit. For larger amounts you can make several UPI payments or use a bank
+  transfer (IMPS, NEFT or RTGS) from your verified bank account, as shown in the app under
+  Add Funds. No money was taken for the attempt that failed.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Limit error for an amount inside the limits -> Payments Ops, P3, include deposit_id, amount, method.
+DO NOT:
+  - Do not offer to raise the UPI limit; it is fixed.
+  - Do not confirm "no money was taken" unless the deposit shows no gateway capture (see PAY-02).
+
+======================================================================
+## PAY-07: Deposit ON_HOLD
+======================================================================
+CUSTOMER MAY SAY:
+  - "My deposit is on hold, why?"
+  - "Rs 3 lakh deposit shows under review"
+  - "Deposit hold pe kyu hai? Please release"
+  - "Money deducted, app says deposit held"
+INFO NEEDED FROM CUSTOMER:
+  - Amount and date. Nothing else; do not ask for documents unless Risk & Compliance asks.
+TOOLS: get_deposits, get_risk_holds
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02). If the user's status = FROZEN,
+     go to fraud_risk_sop RSK-01 instead.
+  2. Call get_deposits(status="ON_HOLD").
+  3. Call get_risk_holds(active_only=true).
+     For the "Hold RELEASED" branch: Call get_risk_holds(active_only=false).
+     (Read reason_code and source only for the internal note; never disclose them.)
+     - Active DEPOSIT_HOLD or ACCOUNT_FREEZE: the review is with Risk & Compliance. Tell the
+       customer it is under a routine review; no timeline promise beyond "we will update you
+       within 48 hours (sample value)". Create/update the ticket for Risk & Compliance, P2.
+     - source = LAW_ENFORCEMENT: send only the generic review message; do not confirm any
+       external request; route to Risk & Compliance. See fraud_risk_sop.
+     - No active hold but deposit ON_HOLD: records conflict -> escalate to Payments Ops, P2.
+     - Hold RELEASED but deposit still ON_HOLD after 2 hours (sample value) -> escalate to
+       Payments Ops, P2.
+  4. If the customer says they were asked to deposit by someone promising returns or to
+     "unlock" funds -> fraud_risk_sop RSK-05.
+RESOLUTION:
+  Acknowledge, say the deposit is under a routine review, give the next update time, route
+  to Risk & Compliance.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for writing to us about your deposit of Rs <amount> on <date>. Your deposit is safe
+  and is going through a routine review, which we do from time to time to keep accounts
+  secure. Our team is looking at it and we will update you within 48 hours. If we need
+  anything from you, we will ask by email from this address.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Always route the ticket to Risk & Compliance, P2, include: user_id, deposit_id, amount,
+    hold_id (internal only).
+  - Customer has written 3+ times or 48 hours passed without update -> raise priority (SUP-09).
+DO NOT:
+  - Do not reveal the hold reason, source, or any risk threshold.
+  - Do not say "your account is flagged" or "suspicious".
+  - Do not promise release or a refund.
+
+======================================================================
+## PAY-08: Duplicate deposit / charged twice
+======================================================================
+CUSTOMER MAY SAY:
+  - "I paid once but money was debited twice"
+  - "Double deduction for the same deposit"
+  - "Do baar paisa kat gaya, ek hi baar credit hua"
+  - "I paid again because the first one was pending, now both are gone"
+INFO NEEDED FROM CUSTOMER:
+  - Both UTRs (from bank statement/UPI app), amounts, times
+TOOLS: get_deposits, check_deposit, find_deposits_by_reference
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call get_deposits(on_date=<payment date>).
+  3. Branch:
+     - Two deposits, both SUCCESS: two real deposits; check the ledger shows both credits
+       (Call check_deposit(deposit_id=<deposit_id>) for each; ledger_credited is true).
+       -> Both credited: the wallet has both amounts; explain and resolve. The customer can
+          withdraw the extra amount (withdrawal_sop).
+     - Two deposits, one SUCCESS and one PENDING / FAILED: handle the second with PAY-01 / PAY-02.
+     - One deposit but the customer shows two debits with DIFFERENT UTRs: search the
+       second UTR (Call find_deposits_by_reference(utr=<second utr>).). Found -> handle that
+       deposit. Not found -> escalate to
+       Payments Ops, P2 with the statement.
+     - Two debits with the SAME UTR on the bank statement: usually a bank display duplicate
+       or a debit plus a reversal. Ask the customer to check for a matching credit; if two
+       real debits remain after 2 working days (sample value) -> escalate to Payments Ops, P2.
+     - Same deposit_id credited twice in the ledger (check_deposit returns two DEPOSIT
+       ledger_entries for it): our error in the customer's favour -> escalate to Payments Ops, P2; do not
+       tell the customer it will be reversed until Payments Ops confirms.
+RESOLUTION:
+  Match every bank debit to a deposit row; each one ends up credited, pending, or refunded.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Sorry for the confusion about the double payment. I checked both payments:
+  - Rs <amount> at <time>: <added to your wallet>
+  - Rs <amount> at <time>: <added to your wallet / still being confirmed by the bank, it will
+    be added or returned automatically within 72 hours / being returned to your bank by <date>>
+  <If both were added, you can use the extra amount or withdraw it to your bank at any time.>
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - A debit with a UTR we cannot find, after the customer sent proof -> Payments Ops, P2,
+    include both UTRs, amounts, statement screenshot.
+  - Duplicate ledger credit for one deposit -> Payments Ops, P2, include deposit_id, entry_ids.
+DO NOT:
+  - Do not refund a successful deposit to the bank; the customer withdraws it themselves.
+  - Do not debit or adjust the wallet yourself.
+
+======================================================================
+## PAY-09: Deposit credited with the wrong amount
+======================================================================
+CUSTOMER MAY SAY:
+  - "I deposited Rs 10,000 but only Rs 9,800 came"
+  - "Wallet shows less than what I paid"
+  - "Kam paisa credit hua hai"
+  - "Deposit credited but amount is wrong"
+INFO NEEDED FROM CUSTOMER:
+  - Amount paid, date, UTR, screenshot of the bank debit
+TOOLS: find_deposits_by_reference, get_deposits, get_ledger_entries, check_wallet_balance
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. If the customer gave a UTR: Call find_deposits_by_reference(utr=<utr>).
+     Otherwise: Call get_deposits(on_date=<payment date>).
+  3. Call get_ledger_entries(asset="INR", from_time=<deposit created_at>).
+  4. Branch:
+     - DEPOSIT credit equals the deposit amount equals the amount paid, but the balance is lower:
+       the balance was used after the deposit (TRADE_BUY, FEE, WITHDRAWAL, or an order
+       locking funds). Check locked for open orders
+       (Call check_wallet_balance(asset="INR").).
+       -> Explain the entries in plain words. Resolve. For fee questions see fees_charges_sop FEE-07.
+     - Customer's bank debit is higher than the deposit amount: Acme charges no deposit fee
+       (sample value). The difference is likely a bank/UPI app charge or two separate payments
+       -> ask for the bank statement; if the statement shows one debit of the higher amount
+       with this UTR -> escalate to Payments Ops, P2.
+     - DEPOSIT credit in the ledger is less than the deposit amount -> our error -> escalate to
+       Payments Ops, P1.
+     - Customer deposited several times and is comparing a total: list each deposit and credit.
+RESOLUTION:
+  Reconcile the paid amount, the deposit record, and the ledger entries, and explain the
+  difference. Escalate only when our records show a short credit or a debit we cannot explain.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for flagging this. I checked your deposit of Rs <amount> on <date>: the full
+  Rs <amount> was added to your wallet at <time IST>. After that, <Rs X was used for a buy
+  order of <coin> on <date>, including a trading fee of Rs Y / Rs X is reserved for an open
+  order>, which is why your available balance now shows Rs <balance>.
+  <If your bank debited more than Rs <amount>, please send us the bank statement entry so we
+  can check it.>
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Ledger DEPOSIT credit lower than deposits.amount -> Payments Ops, P1, include deposit_id, entry_id.
+  - Bank debit higher than recorded amount for the same UTR -> Payments Ops, P2, include UTR, statement.
+DO NOT:
+  - Do not adjust balances or promise a top-up.
+  - Do not list other users' transactions or internal entry names.
+
+======================================================================
+## PAY-10: UPI app shows success but Acme shows failed
+======================================================================
+CUSTOMER MAY SAY:
+  - "My UPI app shows payment successful but Acme says failed"
+  - "UPI app pe success aa raha hai, Acme app me failed"
+  - "UPI app has a transaction ID, your app shows failed deposit"
+  - "Bank sent SMS debit successful, Acme says deposit failed"
+INFO NEEDED FROM CUSTOMER:
+  - UPI transaction ID / UTR from the UPI app, amount, time; screenshot of the UPI app screen
+TOOLS: get_deposits, check_deposit, find_deposits_by_reference
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call get_deposits(method="UPI", on_date=<payment date>).
+  3. Call check_deposit(deposit_id=<deposit_id>). Use gateway.gateway_status.
+     If no deposit matches, search by UTR: Call find_deposits_by_reference(utr=<utr>). Use
+     gateway_records.
+     - gateway_status CAPTURED and deposit FAILED with TIMEOUT: the confirmation arrived
+       after our payment window closed. Check the refunds returned by check_deposit:
+       - Refund INITIATED / PROCESSED: money is on its way back -> give timeline. Resolve.
+       - No refund and no ledger credit -> escalate to Payments Ops, P1.
+     - gateway_status CAPTURED and deposit has since become SUCCESS: it was a delay; check
+       ledger_credited and tell the customer it is now added. Resolve.
+     - gateway_status FAILED or REVERSED: the UPI app may show "success" for the debit leg
+       only. The bank reverses the amount, usually within 5-7 working days -> tell the
+       customer; wait.
+     - gateway_status PENDING: treat as PAY-01 (auto-reconciliation for 72 hours).
+     - No gateway record for this UTR: the payment may have gone to another merchant/UPI ID.
+       Ask for the UPI app screenshot showing the payee name. If the payee is Acme / the
+       Acme payment collection name -> escalate Payments Ops, P2. If a different payee -> the
+       customer must contact that payee or their bank; resolve.
+  4. If the payee in the screenshot is an individual's UPI ID (not Acme) and the customer
+     says someone asked them to pay there -> possible scam, fraud_risk_sop RSK-05.
+RESOLUTION:
+  Explain whether the money will be credited, refunded, or auto-reversed by the bank, with dates.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I understand the confusion when your UPI app says successful and our app does not. I
+  checked your payment of Rs <amount> on <date>: <the confirmation from the bank reached us
+  late, so the deposit could not be completed and we have started returning Rs <amount> to
+  your account; it should arrive by <date>. / the payment was not completed on our side;
+  your bank will return the amount to your account automatically, usually within 5-7
+  working days.> You do not need to do anything else.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Captured, deposit FAILED, no refund, no credit -> Payments Ops, P1, include deposit_id,
+    gateway_txn_id, bank_reference, amount.
+  - UTR not found but payee is Acme -> Payments Ops, P2, include UTR, screenshot.
+DO NOT:
+  - Do not tell the customer to raise a dispute with the UPI app before checking our records.
+  - Do not name the payment gateway or bank partner.
+
+======================================================================
+## PAY-11: Deposit methods, limits and timings (how-to)
+======================================================================
+CUSTOMER MAY SAY:
+  - "How do I add money to Acme?"
+  - "What is the maximum I can deposit? Can I use NEFT?"
+  - "Paisa kaise add kare? Any charges for deposit?"
+  - "How long does NEFT take to reflect?"
+  - "Can I deposit using a credit card or wallet?"
+INFO NEEDED FROM CUSTOMER:
+  - None (general question). If about their own failed attempt, use the matching issue.
+TOOLS: get_user, get_bank_accounts
+DEBUGGING STEPS:
+  1. Optional: identify the user (support_guidelines_sop SUP-02) and check prerequisites:
+     Call get_user(). Look at kyc_status.
+     Call get_bank_accounts(status="VERIFIED").
+     - kyc_status not VERIFIED: deposits need completed KYC -> kyc_sop. Answer and resolve.
+     - No VERIFIED bank account: they must add one first -> bank_account_sop BNK-01.
+  2. Answer from the policy below. Resolve.
+POLICY (DD-09):
+  - Methods: UPI (up to Rs 1,00,000 per transaction); IMPS / NEFT / RTGS bank transfer using
+    the account details shown in the app under Add Funds.
+  - Minimum deposit: Rs 100. For bank transfers Acme sets no per-transaction maximum; the
+    customer's bank limits apply (sample value). RTGS is for Rs 2,00,000 and above.
+  - Only from a VERIFIED bank account in the customer's own name. Third-party money is refunded.
+  - Timings: UPI within 5 minutes; IMPS within 30 minutes; NEFT within 2 banking hours; RTGS
+    within 1 banking hour (NEFT/RTGS depend on bank working hours).
+  - Not accepted: credit cards, debit card payments, prepaid wallets, cash, cheques (sample value).
+  - Acme charges no fee for INR deposits (sample value); the customer's bank may.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for your question. You can add money to your Acme Invest wallet in two ways:
+  - UPI: up to Rs 1,00,000 per payment, usually added within 5 minutes.
+  - Bank transfer (IMPS, NEFT or RTGS): use the account details shown in the app under Add
+    Funds. IMPS is usually added within 30 minutes, NEFT within 2 banking hours and RTGS
+    within 1 banking hour.
+  The minimum deposit is Rs 100, and payments must come from your own bank account that is
+  verified in the app. We do not charge any fee for deposits.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Not needed for a how-to question. If the customer reports a problem, switch to the matching issue.
+DO NOT:
+  - Do not share receiving account details from memory; point to the in-app Add Funds screen.
+  - Do not suggest workarounds such as depositing via a friend's account.
+
+======================================================================
+## PAY-12: Deposit rejected because the bank account or KYC is not verified
+======================================================================
+CUSTOMER MAY SAY:
+  - "Deposit failed saying bank account not verified"
+  - "Add funds button not working, says complete verification"
+  - "Mera account verify nahi hua, deposit nahi ho raha"
+  - "I added a new bank account and deposited, it failed"
+INFO NEEDED FROM CUSTOMER:
+  - Which bank account they paid from (bank name, last 4 digits), amount, date
+TOOLS: get_user, get_deposits, get_bank_accounts, check_deposit
+DEBUGGING STEPS:
+  1. Identify and verify the user (support_guidelines_sop SUP-02).
+  2. Call get_user(). Look at kyc_status.
+     - Not VERIFIED: deposits are not possible until KYC is complete -> kyc_sop; answer and resolve.
+  3. Call get_deposits(failure_reason="UNVERIFIED_BANK_ACCOUNT").
+     Call get_bank_accounts().
+     - Paying account PENDING_VERIFICATION: verification is in progress -> bank_account_sop
+       BNK-08. Tell the customer to deposit after it shows verified.
+     - Paying account FAILED: -> bank_account_sop BNK-02 / BNK-03.
+     - Paying account VERIFIED at the time of the deposit (the bank account's created_at and
+       verification before the deposit's created_at) but still rejected: escalate to Payments
+       Ops, P2.
+  4. Check a refund exists for any debited amount: Call check_deposit(deposit_id=<deposit_id>).
+     No refunds and gateway.gateway_status CAPTURED -> escalate Payments Ops, P1.
+RESOLUTION:
+  Explain the account must be verified first, confirm the refund, and point to bank verification.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  I checked your deposit of Rs <amount> on <date>. It could not be added because the bank
+  account you paid from (ending <last 4>) was not yet verified on your Acme account.
+  <The amount is being returned to that account and should reach you by <date>.>
+  Once the account shows as verified in the app under Bank Accounts, you can add money from it.
+  <It is currently being verified, which usually completes within 48 hours.>
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Account was VERIFIED but deposit rejected -> Payments Ops, P2, include deposit_id, bank_account_id.
+  - Debited amount with no refund -> Payments Ops, P1.
+DO NOT:
+  - Do not mark a bank account verified or tell the customer it will be accepted anyway.

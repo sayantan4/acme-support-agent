@@ -1,0 +1,10 @@
+# Prometheus for the local dashboard (scripts/monitoring.sh start). Scrapes the AI service (C1),
+# which serves /metrics on ANALYZER_METRICS_PORT (default 9101).
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: ai_analyzer_c1
+    static_configs:
+      - targets: ["localhost:9101"]

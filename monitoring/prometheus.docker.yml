@@ -1,0 +1,10 @@
+# Prometheus inside docker compose: scrapes C1 (the `summarizer` service) on its metrics port.
+# Local (non-docker) runs use monitoring/prometheus.yml instead.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: ai_analyzer_c1
+    static_configs:
+      - targets: ["summarizer:9101"]

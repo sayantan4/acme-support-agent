@@ -1,0 +1,348 @@
+{
+  "agent_prompt": "agent-v2",
+  "judge_prompt": "judge-v1",
+  "summary": {
+    "cases": 4,
+    "passed": 3,
+    "pass_rate": 0.75,
+    "check_pass_rates": {
+      "sop": 1.0,
+      "tools_called": 1.0,
+      "tools_not_called": 1.0,
+      "escalation": 1.0,
+      "reply_decision": 0.75,
+      "no_internal_terms": 1.0,
+      "must_contain_any": null,
+      "max_words": 1.0,
+      "not_a_repeat": 0.667
+    },
+    "missed_escalations": 0,
+    "unneeded_escalations": 0,
+    "judge_rubric_item_pass_rate": 1.0,
+    "judge_grounded_rate": 1.0,
+    "judge_unreadable": 0,
+    "seconds_p50": 4.1,
+    "seconds_p95": 7.78,
+    "tokens_per_case_avg": 8732,
+    "cached_share": 0.225
+  },
+  "cases": [
+    {
+      "id": "real-thanks-after-deposit-answer",
+      "passed": true,
+      "checks": [
+        {
+          "name": "sop",
+          "passed": true,
+          "detail": "no SOP expected"
+        },
+        {
+          "name": "tools_called",
+          "passed": true,
+          "detail": "called []"
+        },
+        {
+          "name": "tools_not_called",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "escalation",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "reply_decision",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "no_internal_terms",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "max_words",
+          "passed": true,
+          "detail": "13 words (limit 40)"
+        },
+        {
+          "name": "not_a_repeat",
+          "passed": true,
+          "detail": "similarity to a previous reply 0.01"
+        }
+      ],
+      "judge": {
+        "items": [
+          {
+            "item": "is only a short closing message, like: glad we could help, have a nice day",
+            "kind": "must",
+            "passed": true,
+            "reason": "The reply is just a brief closing: 'Glad I could help. Have a nice day!' with a sign-off."
+          },
+          {
+            "item": "re-explains or re-checks the deposit status",
+            "kind": "must_not",
+            "passed": true,
+            "reason": "It does not mention the deposit status or any new check at all."
+          },
+          {
+            "item": "promises to keep monitoring, or to send an update later",
+            "kind": "must_not",
+            "passed": true,
+            "reason": "It makes no promise of ongoing monitoring or a later update."
+          }
+        ],
+        "grounded": true,
+        "grounded_reason": "The reply is a generic closing message and contains no factual claims that require external support.",
+        "error": null,
+        "input_tokens": 743,
+        "output_tokens": 171
+      },
+      "agent": {
+        "sops_retrieved": [],
+        "sops_followed": [
+          "SUP-09"
+        ],
+        "tools_called": [],
+        "escalate": false,
+        "escalation_note": null,
+        "summary": "Customer Rahul Mehta (signs as Wrick) reported a stuck deposit and used abusive language. We found a UPI deposit of Rs 5,000 made on 2 Oct 2026 at 11:19 IST that is still pending bank confirmation and not yet credited. We asked them to wait up to 72 hours from payment time and not pay again. The customer then replied \u201cI got it\u201d and \u201cThanks\u201d; no new issue was raised, and a closing reply is appropriate.",
+        "reply": "Glad I could help. Have a nice day!\n\nBest regards,\nAcme Invest Support",
+        "reply_kind": "closing",
+        "reply_dropped": null
+      },
+      "seconds": 7.78,
+      "tokens": {
+        "input": 5630,
+        "cached": 0,
+        "output": 169,
+        "judge": 914
+      }
+    },
+    {
+      "id": "real-thanks-again-after-closing-reply",
+      "passed": true,
+      "checks": [
+        {
+          "name": "sop",
+          "passed": true,
+          "detail": "no SOP expected"
+        },
+        {
+          "name": "tools_called",
+          "passed": true,
+          "detail": "called []"
+        },
+        {
+          "name": "tools_not_called",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "escalation",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "reply_decision",
+          "passed": true,
+          "detail": ""
+        }
+      ],
+      "judge": null,
+      "agent": {
+        "sops_retrieved": [
+          "PAY-01",
+          "PAY-02"
+        ],
+        "sops_followed": [],
+        "tools_called": [],
+        "escalate": false,
+        "escalation_note": null,
+        "summary": "Customer Rahul Mehta (email: rahul.mehta@example.com) previously reported a delayed UPI deposit of Rs 5,000 made on 2 Oct 2026 at 11:19 IST. We found it was still pending bank confirmation with no wallet credit, and advised waiting up to 72 hours from payment time without paying again. The customer then acknowledged with \u201cThanks,\u201d and we already sent a closing reply. New message adds no new issue.",
+        "reply": null,
+        "reply_kind": "none",
+        "reply_dropped": null
+      },
+      "seconds": 3.61,
+      "tokens": {
+        "input": 8343,
+        "cached": 0,
+        "output": 163,
+        "judge": 0
+      }
+    },
+    {
+      "id": "real-thank-you-after-deposit-check",
+      "passed": true,
+      "checks": [
+        {
+          "name": "sop",
+          "passed": true,
+          "detail": "no SOP expected"
+        },
+        {
+          "name": "tools_called",
+          "passed": true,
+          "detail": "called []"
+        },
+        {
+          "name": "tools_not_called",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "escalation",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "reply_decision",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "no_internal_terms",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "max_words",
+          "passed": true,
+          "detail": "29 words (limit 40)"
+        },
+        {
+          "name": "not_a_repeat",
+          "passed": true,
+          "detail": "similarity to a previous reply 0.12"
+        }
+      ],
+      "judge": {
+        "items": [
+          {
+            "item": "is only a short closing message, like: glad we could help, have a nice day",
+            "kind": "must",
+            "passed": true,
+            "reason": "The reply is a brief closing note that simply thanks the customer and offers a next step."
+          },
+          {
+            "item": "re-explains or re-checks the deposit status",
+            "kind": "must_not",
+            "passed": true,
+            "reason": "It does not mention or reassess the deposit status at all."
+          },
+          {
+            "item": "promises to keep monitoring, or to send an update later",
+            "kind": "must_not",
+            "passed": true,
+            "reason": "It only says to reply with the payment reference if needed later, without promising ongoing monitoring or a later update."
+          }
+        ],
+        "grounded": true,
+        "grounded_reason": "The reply contains no factual claims beyond a generic offer to respond with the payment reference later, which is consistent with the prior thread and general support language.",
+        "error": null,
+        "input_tokens": 697,
+        "output_tokens": 187
+      },
+      "agent": {
+        "sops_retrieved": [
+          "PAY-02",
+          "PAY-01",
+          "PAY-10"
+        ],
+        "sops_followed": [
+          "SUP-04"
+        ],
+        "tools_called": [],
+        "escalate": false,
+        "escalation_note": null,
+        "summary": "Rahul Mehta thanked us for the earlier deposit update. The thread already established that his UPI deposit of Rs 5,000 from 02 Oct 2026 17:09 IST is still waiting for bank confirmation, while an earlier IMPS deposit succeeded. No new issue was raised.",
+        "reply": "Hi Rahul,\n\nYou\u2019re welcome. If you need anything else about this deposit later, just reply with the payment reference and we\u2019ll check it again.\n\nBest regards,\nAcme Invest Support",
+        "reply_kind": "closing",
+        "reply_dropped": null
+      },
+      "seconds": 3.61,
+      "tokens": {
+        "input": 9165,
+        "cached": 3584,
+        "output": 173,
+        "judge": 884
+      }
+    },
+    {
+      "id": "real-legal-followup-after-holding-reply",
+      "passed": false,
+      "checks": [
+        {
+          "name": "sop",
+          "passed": true,
+          "detail": "expected one of ['CMP-04', 'SUP-05']; retrieved ['CMP-04'], followed ['CMP-04', 'SUP-05', 'SUP-07']"
+        },
+        {
+          "name": "tools_called",
+          "passed": true,
+          "detail": "called ['get_tickets']"
+        },
+        {
+          "name": "tools_not_called",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "escalation",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "reply_decision",
+          "passed": false,
+          "detail": "replied when no reply was needed"
+        },
+        {
+          "name": "no_internal_terms",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "not_a_repeat",
+          "passed": false,
+          "detail": "similarity to a previous reply 1.00"
+        }
+      ],
+      "judge": null,
+      "agent": {
+        "sops_retrieved": [
+          "CMP-04"
+        ],
+        "sops_followed": [
+          "CMP-04",
+          "SUP-05",
+          "SUP-07"
+        ],
+        "tools_called": [
+          {
+            "name": "get_tickets",
+            "arguments": {
+              "open_only": true
+            },
+            "ok": true
+          }
+        ],
+        "escalate": true,
+        "escalation_note": "Grievance Officer + Legal, P2. Customer repeated a legal threat (\u201ccalling my lawyer\u201d). Prior thread also included police threat regarding a stuck BTC order. No open ticket was found in lookup, but per CMP-04 this still requires senior/legal handling with context from the existing thread. Prior reply sent: holding reply only.",
+        "summary": "Customer Rahul Mehta escalated a BTC order issue and later threatened police and then a lawyer. Per policy, only the holding reply was sent, and the case was escalated to senior review with Legal/Grievance handling. No new operational update is available here; open tickets were not found in the ticket lookup.",
+        "reply": "Thank you for writing to us. Your message has been passed to a senior member of our team, who will get back to you within 24 hours.\n\nBest regards,\nAcme Invest Support",
+        "reply_kind": "holding",
+        "reply_dropped": null
+      },
+      "seconds": 4.59,
+      "tokens": {
+        "input": 11033,
+        "cached": 4096,
+        "output": 252,
+        "judge": 0
+      }
+    }
+  ]
+}

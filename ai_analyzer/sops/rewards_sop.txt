@@ -1,0 +1,703 @@
+SOP_ID: RWD
+TITLE: Rewards: Referrals, Signup Bonus, Cashback, Coupons, Expiry and Reward Holds
+CATEGORY: rewards
+VERSION: 1.0
+LAST_REVIEWED: 2026-09-27
+OWNER: Rewards Team
+NOTE: Fictional sample SOP for the Acme Invest demo. Policy values live in data_dictionary.txt
+      (DD-09). Values marked "(sample value)" are not in DD-09 and are placeholders only.
+
+======================================================================
+## RWD-00: Scope and quick triage
+======================================================================
+Covers every question about rewards: referral rewards (for the referrer and the new user),
+signup bonus, cashback, coupon codes, streak rewards, reward expiry, revoked or held rewards,
+and how to use reward crypto. Rewards issues are P3 by default (DD-09) unless the customer
+also reports missing money or a risk hold.
+
+Key policy (data_dictionary DD-09):
+  - Referral: referrer gets Rs 100 in BTC after the referee completes KYC AND makes a first
+    trade of at least Rs 500 within 30 days of signup. The code must be applied at signup.
+  - Rewards are credited within 72 hours of qualification and expire 90 days after credit
+    if not used (where the campaign says so).
+  - Acme does not credit rewards manually on customer request (support_guidelines_sop SUP-04).
+
+Reward lifecycle (rewards_ledger.status):
+  PENDING   qualifying action recorded, still being verified
+  ELIGIBLE  qualified; credit is due within 72 hours
+  CREDITED  in the customer's wallet (a ledger_entries row with entry_type = 'REWARD')
+  EXPIRED   not used before expires_at
+  REVOKED   taken back after credit or cancelled before credit (reason is internal)
+  ON_HOLD   frozen by a REWARD_HOLD or account-level risk hold (see fraud_risk_sop RSK-02)
+
+Referral lifecycle (referrals.status):
+  SIGNED_UP -> KYC_DONE -> QUALIFIED -> REWARDED, or REJECTED (with rejection_reason)
+
+TOOLS: get_campaigns
+Quick triage:
+  1. Identify the user: support_guidelines_sop SUP-02. If users.status is FROZEN, stop and
+     follow fraud_risk_sop RSK-01.
+  2. Decide which reward the customer means:
+       "my friend joined but I got nothing"         -> RWD-01
+       "I joined with a code, where is my bonus"    -> RWD-02
+       "forgot to enter referral code"              -> RWD-03
+       "cashback not received"                       -> RWD-04
+       "coupon code invalid"                         -> RWD-05
+       "reward disappeared / expired"                -> RWD-06
+       "reward cancelled / on hold"                  -> RWD-07
+       "how do I use / withdraw reward"              -> RWD-08
+       "offer ended / what are the terms"            -> RWD-09
+       "where is my referral code / how to refer"    -> RWD-10
+       "got wrong amount / wrong coin"               -> RWD-11
+  3. Always read the campaign rules before answering:
+     Call get_campaigns(campaign_id=<campaign_id>).
+
+DO NOT:
+  - Do not promise or manually credit a reward. Only the Rewards Team can adjust rewards.
+  - Do not tell a referrer anything about the referee beyond what the app already shows
+    (no KYC status details, no trade amounts, no device or bank details) - SUP-03.
+  - Do not disclose FRAUD_SUSPECTED or any risk reason.
+
+======================================================================
+## RWD-01: Referral reward not received by the referrer
+======================================================================
+CUSTOMER MAY SAY:
+  - "My friend signed up with my referral code but I didn't get Rs 100 BTC"
+  - "Referred 3 people last month, reward nahi aaya abhi tak"
+  - "Referral shows pending since 2 weeks, when will I get it?"
+  - "My brother joined using my link, why is my referral rejected?"
+  - "Your referral program is a scam, I referred 5 friends and got nothing"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone (if not the sender address)
+  - Approximate date the friend signed up, and the friend's first name (optional; never ask
+    for the friend's phone, PAN or other personal details)
+TOOLS: get_referrals, get_user, get_rewards, get_ledger_entries, get_campaigns
+DEBUGGING STEPS:
+  1. Identify the referrer (support_guidelines_sop SUP-02). Note the user_id and status.
+  2. List the referrer's referrals:
+     Call get_referrals(). Use the as_referrer list.
+     - as_referrer is empty: no signup used this customer's code. Check the code matches:
+       Call get_user(). Look at referral_code.
+       -> Tell the customer no signup with their code was recorded; the friend may have
+          signed up without the code (see RWD-03 - it cannot be added later). Resolve.
+  3. For the referral in question, branch on its status:
+     - SIGNED_UP: the friend has not completed KYC yet.
+       -> If created_at is within 30 days: tell the customer the reward unlocks once the
+          friend completes KYC and a first trade of Rs 500 or more within 30 days of signup.
+          Resolve (no escalation).
+       -> If created_at is older than 30 days: the qualifying window has passed; expect the
+          referral to move to REJECTED (QUALIFYING_TRADE_NOT_MET). Explain the rule. Resolve.
+     - KYC_DONE: KYC complete, first qualifying trade not yet made.
+       -> Within 30 days of signup: tell the customer the friend still needs a first trade of
+          Rs 500 or more. Do not reveal whether the friend traded or how much. Resolve.
+       -> Older than 30 days: explain the 30-day window has passed. Resolve.
+     - QUALIFIED: check the reward row (step 4).
+     - REWARDED: check the credit (step 5).
+     - REJECTED: go to step 6 and branch on rejection_reason.
+  4. QUALIFIED - find the reward:
+     Call get_rewards(reward_type="REFERRAL").
+     - qualified_at less than 72 hours ago and reward PENDING or ELIGIBLE: normal. Ask the
+       customer to wait until qualified_at + 72 hours (convert to IST). Resolve.
+     - qualified_at more than 72 hours ago and still PENDING/ELIGIBLE, or no reward returned:
+       SLA breached -> escalate to Rewards Team (P3; P2 if the customer has followed up 3+ times).
+     - ON_HOLD or REVOKED: go to RWD-07.
+  5. REWARDED - confirm the wallet credit:
+     Call get_ledger_entries(entry_type="REWARD",
+                             reference_type="REWARD", reference_id=<reward_id>).
+     - Entry exists: reward was credited. Tell the customer the date (IST), asset and amount,
+       and where to see it (Portfolio > BTC). If it was used or has expired, see RWD-06/RWD-08.
+     - Reward status CREDITED but no ledger entry: data mismatch -> escalate to Rewards Team
+       (P2), include reward_id and referral_id.
+  6. REJECTED - branch on the referral's rejection_reason:
+     - SAME_DEVICE: the referee's account was created or used on the same device as the
+       referrer or another referred account. Programme terms exclude this.
+       -> Explain generically: "referrals from the same device are not eligible". Do not say
+          which account or device. Resolve. If the customer insists it is a genuine different
+          person (e.g. family member who borrowed the phone once), log the reply; the decision
+          stands. Escalate only if they provide new facts -> Rewards Team (P4).
+     - SAME_BANK_ACCOUNT: referee added a bank account already linked to the referrer or to
+       another account. -> Explain generically: "referrals where accounts share a bank account
+       are not eligible". Never reveal whose bank account. Resolve.
+     - SELF_REFERRAL: the referee is the referrer's own second account.
+       -> Explain that referring yourself is not allowed. Also check duplicate accounts:
+          onboarding_sop ONB-07. Resolve.
+     - CODE_APPLIED_LATE: the code was not applied at signup. -> Explain the policy (RWD-03).
+       Resolve.
+     - QUALIFYING_TRADE_NOT_MET: the referee did not complete KYC plus a first trade of at
+       least Rs 500 within 30 days of signup. -> Explain the rule without revealing the
+       referee's actual activity. Resolve.
+     - CAMPAIGN_ENDED: the referral campaign ended before the referral qualified.
+       Call get_campaigns(campaign_id=<campaign_id>).
+       -> Explain the offer ended on <end_at in IST>. See RWD-09. Resolve.
+     - FRAUD_SUSPECTED: NEVER disclose. Use the generic RWD-07 wording ("did not meet the
+       programme terms after a routine review"). Do not escalate on the customer's request
+       alone; escalate to Rewards Team (P4) only if the customer disputes it with details.
+  7. If several referrals are affected, summarise per referral using first names only if the
+     customer already provided them; otherwise use signup dates ("the referral from 12 Aug").
+RESOLUTION:
+  Explain the current stage and what still has to happen, or the plain-language reason for
+  rejection. Credits happen automatically; support does not add rewards manually.
+CUSTOMER REPLY TEMPLATE (pending stage):
+  Hi <first name>,
+  Thanks for referring your friend to Acme Invest. I checked your referral from <date>.
+  Your reward of Rs 100 in BTC unlocks once your friend completes their KYC and makes a first
+  trade of Rs 500 or more within 30 days of signing up. It is then added to your account
+  automatically within 72 hours. You will get a notification when it is credited.
+  Best regards,
+  Acme Invest Support
+CUSTOMER REPLY TEMPLATE (rejected, not fraud):
+  Hi <first name>,
+  Thanks for writing in about your referral from <date>. I checked it, and unfortunately it
+  did not qualify for a reward because <plain reason: e.g. "both accounts were used on the
+  same device", "the referral code was not added at signup", "the first trade of Rs 500 was
+  not completed within 30 days of signup">. These conditions are part of the referral terms,
+  so we are not able to credit a reward for this referral.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - QUALIFIED more than 72 hours ago and no credit -> Rewards Team, P3, include: user_id,
+    referral_id, qualified_at, reward_id (if any), rewards_ledger.status.
+  - rewards_ledger shows CREDITED but no ledger_entries row -> Rewards Team, P2.
+  - Customer disputes a rejection with new facts -> Rewards Team, P4.
+DO NOT:
+  - Do not share the referee's KYC status, trade amounts, device, bank or name.
+  - Do not mention "fraud", "flagged" or "suspicious" for FRAUD_SUSPECTED.
+  - Do not promise a reward "as a goodwill gesture".
+
+======================================================================
+## RWD-02: Referee (new user) did not get the signup bonus
+======================================================================
+CUSTOMER MAY SAY:
+  - "I signed up with my friend's code, where is my joining bonus?"
+  - "Welcome reward not credited even after KYC"
+  - "Mujhe signup bonus nahi mila, code toh daala tha"
+  - "The ad said free Rs 50 bitcoin on signup, I didn't get it"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone; the code they used (optional); where they saw the offer
+TOOLS: get_campaigns, get_referrals, get_rewards, get_kyc_applications, get_ledger_entries
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02). Check the user's kyc_status and created_at.
+  2. Check whether a signup bonus campaign applies. Signup bonuses are campaign-specific
+     (sample value: Rs 50 in BTC on completion of KYC, only while a SIGNUP_BONUS campaign is
+     ACTIVE); the referral policy in DD-09 only rewards the referrer.
+     Call get_campaigns(reward_type="SIGNUP_BONUS", active_at=<user created_at>).
+     - No campaign active at the user's signup time: no signup bonus applied. Explain that
+       the offer was not running when they joined (or the ad was not an Acme offer). Resolve.
+  3. Check whether a code was applied at signup:
+     Call get_referrals(). Use the as_referee list.
+     - as_referee is empty and the campaign requires a code: code was not applied -> RWD-03.
+       Resolve.
+  4. Check the bonus reward:
+     Call get_rewards(reward_type="SIGNUP_BONUS").
+     - No reward and kyc_status != 'VERIFIED': bonus unlocks after KYC. Point to kyc_sop if KYC
+       is stuck. Resolve.
+     - No reward and kyc_status = 'VERIFIED' and an eligible campaign exists: check how long
+       since KYC was verified:
+       Call get_kyc_applications(). Take reviewed_at of the VERIFIED application.
+       -> Less than 72 hours: ask the customer to wait until reviewed_at + 72 hours. Resolve.
+       -> More than 72 hours: escalate to Rewards Team (P3).
+     - PENDING / ELIGIBLE: within 72 hours of qualifying -> ask to wait with the IST time.
+       Older -> escalate (P3).
+     - CREDITED: confirm the ledger credit:
+       Call get_ledger_entries(entry_type="REWARD",
+                             reference_type="REWARD", reference_id=<reward_id>).
+       Tell the customer the date and asset. If used/expired -> RWD-06 / RWD-08.
+     - ON_HOLD / REVOKED: -> RWD-07.
+  5. If the referral is REJECTED with SAME_DEVICE / SAME_BANK_ACCOUNT / SELF_REFERRAL,
+     the referee's bonus is usually also not paid (per campaign rules_summary). Explain
+     generically as in RWD-01 step 6. Resolve.
+RESOLUTION:
+  Confirm whether a bonus offer applied at signup, what condition is pending (usually KYC),
+  or the credit date. Offers seen outside the Acme app/website may be fake (see RWD-09).
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Welcome to Acme Invest, and thanks for reaching out about your signup reward. I checked
+  your account: <one of: "the reward is added once your KYC is verified, which is still in
+  progress" / "your reward will be added by <date, time IST>" / "the signup offer was not
+  running on <signup date>, so no bonus applied to your account">.
+  You can see all your rewards under Profile > Rewards in the app.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Eligible campaign, KYC verified more than 72 hours ago, no reward row -> Rewards Team,
+    P3, include: user_id, campaign_id, kyc reviewed_at, referral_id if any.
+DO NOT:
+  - Do not honour offers from third-party ads, Telegram groups or influencers not listed in
+    campaigns; say they are not Acme offers.
+  - Do not tell the referee anything about the referrer's account.
+
+======================================================================
+## RWD-03: Referral code not applied at signup / wants to add it later
+======================================================================
+CUSTOMER MAY SAY:
+  - "I forgot to enter my friend's referral code, can you add it now?"
+  - "Code field was not visible when I signed up, please link my account to my friend"
+  - "Bhai ne code diya tha but maine signup ke time nahi daala, ab add kar do"
+  - "My referral got rejected saying code applied late"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone. Nothing else is needed; the answer is policy.
+TOOLS: get_user, get_referrals
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Confirm whether a code was recorded:
+     Call get_user(). Look at referred_by.
+     Call get_referrals(). Use the as_referee list.
+     - referred_by is set and referral exists (not REJECTED for CODE_APPLIED_LATE): the code
+       WAS applied. Tell the customer it is linked and follow RWD-01/RWD-02 for status. Resolve.
+     - No referral in as_referee, or REJECTED with CODE_APPLIED_LATE: code was not applied at signup.
+       -> Policy (DD-09): the referral code must be applied at signup. It cannot be added,
+          changed or back-dated afterwards by support or any team. Resolve with the template.
+  3. If the customer says the code field was missing or the app errored at signup, ask for
+     app version, platform and a screenshot, and log for Tech On-call (P4) as product
+     feedback (app_technical_sop APP-09). The policy answer does not change.
+  4. If the customer asks to close and reopen the account to use the code: explain that a
+     new account for the same person is not allowed (onboarding_sop ONB-07) and would be
+     rejected as SELF_REFERRAL / duplicate. Resolve.
+RESOLUTION:
+  Explain politely that codes can only be applied during signup. No exceptions.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for writing to us. I checked your account, and a referral code was not added when
+  it was created. Referral codes can only be applied at the time of signup, and we are not
+  able to add or change a code afterwards. I'm sorry for the disappointment.
+  You can still earn rewards by referring your own friends - your code is under
+  Profile > Refer and Earn in the app.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Never for the code itself. Signup-screen bug reports -> Tech On-call, P4 (feedback log).
+DO NOT:
+  - Do not promise to "check with the team" whether an exception is possible.
+  - Do not suggest creating a new account.
+
+======================================================================
+## RWD-04: Cashback not credited
+======================================================================
+CUSTOMER MAY SAY:
+  - "I made a trade under the cashback offer but no cashback received"
+  - "Cashback showing pending for 5 days"
+  - "Offer said 10% cashback on first SIP, where is it?"
+  - "Cashback kab aayega? Trade toh kar diya"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone, offer name (or screenshot), date of the qualifying trade/deposit,
+    order ID if available
+TOOLS: get_campaigns, get_orders, get_rewards, get_ledger_entries
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Find the campaign and its rules:
+     Call get_campaigns(reward_type="CASHBACK", name_contains=<offer name>).
+     If the customer gave no offer name: Call get_campaigns(reward_type="CASHBACK", status="ACTIVE").
+     Read rules_summary for: qualifying action, minimum amount, per-user cap, and cashback
+     verification period (sample value: up to 7 days after the qualifying trade).
+  3. Check the qualifying action happened inside the campaign window:
+     Call get_orders(from_time=<campaign start_at>, to_time=<campaign end_at>).
+     - No qualifying FILLED order in the window, or below the minimum in rules_summary:
+       not eligible. Explain the rule that was not met. Resolve.
+     - Order CANCELLED / REJECTED: does not count. Explain. Resolve.
+  4. Check the cashback reward:
+     Call get_rewards(campaign_id=<campaign_id>, reward_type="CASHBACK").
+     - No reward, qualifying order less than 24 hours old (sample value): rewards are created by
+       a daily batch. Ask the customer to check again after 24 hours. Resolve.
+     - No reward, qualifying order older than 24 hours and rules met: escalate (P3).
+     - PENDING: being verified. If within the campaign verification period (sample value:
+       7 days from the qualifying trade), tell the customer the expected date. If older,
+       escalate to Rewards Team (P3).
+     - ELIGIBLE: credit due within 72 hours of becoming eligible (DD-09). Give the date. If
+       more than 72 hours have passed, escalate (P3).
+     - CREDITED: verify:
+       Call get_ledger_entries(entry_type="REWARD",
+                             reference_type="REWARD", reference_id=<reward_id>).
+       -> Present: tell the customer the date and asset. Wrong amount -> RWD-11.
+     - EXPIRED -> RWD-06. REVOKED / ON_HOLD -> RWD-07.
+  5. Check whether the qualifying order was later reversed:
+     Call get_ledger_entries(entry_type="REVERSAL").
+     If there is a REVERSAL entry on that order, the cashback is typically revoked per
+     rules_summary -> RWD-07 generic wording.
+RESOLUTION:
+  State the stage (verifying / confirmed / credited) with a concrete date, or which offer
+  condition was not met.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for checking on your cashback. I looked at your trade on <date> under the
+  <offer name> offer. <one of: "It qualifies, and the cashback is being verified. It will be
+  added to your account by <date> IST." / "The cashback was added on <date> as <amount>
+  <asset>; you can see it under Profile > Rewards." / "Unfortunately it did not qualify
+  because <plain condition, e.g. the order was below the Rs 500 minimum for this offer>.">
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - PENDING beyond the verification period, ELIGIBLE beyond 72 hours, or no row for a clearly
+    qualifying order after 24 hours -> Rewards Team, P3, include: user_id, campaign_id,
+    order_id, rewards_ledger row (or "none"), dates.
+DO NOT:
+  - Do not calculate and promise a cashback amount not shown in rules_summary.
+  - Do not credit cashback for trades outside the campaign window.
+
+======================================================================
+## RWD-05: Coupon code not working
+======================================================================
+CUSTOMER MAY SAY:
+  - "Coupon code ACME500 says invalid"
+  - "The promo code from your email is not applying"
+  - "Code expired message aa raha hai but offer page says valid till month end"
+  - "My friend's coupon code worked for him but not for me"
+  - "Applied coupon, but no benefit showing"
+INFO NEEDED FROM CUSTOMER:
+  - Exact coupon code, where they got it (Acme email/app/partner/social post), screenshot of
+    the error, date/time tried
+TOOLS: get_coupon, get_campaigns, get_rewards
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Look up the code (codes are case-insensitive; normalise to upper case):
+     Call get_coupon(coupon_code=<code>).
+     - Tool says the coupon does not exist: code does not exist. Ask the customer to recheck
+       spelling (O vs 0, I vs 1). If they got it from a non-Acme source, tell them it is not a
+       valid Acme code. Resolve.
+  3. Branch on the coupon's status and fields:
+     - EXPIRED, or valid_until < now(): code has expired. Give the expiry date in IST. Resolve.
+     - EXHAUSTED, or redemptions >= max_redemptions: all uses are taken. Resolve.
+     - ACTIVE and user_id is NOT NULL and user_id != :user_id: this is a user-specific code
+       issued to another account. Do not say whose. Explain it can only be used by the
+       account it was issued to. Resolve.
+     - ACTIVE and user_id = :user_id or NULL: check campaign and user's prior use (step 4).
+  4. Call get_campaigns(campaign_id=<campaign_id>).
+     - Campaign PAUSED or ENDED: offer is not running. -> RWD-09. Resolve.
+     - Rules require something the user lacks (e.g. KYC VERIFIED, first deposit, new users
+       only): explain the condition. Resolve.
+     Check whether this user already redeemed it:
+     Call get_rewards(campaign_id=<campaign_id>, reward_type="COUPON").
+     - Reward exists: already used (one use per user unless rules say otherwise). If status is
+       PENDING/ELIGIBLE, the benefit is on its way (72 hours per DD-09). Resolve.
+  5. Everything valid but the app still rejects it: ask for app version and screenshot and
+     escalate to Tech On-call (P3) with the code and timestamp; also see app_technical_sop APP-03.
+RESOLUTION:
+  Explain in plain words why the code did not apply (expired, fully used, belongs to another
+  account, conditions not met, already used) or escalate a genuine app error.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for letting us know about the code <CODE>. I checked it: <one of: "this offer ended
+  on <date>" / "this code has reached its maximum number of uses" / "this is a personal code
+  that can only be used by the account it was sent to" / "this code is for customers making
+  their first deposit, and your account already has one" / "you have already used this code
+  on <date>">. I'm sorry it didn't work this time. Current offers are always listed under
+  Profile > Rewards in the app.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Code ACTIVE, conditions met, not used, but app shows an error -> Tech On-call, P3,
+    include: user_id, coupon_code, campaign_id, app version, screenshot, time of attempt.
+DO NOT:
+  - Do not reveal which account a user-specific code belongs to.
+  - Do not issue a replacement code; support has no ability to create codes.
+
+======================================================================
+## RWD-06: Reward expired
+======================================================================
+CUSTOMER MAY SAY:
+  - "My reward BTC has disappeared from my wallet"
+  - "Reward expired, I didn't even know it had an expiry"
+  - "Please re-credit my expired cashback"
+  - "Mera Rs 100 ka bitcoin reward kahan gaya?"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone, which reward (referral/cashback/coupon) and approximate date
+TOOLS: get_rewards, get_campaigns, get_ledger_entries, get_notifications
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_rewards().
+     - status EXPIRED and expires_at in the past: the reward expired. Per DD-09 rewards
+       expire 90 days after credit if unused, where the campaign says so. Check rules_summary
+       of the campaign to confirm expiry was part of its terms:
+       Call get_campaigns(campaign_id=<campaign_id>). Go to step 3.
+     - status CREDITED and expires_at in the future: not expired. The reward may be locked
+       until used (see RWD-08) or sold. Check the ledger entries for the reward asset:
+       Call get_ledger_entries(asset=<asset>). Resolve.
+     - status REVOKED / ON_HOLD: -> RWD-07.
+  3. Check whether expiry reminders were sent (sample value: reminder 7 days before expiry):
+     Call get_notifications(). Look at notifications whose template contains
+     "reward_expiry".
+     - Reminders SENT: explain expiry per terms. Resolve; no re-credit.
+     - No reminder or all FAILED: still no re-credit by support, but note it. If the campaign
+       rules_summary does NOT mention expiry, the expiry was an error -> escalate to Rewards
+       Team (P3) for review.
+  4. Confirm the reversal entry exists (for accuracy of what you tell the customer):
+     Call get_ledger_entries(reference_type="REWARD", reference_id=<reward_id>).
+RESOLUTION:
+  Explain the expiry date and rule. Expired rewards are not re-credited unless the Rewards
+  Team finds the expiry was applied against the campaign's own terms.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for reaching out. I checked your <reward type> reward of <amount> <asset> that was
+  added on <credit date>. Under the terms of that offer, rewards had to be used within 90 days,
+  and this one expired on <expiry date> as it had not been used. Expired rewards cannot be
+  re-credited, and I'm sorry for the disappointment.
+  To avoid this in future, you can see each reward's expiry date under Profile > Rewards.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Campaign terms do not include an expiry but the reward was expired -> Rewards Team, P3,
+    include: user_id, reward_id, campaign_id, expires_at, rules_summary text.
+DO NOT:
+  - Do not re-credit or promise a re-credit.
+  - Do not blame the notification provider.
+
+======================================================================
+## RWD-07: Reward REVOKED or ON_HOLD
+======================================================================
+CUSTOMER MAY SAY:
+  - "My referral reward was credited and then taken back"
+  - "Reward shows on hold, why?"
+  - "You cancelled my cashback without any reason"
+  - "Reward revoke kyun kiya? I didn't do anything wrong"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone, which reward and approximate date
+TOOLS: get_rewards, get_risk_holds, get_referrals, get_ledger_entries
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02). If the user's status = FROZEN, stop and
+     follow fraud_risk_sop RSK-01 instead.
+  2. Call get_rewards(status="REVOKED").
+     Call get_rewards(status="ON_HOLD").
+  3. ON_HOLD: check for an active risk hold:
+     Call get_risk_holds(active_only=true).
+     - REWARD_HOLD or any other ACTIVE hold: the reward is under review by Risk & Compliance.
+       -> Use the generic hold template; follow fraud_risk_sop RSK-02 for handling. Support
+          cannot release it. Do NOT read or share reason_code or source.
+     - No active hold but reward ON_HOLD for more than 7 working days (sample value):
+       escalate to Rewards Team (P3).
+  4. REVOKED: look at the internal context only (do not share it):
+     Call get_referrals().
+     Call get_ledger_entries(reference_type=<TRADE or DEPOSIT>,
+                             reference_id=<qualifying trade or deposit id>).
+     - Linked referral REJECTED for SAME_DEVICE / SAME_BANK_ACCOUNT / SELF_REFERRAL /
+       QUALIFYING_TRADE_NOT_MET / CAMPAIGN_ENDED: you may give the matching plain reason from
+       RWD-01 step 6. Resolve.
+     - Qualifying trade or deposit was reversed/refunded (a REVERSAL or REFUND ledger entry on
+       the qualifying reference): you may say "the transaction that qualified for this reward
+       was reversed". Resolve.
+     - FRAUD_SUSPECTED, or eligibility_reason mentions risk/abuse, or a risk hold was returned:
+       use ONLY the generic wording: "after a routine review, this reward did not meet the
+       programme terms". Resolve. Do not escalate on request alone.
+  5. Customer disputes the revocation with specific facts (e.g. "the other account on my
+     phone is my wife's, with her own KYC"): log the facts and escalate to Rewards Team (P4).
+     Do not promise a change.
+RESOLUTION:
+  Give a generic, non-accusatory explanation; for holds, state the review is in progress and
+  the customer will be informed. Never reveal fraud or risk reasons.
+CUSTOMER REPLY TEMPLATE (on hold):
+  Hi <first name>,
+  Thanks for writing in. Your reward of <amount> <asset> is currently on hold as part of a
+  routine review of your account. We are not able to share details of the review, but no
+  action is needed from you right now. If we need anything, we will contact you through the
+  app. We will update you once the review is complete.
+  Best regards,
+  Acme Invest Support
+CUSTOMER REPLY TEMPLATE (revoked, generic):
+  Hi <first name>,
+  Thanks for reaching out, and I understand this is frustrating. After a routine review, the
+  reward from <date> did not meet the terms of the programme, so it was removed from your
+  account. This decision is final for this reward. Your other balances are not affected.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - ON_HOLD with no active risk hold for more than 7 working days (sample value) -> Rewards
+    Team, P3.
+  - Reward hold together with a withdrawal/account hold -> Risk & Compliance via
+    fraud_risk_sop RSK-02 (P2), include: user_id, reward_id, hold_id.
+  - Customer disputes with new facts -> Rewards Team, P4.
+DO NOT:
+  - Never mention fraud, abuse, multiple accounts detection, device matching, risk engine,
+    or law enforcement.
+  - Never promise release of a hold or reversal of a revocation.
+
+======================================================================
+## RWD-08: How to use or withdraw reward crypto
+======================================================================
+CUSTOMER MAY SAY:
+  - "How do I withdraw my referral BTC?"
+  - "Reward is showing but I can't sell it"
+  - "Can I transfer my reward bitcoin to my own wallet?"
+  - "Reward balance use kaise karu?"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone; screenshot of any error
+TOOLS: get_rewards, check_wallet_balance, get_campaigns, get_supported_networks, get_orders, get_withdrawals
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Confirm the reward is credited:
+     Call get_rewards(status="CREDITED").
+     - No CREDITED reward: -> RWD-01 / RWD-02 / RWD-04 as appropriate.
+  3. Check the balance:
+     Call check_wallet_balance(asset=<asset>).
+     - available >= reward amount: the customer can sell it (trade_sop) and then withdraw
+       INR (withdrawal_sop), or withdraw the crypto (crypto_transfers_sop). Explain.
+     - Amount is in locked: some campaigns lock rewards until a condition is met (read
+       rules_summary: Call get_campaigns(campaign_id=<campaign_id>); sample value: rewards may
+       be locked for trading-only use for 30 days). Explain the condition. Resolve.
+  4. Common blockers:
+     - Reward below the minimum order value (Rs 100 for INR pairs, DD-09): the customer must
+       add funds or wait for more rewards to sell it. Explain. Resolve.
+     - Reward below the network's min_withdrawal for crypto withdrawal:
+       Call get_supported_networks(asset=<asset>). Use networks with withdrawals_enabled true.
+       Explain the minimum and fee. Resolve.
+     - Order rejected: Call get_orders(status="REJECTED"). Check reject_reason
+       and follow trade_sop.
+     - Withdrawal ON_HOLD (Call get_withdrawals(status="ON_HOLD")):
+       withdrawal_sop / fraud_risk_sop RSK-02.
+RESOLUTION:
+  Explain the steps: Portfolio > <asset> > Sell, then Withdraw INR; or Withdraw crypto to a
+  whitelisted address. Mention minimums and fees.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for your question. Your reward of <amount> <asset> is in your Acme wallet and works
+  like any other <asset> you hold. You can:
+  - Sell it: Portfolio > <asset> > Sell. The minimum order is Rs 100, and the usual trading
+    fee applies. After selling, you can withdraw INR to your verified bank account.
+  - Withdraw it as crypto to your own wallet, if it is above the minimum withdrawal amount
+    shown on the withdrawal screen.
+  <if locked: "Under the terms of this offer, the reward can be used for trading from
+  <date>.">
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Reward CREDITED but not in wallet_balances -> Rewards Team, P2, include: user_id,
+    reward_id, ledger entry (or none), wallet_balances row.
+DO NOT:
+  - Do not waive minimums or fees.
+
+======================================================================
+## RWD-09: Campaign ended / questions about offer terms
+======================================================================
+CUSTOMER MAY SAY:
+  - "Why did you stop the referral offer? I was about to refer my friends"
+  - "What are the terms of the Diwali cashback offer?"
+  - "Offer ended one day before my friend traded, not fair"
+  - "I saw on Telegram Acme is giving 1000 USDT free, is it true?"
+INFO NEEDED FROM CUSTOMER:
+  - Offer name or screenshot, where they saw it
+TOOLS: get_campaigns, get_referrals, get_rewards
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02) if the question is about their reward.
+     General terms questions can be answered without account lookup.
+  2. Call get_campaigns(name_contains=<offer name>).
+     - No matching campaign: the offer is not an Acme offer. If it asks the customer to send
+       crypto, pay a fee, share an OTP or join a "VIP group", treat it as a scam: warn the
+       customer (support_guidelines_sop SUP-06). If they already sent money -> fraud_risk_sop
+       RSK-05. Resolve.
+     - ACTIVE: summarise rules_summary in plain language. Resolve.
+     - PAUSED: offer temporarily paused; no date for resumption unless stated. Resolve.
+     - ENDED: give end_at in IST. Qualifications after end_at do not earn the reward unless
+       rules_summary says otherwise (e.g. "referrals signed up before end date have 30 days
+       to qualify"). Check the customer's referrals and rewards and apply the rule:
+       Call get_referrals().
+       Call get_rewards(campaign_id=<campaign_id>). Resolve.
+  3. Complaints that the ending was unfair: acknowledge, explain Acme may change or end
+     campaigns as per terms; no exceptions. If the customer escalates further ->
+     complaints_escalation_sop CMP-01.
+RESOLUTION:
+  Plain-language summary of the terms, the end date, and how it applies to the customer.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for asking about the <offer name> offer. <It ran from <start> to <end> / It is
+  running until <end>.> In short: <2-3 bullet summary of rules_summary>.
+  <If ended: "Since your friend's first trade was on <date>, after the offer ended, it was
+  not eligible for this reward.">
+  Please note: Acme Invest only announces offers in the app, on our website and from our
+  official email. We never ask you to pay or send crypto to receive a reward.
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - rules_summary is missing or unclear for the customer's case -> Rewards Team, P4.
+  - Fake offer impersonating Acme is circulating -> Legal, P3, include: screenshot/link.
+DO NOT:
+  - Do not speculate about future campaigns or dates.
+  - Do not honour terms from non-Acme sources.
+
+======================================================================
+## RWD-10: How to refer friends / find my referral code
+======================================================================
+CUSTOMER MAY SAY:
+  - "Where can I find my referral code?"
+  - "How does refer and earn work?"
+  - "Mera referral link kaise share karu?"
+  - "Is there a limit on how many friends I can refer?"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone (only if they want their code sent to them)
+TOOLS: get_user, get_campaigns
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02). Only share the code with a verified
+     sender (SUP-01).
+  2. Call get_user().
+     - kyc_status != 'VERIFIED': referral may require the referrer to be KYC verified
+       (sample value). Point to kyc_sop. Resolve.
+     - referral_code present: share it and the in-app path. Resolve.
+     - referral_code NULL for a VERIFIED ACTIVE user: escalate to Rewards Team (P4).
+  3. Check the current referral campaign for limits:
+     Call get_campaigns(reward_type="REFERRAL", status="ACTIVE").
+     - No ACTIVE referral campaign: tell the customer the programme is not running now. Resolve.
+RESOLUTION:
+  Share the code and explain the rule from DD-09 plus any cap from rules_summary (sample
+  value: up to 20 rewarded referrals per referrer per campaign).
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for wanting to share Acme Invest with your friends! Your referral code is <code>.
+  You can also find it, and a share link, under Profile > Refer and Earn in the app.
+  How it works: your friend must enter your code while signing up. Once they complete KYC
+  and make a first trade of Rs 500 or more within 30 days of signing up, you get Rs 100 in
+  BTC, added within 72 hours. <Cap from rules_summary, if any.>
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Verified user has no referral code -> Rewards Team, P4.
+DO NOT:
+  - Do not share a code with an unverified sender.
+  - Do not encourage posting the code in paid "tips" groups or spamming.
+
+======================================================================
+## RWD-11: Reward credited in the wrong asset or wrong amount
+======================================================================
+CUSTOMER MAY SAY:
+  - "I got Rs 87 worth of BTC, the reward was supposed to be Rs 100"
+  - "Cashback came in USDT instead of INR"
+  - "Reward was 10% but I got much less"
+  - "Paisa kam aaya reward mein"
+INFO NEEDED FROM CUSTOMER:
+  - Registered email/phone, which reward, what they expected and why (screenshot of offer)
+TOOLS: get_rewards, get_campaigns, check_order, get_ledger_entries
+DEBUGGING STEPS:
+  1. Identify the user (support_guidelines_sop SUP-02).
+  2. Call get_rewards(reward_id=<reward_id>) (the reward the customer means).
+     No reward_id from the customer: Call get_rewards() and pick the one they
+     describe (campaign, amount, date).
+     Call get_campaigns(campaign_id=<campaign_id>). Read rules_summary.
+  3. Asset check:
+     - Asset matches rules_summary (e.g. referral in BTC per DD-09): correct. Explain. Resolve.
+     - Asset differs from rules_summary: error -> escalate to Rewards Team (P3).
+  4. Amount check (crypto rewards are fixed in INR value at credit time):
+     - Reward is "Rs 100 in BTC": the BTC quantity was calculated at the price at credit
+       time. The INR value shown today changes with the BTC price. If amount x price at
+       credited_at is about Rs 100, the credit is correct. Explain. Resolve.
+     - Percentage cashback: recompute from the qualifying trade and the cap:
+       Call check_order(order_id=<order_id>). Use the fills (price, quantity, fee).
+       Apply rules_summary (percentage, on which value, cap). If the credit matches, explain
+       the calculation (mention the cap if applied). Resolve.
+     - Credit differs from the correct figure by more than rounding: escalate (P3).
+  5. Confirm the ledger matches the reward:
+     Call get_ledger_entries(entry_type="REWARD",
+                             reference_type="REWARD", reference_id=<reward_id>).
+     - Mismatch between the ledger entry and the reward's amount/asset -> escalate (P2).
+RESOLUTION:
+  Explain the calculation, price movement, or cap; escalate a genuine miscalculation.
+CUSTOMER REPLY TEMPLATE:
+  Hi <first name>,
+  Thanks for checking your reward so carefully. Your reward of Rs 100 in BTC was added on
+  <date> as <quantity> BTC, based on the BTC price at that moment. Because the BTC price
+  moves, the value shown in your portfolio today can be higher or lower than Rs 100.
+  <or: "The offer gives 10% cashback up to a maximum of Rs <cap>, so your cashback was
+  capped at Rs <cap>.">
+  Best regards,
+  Acme Invest Support
+ESCALATE WHEN:
+  - Wrong asset, or amount wrong beyond rounding -> Rewards Team, P3, include: user_id,
+    reward_id, campaign_id, expected vs actual, calculation.
+  - ledger_entries does not match rewards_ledger -> Rewards Team, P2.
+DO NOT:
+  - Do not promise a top-up of the difference.
+  - Do not quote live prices as a guarantee.
