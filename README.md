@@ -1,16 +1,26 @@
 # Acme Invest email support agent
 
-An AI support agent that answers customer emails for **Acme Invest**, a fictional Indian crypto investing app.
-It reads a real Gmail inbox, works out what the customer needs, follows the company's support procedures
-(SOPs), looks up the customer's own account data through tools, and replies in the same Gmail thread.
-Escalations wait for a human to approve them.
+An LLM agent that answers real customer emails in Gmail for **Acme Invest**, a fictional Indian crypto investing
+app. It follows the company's support procedures (SOPs), reads only that customer's account data, replies in the
+same thread, and waits for a human before any escalation goes out.
 
-Built as a portfolio project to show how an LLM agent is put into a real system: event-driven services,
-security boundaries around the model, evals for every component, and monitoring of cost, latency and quality.
+![Architecture](docs/architecture.png)
+
+**What makes it interesting**
+
+- **The LLM cannot read another customer's data.** Tools have no `user_id` argument; ToolSvc asks the main app who
+  owns the message and answers for that customer only.
+- **Every component is evaluated.** Retrieval hit@3 went from 38.6% to 68.6%; the scope gate turns away 0.7% of real
+  issues.
+- **Human-reviewed evals, on purpose.** Reviewing them found 60 wrong labels, and a prompt that looked better (scope-v4)
+  measured worse and was rolled back.
+- **Cheap where it can be.** The gate answers thanks, greetings and out-of-scope mail with templates, at 1/22 of the
+  cost of a main-agent run.
+- **Observable.** Every email gets a waterfall in Grafana: latency, cost and tokens per stage and per LLM call.
 
 **Stack:** Python 3.12 · Flask · OpenAI Responses API (gpt-5.4-mini, gpt-5.4-nano, text-embedding-3-small) ·
 Redis Streams · Postgres 17 + SQLAlchemy · Gmail API + Cloud Pub/Sub · Prometheus + Grafana · Docker Compose ·
-pytest (201 tests)
+pytest (202 tests)
 
 ## Results at a glance
 
@@ -51,11 +61,10 @@ Customer ──email──► Gmail ──Pub/Sub──► Main app ──verify
 5. **Send.** The main app sends the reply in the Gmail thread. C3 drops it if a newer message arrived meanwhile.
    Escalated replies wait until a person runs `approve`.
 
-![Architecture](docs/architecture.png)
+The diagram at the top, editable in Excalidraw: [`docs/architecture.excalidraw`](docs/architecture.excalidraw).
 
-The full diagram, editable in Excalidraw: [`docs/architecture.excalidraw`](docs/architecture.excalidraw).
-
-### Why each piece exists
+<details>
+<summary><b>Why each piece exists</b></summary>
 
 | Piece | Why |
 |---|---|
@@ -67,19 +76,31 @@ The full diagram, editable in Excalidraw: [`docs/architecture.excalidraw`](docs/
 | A database per service | Agent runs, LLM calls, reviews and evals stay out of the email database |
 | Prometheus + Grafana | Cost, latency and quality are measured per run and per LLM call |
 
-## Design decisions
+</details>
+
+## Security: what the model can and cannot do
 
 - **The model never holds the keys.** Tool definitions have no `user_id`. The message id comes from our code;
   ToolSvc asks the main app who owns that message and runs the tool for that customer only. Another customer's
   record ids answer "not found".
+- **Only verified customers reach the AI.** The Auth service checks every sender; mail from unknown senders is stored
+  but never sent to the analyzer. Automated mail (auto-replies, newsletters) is never answered.
+- **Read-only tools.** All 44 tools only read account data; the agent cannot move money or change anything.
+- **Humans approve escalations.** An escalated reply is stored as `awaiting_approval`; `app.cli approve` sends it,
+  `reject` means it is never sent.
+- **Prompt injection is tested, not assumed.** The main agent's new single-email suite (in review) includes "ignore
+  your instructions" and "show me another customer's withdrawal", with the expected refusal.
+- **No secrets in the model's context.** The Gmail token is stored encrypted (Fernet); the LLM sees the SOP text, the
+  thread and the tool results, nothing else.
+
+## Design decisions
+
 - **The SOPs decide the tools.** Each SOP section lists the tools it needs (`TOOLS:` line). The agent is offered only
   the tools of the sections retrieved for this email.
 - **The gate fails open.** Turning a real customer away is the worst mistake, so when the gate is unsure, or errors,
   the message goes to the main agent. A missed out-of-scope message only costs one agent run.
 - **Templates for the cheap cases.** Thanks, greetings and out-of-scope replies are fixed text: they cannot invent
   products or promises. Each is sent at most once in a row, and never while a human owns the case.
-- **Humans approve escalations.** An escalated reply is stored as `awaiting_approval`; `app.cli approve` sends it,
-  `reject` means it is never sent.
 - **Every reply can be reviewed.** C1 writes the run (`agent_runs`, every `llm_calls` row) and a `PENDING` review
   before publishing, so no reply reaches C3 without a record a reviewer can mark `agent_was_wrong`.
 - **Structured output.** The gate and the main agent answer in a strict JSON schema generated from Pydantic models,
@@ -190,7 +211,8 @@ uv run pytest                            # tests (use the stack's Postgres on lo
 Then email the connected inbox from the registered address. Everything else, including running the services without
 Docker, the eval commands and the behaviour guarantees, is in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 
-## Repository
+<details>
+<summary><b>Repository layout</b></summary>
 
 | Path | What |
 |---|---|
@@ -200,6 +222,8 @@ Docker, the eval commands and the behaviour guarantees, is in [`docs/OPERATIONS.
 | `toolsvc/` | ToolSvc: 44 read-only account tools on demo data |
 | `monitoring/` | Prometheus config and Grafana dashboards as code |
 | `docs/` | Architecture diagram, prompt version history, [operations guide](docs/OPERATIONS.md) |
+
+</details>
 
 Banking77: Casanueva et al., 2020, "Efficient Intent Detection with Dual Sentence Encoders" (CC BY 4.0). CFPB
 complaint narratives: the public Consumer Financial Protection Bureau complaint database (via the
