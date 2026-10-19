@@ -20,6 +20,7 @@ pytest (201 tests)
 | Scope gate | 593 cases: does each message reach the main agent or a template? | **0.7%** of real issues turned away (3 of 411); 96.9% precision when it says "out of scope" |
 | Main agent | Real follow-up threads (agent-v1 → v2) | Re-answering "thanks" fixed; tokens per case **18.2k → 8.7k**, p50 **21 s → 4.1 s** |
 | Whole system | Estimated cost on the eval mix of messages | about **$5.30 per 1,000 messages**; the gate costs $0.41 of that |
+| Live traffic | Real emails through the running stack (first runs) | template route **3.0 s, $0.0003**; main-agent route **9.7 s, $0.0076** per email |
 
 ## How it works
 
@@ -112,6 +113,8 @@ versions side by side.
 | Hybrid (RRF) | 26.9% | 46.0% | 0.400 | 242 ms |
 | **Hybrid + LLM reranker** (rerank-v2) | **54.2%** | **68.6%** | **0.625** | 1.6 s |
 
+![Retrieval quality and latency by system](docs/images/evals_retrieval.png)
+
 ![Orchestrator and gate evals](docs/images/evals_orchestrator.png)
 
 ![Scope gate versions compared](docs/images/evals_gate.png)
@@ -120,6 +123,27 @@ How to run each eval: [`ai_analyzer/agent/evals/README.md`](ai_analyzer/agent/ev
 [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 
 ## Monitoring
+
+### Live cost and latency, per orchestrator route
+
+Measured on real emails through the running stack (the first live runs; each run's numbers come from its own
+`llm_calls` rows):
+
+| Route | Runs | Latency (avg, min–max) | Cost per email | LLM turns | Tool calls |
+|---|---|---|---|---|---|
+| Gate → template (thanks, greeting, out of scope) | 3 | 3.0 s (2.4–4.1 s) | $0.00034 | 0 | 0 |
+| Gate → main agent | 3 | 9.7 s (5.7–12.5 s) | $0.0076 | 2.0 | 1.0 |
+
+A message the gate answers with a template costs about 1/22 of one the main agent handles. In a main-agent run,
+the gate plus retrieval (embedding and LLM rerank) took 35-70% of the time and the agent's LLM turns the rest;
+the tool calls themselves take milliseconds.
+
+One run, step by step (run #12, "Where are my btc"): latency and cost per stage, a waterfall of every step, and
+the tokens of every LLM call.
+
+![One orchestrator run: latency, cost, waterfall, tokens](docs/images/live_run.png)
+
+### Dashboards
 
 Two Grafana dashboards, provisioned as code from `monitoring/`:
 
